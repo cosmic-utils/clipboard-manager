@@ -1,0 +1,25 @@
+
+
+connection = wl_connect
+
+
+registry = new registry
+registry.wl_display = connection
+
+registry_init(registry)
+
+
+// wait for globals to appear ?
+wl_display_roundtrip(connection)
+
+
+seat = registry_find_seat(registry, "seat name")
+
+device_manager = registry_find_device_manager(registry, PRIMARY)
+
+device = device_manager_get_device(device_manager, seat)
+
+device.selection_callback = cb
+
+
+wl_display_dispatch(connection)

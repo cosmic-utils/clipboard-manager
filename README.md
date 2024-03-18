@@ -14,3 +14,6 @@ get keyboard data
 
 protocol
 https://wayland.app/protocols/wlr-data-control-unstable-v1
+
+
+https://github.com/bugaevc/wl-clipboard/tree/master/src
