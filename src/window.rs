@@ -5,6 +5,7 @@ use cosmic::iced::window::Id;
 use cosmic::iced::{Command, Limits};
 
 use cosmic::iced_futures::Subscription;
+use cosmic::iced_runtime::command::Action;
 use cosmic::iced_runtime::core::window;
 use cosmic::iced_style::application;
 use cosmic::widget::{button, text};
@@ -60,7 +61,14 @@ impl cosmic::Application for Window {
             config_handler: flags.config_handler,
             popup: None,
         };
-        (window, Command::none())
+
+        let command = Command::single(Action::Future(Box::pin(async {
+            cosmic::app::Message::App(Message::TogglePopup)
+            
+        })));
+        
+     
+        (window, command)
     }
 
     fn on_close_requested(&self, id: window::Id) -> Option<Message> {
