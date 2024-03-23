@@ -8,7 +8,8 @@ use cosmic::iced_futures::Subscription;
 use cosmic::iced_runtime::command::Action;
 use cosmic::iced_runtime::core::window;
 use cosmic::iced_style::application;
-use cosmic::widget::{button, text};
+use cosmic::iced_widget::Column;
+use cosmic::widget::{button, text, text_input};
 
 use cosmic::{Element, Theme};
 
@@ -22,6 +23,7 @@ pub struct Window {
     config: Config,
     config_handler: Option<cosmic_config::Config>,
     popup: Option<Id>,
+    query: String,
 }
 
 #[derive(Clone, Debug)]
@@ -29,6 +31,7 @@ pub enum Message {
     Config(Config),
     TogglePopup,
     PopupClosed(Id),
+    Query(String),
 }
 
 #[derive(Clone, Debug)]
@@ -60,12 +63,16 @@ impl cosmic::Application for Window {
             config: flags.config,
             config_handler: flags.config_handler,
             popup: None,
+            query: "".to_string(),
         };
 
+        /*
         let command = Command::single(Action::Future(Box::pin(async {
             cosmic::app::Message::App(Message::TogglePopup)
             
         })));
+         */
+        let command = Command::none();
         
      
         (window, command)
@@ -127,19 +134,39 @@ impl cosmic::Application for Window {
                     self.popup = None;
                 }
             }
+            Message::Query(query) => {
+                self.query = query;
+            },
         }
         Command::none()
     }
 
     fn view(&self) -> Element<Self::Message> {
-        button(text("Applications").size(14.0))
+        button(text("Clipboard Manager").size(14.0))
             .style(cosmic::theme::Button::AppletIcon)
             .on_press(Message::TogglePopup)
             .into()
     }
 
     fn view_window(&self, _id: Id) -> Element<Self::Message> {
-        let content = text("hello");
+        
+
+        let text_intput = text_input("value", &self.query)
+            .on_clear(Message::Query("".to_string()))
+            .on_input(|text| Message::Query(text));
+        
+        let values_text = DATA.map(|data| {
+            text(data).into()
+        });
+
+        let values = Column::with_children(values_text);
+        
+        let content_list = vec![
+            text_intput.into(),
+            values.into()
+        ];
+
+        let content = Column::with_children(content_list);
 
         self.core.applet.popup_container(content).into()
     }
@@ -168,3 +195,6 @@ impl cosmic::Application for Window {
         Some(cosmic::applet::style())
     }
 }
+
+
+static DATA: [&str; 2] = ["hello", "world"];
