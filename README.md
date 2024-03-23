@@ -17,3 +17,12 @@ https://wayland.app/protocols/wlr-data-control-unstable-v1
 
 
 https://github.com/bugaevc/wl-clipboard/tree/master/src
+
+
+
+
+deps:
+
+```
+sudo dnf install libxkbcommon-devel -y
+```
