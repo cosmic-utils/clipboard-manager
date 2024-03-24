@@ -26,6 +26,7 @@ bincode = "1.0"
 indexmap = "2.2"
 derivative = "2.2"
 derive-getters = "0.3"
+os_pipe = "1.1.5"
 
 [dependencies.libcosmic]
 git = "https://github.com/pop-os/libcosmic"

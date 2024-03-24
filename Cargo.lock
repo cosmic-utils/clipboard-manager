@@ -927,6 +927,7 @@ dependencies = [
  "libcosmic",
  "log",
  "once_cell",
+ "os_pipe",
  "rust-embed",
  "serde",
  "sled",
