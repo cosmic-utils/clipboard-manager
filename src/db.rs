@@ -85,8 +85,9 @@ impl Db {
                         creation: key.0,
                     };
 
-                    if !state.insert(value) {
-                        error!("already exist");
+                    // todo: remove this clone
+                    if !state.insert(value.clone()) {
+                        panic!("already exist: {}", value);
                     }
                 }
                 Err(e) => {
@@ -110,15 +111,29 @@ impl Db {
     }
 
     pub fn insert(&mut self, data: Data) -> Result<(), sled::Error> {
-        let key = KeyDb(data.creation);
+        
 
-        if !self.state.insert(data.clone()) {
-            // already exist
+        if let Some(prev_data) = self.state.get(&data) {
+            debug!("already present");
+            
+            let prev_key = KeyDb(prev_data.creation);
 
-            if (self.handle.remove(key.clone())?).is_none() {
+            if !self.state.shift_remove(&data) {
+                panic!("");
+            }
+
+
+            if self.handle.remove(&prev_key)?.is_none() {
                 log::warn!("there was no entry found in the database");
+                panic!();
             }
         }
+
+        if !self.state.insert(data.clone()) {
+            panic!();
+        }
+
+        let key = KeyDb(data.creation);
 
         let data_db = DataDb {
             mime: data.mime,
@@ -137,10 +152,12 @@ impl Db {
     pub fn delete(&mut self, data: &Data) -> Result<(), sled::Error> {
         if !self.state.shift_remove(data) {
             log::warn!("delete: no entry to remove in state");
+            panic!();
         }
 
         if (self.handle.remove(KeyDb(data.creation))?).is_none() {
             log::warn!("delete: no entry to remove in db");
+            panic!();
         }
 
         Ok(())
@@ -159,7 +176,7 @@ impl AsRef<[u8]> for KeyDb {
 
 
 mod test {
-    use super::Db;
+    use super::{Data, Db};
 
 
 
@@ -168,5 +185,50 @@ mod test {
         let mut db = Db::new().unwrap();
 
         db.clear().unwrap();
+    }
+
+    #[test]
+    fn test() {
+
+        env_logger::Builder::new().filter_level(log::LevelFilter::Info).init();
+        let mut db = Db::new().unwrap();
+
+        db.clear().unwrap();
+
+        let data1 = Data::new("text".into(), "value1".into());
+
+        db.insert(data1.clone()).unwrap();
+
+
+        db.insert(data1.clone()).unwrap();
+
+        assert!(db.state.len() == 1);
+
+        let data2 = Data::new("text".into(), "value2".into());
+
+
+        db.insert(data2.clone()).unwrap();
+
+
+        assert!(db.state.len() == 2);
+
+        let mut iter = db.state.iter().rev();
+
+        assert!(iter.next().unwrap() == &data2);
+        assert!(iter.next().unwrap() == &data1);
+
+        let new_data1 = Data::new("text".into(), "value1".into());
+
+        db.insert(new_data1.clone()).unwrap();
+
+
+        assert!(db.state.len() == 2);
+        
+
+        let mut iter = db.state.iter().rev();
+
+        assert!(iter.next().unwrap() == &new_data1);
+        assert!(iter.next().unwrap() == &data2);
+
     }
 }
