@@ -43,6 +43,12 @@ pub struct Db {
     state: IndexSet<Data>,
 }
 
+impl Db {
+    pub fn iter(&self) -> impl Iterator<Item = &Data>  {
+        self.state.iter()
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct KeyDb(u128);
 

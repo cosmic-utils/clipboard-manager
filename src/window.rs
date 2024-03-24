@@ -11,9 +11,11 @@ use cosmic::iced_style::application;
 use cosmic::iced_widget::Column;
 use cosmic::widget::{button, text, text_input};
 
-use cosmic::{Element, Theme};
+use cosmic::{Theme, Element};
 
+use crate::clipboard;
 use crate::config::{Config, CONFIG_VERSION};
+use crate::db::{self, Data, Db};
 use cosmic::cosmic_config;
 
 pub const APP_ID: &str = "com.wiiznokes.CosmicClipboardManager";
@@ -24,6 +26,8 @@ pub struct Window {
     config_handler: Option<cosmic_config::Config>,
     popup: Option<Id>,
     query: String,
+
+    db: Db,
 }
 
 #[derive(Clone, Debug)]
@@ -32,6 +36,7 @@ pub enum Message {
     TogglePopup,
     PopupClosed(Id),
     Query(String),
+    ClipBoardEvent(Data),
 }
 
 #[derive(Clone, Debug)]
@@ -64,6 +69,7 @@ impl cosmic::Application for Window {
             config_handler: flags.config_handler,
             popup: None,
             query: "".to_string(),
+            db: db::Db::new().unwrap(),
         };
 
         let command = Command::single(Action::Future(Box::pin(async {
@@ -134,6 +140,9 @@ impl cosmic::Application for Window {
             Message::Query(query) => {
                 self.query = query;
             }
+            Message::ClipBoardEvent(data) => {
+                self.db.insert(data).unwrap();
+            },
         }
         Command::none()
     }
@@ -145,12 +154,14 @@ impl cosmic::Application for Window {
             .into()
     }
 
+
     fn view_window(&self, _id: Id) -> Element<Self::Message> {
         let text_intput = text_input("value", &self.query)
             .on_clear(Message::Query("".to_string()))
             .on_input(Message::Query);
 
-        let values_text = DATA.map(|data| text(data).into());
+
+        let values_text = self.db.iter().map(|data| view_item(data));
 
         let values = Column::with_children(values_text);
 
@@ -178,7 +189,13 @@ impl cosmic::Application for Window {
             Message::Config(update.config)
         });
 
-        Subscription::batch(vec![config])
+        let clipboard = clipboard::sub()
+            .map(Message::ClipBoardEvent);
+
+        Subscription::batch(vec![
+            config,
+            clipboard
+        ])
     }
 
     fn style(&self) -> Option<<Theme as application::StyleSheet>::Style> {
@@ -186,4 +203,8 @@ impl cosmic::Application for Window {
     }
 }
 
-static DATA: [&str; 2] = ["hello", "world"];
+
+
+fn view_item(data: &Data) -> Element<Message> {
+    text(data.value()).into()
+}

@@ -13,6 +13,7 @@ mod clipboard;
 mod config;
 mod localize;
 mod window;
+mod db;
 
 #[allow(unused_imports)]
 #[macro_use]
@@ -41,8 +42,6 @@ fn main() -> cosmic::iced::Result {
     localize::localize();
 
     setup_logs();
-
-    watch_keyboard();
 
     let (config_handler, config) = match cosmic_config::Config::new(window::APP_ID, CONFIG_VERSION)
     {
