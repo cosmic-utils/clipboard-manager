@@ -2,7 +2,6 @@
 #![allow(unused_macros)]
 #![allow(unused_imports)]
 
-use clipboard::watch_keyboard;
 use config::{Config, CONFIG_VERSION};
 use cosmic::cosmic_config;
 use cosmic::cosmic_config::CosmicConfigEntry;
@@ -11,9 +10,9 @@ use window::{Flags, Window};
 
 mod clipboard;
 mod config;
+mod db;
 mod localize;
 mod window;
-mod db;
 
 #[allow(unused_imports)]
 #[macro_use]

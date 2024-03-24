@@ -1,4 +1,7 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    fmt::Display,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use indexmap::IndexSet;
 use serde::{Deserialize, Serialize};
@@ -24,6 +27,12 @@ pub struct Data {
     value: String,
 }
 
+impl Display for Data {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.value)
+    }
+}
+
 impl Data {
     pub fn new(mime: String, value: String) -> Self {
         let since_the_epoch = SystemTime::now()
@@ -44,7 +53,7 @@ pub struct Db {
 }
 
 impl Db {
-    pub fn iter(&self) -> impl Iterator<Item = &Data>  {
+    pub fn iter(&self) -> indexmap::set::Iter<'_, Data> {
         self.state.iter()
     }
 }
@@ -64,7 +73,7 @@ impl Db {
 
         let mut state = IndexSet::new();
 
-        for e in db_handle.iter().rev() {
+        for e in db_handle.iter() {
             match e {
                 Ok((key, value)) => {
                     let key = bincode::deserialize::<KeyDb>(&key).expect("key");
@@ -77,7 +86,7 @@ impl Db {
                     };
 
                     if !state.insert(value) {
-                        panic!("already exist");
+                        error!("already exist");
                     }
                 }
                 Err(e) => {
@@ -144,5 +153,20 @@ impl AsRef<[u8]> for KeyDb {
         // We can use `std::slice::from_raw_parts` to create a slice from the u128 value
         // This is done by casting the reference to a pointer and then creating a slice from it
         unsafe { std::slice::from_raw_parts(self as *const Self as *const u8, size) }
+    }
+}
+
+
+
+mod test {
+    use super::Db;
+
+
+
+    #[test]
+    fn clear() {
+        let mut db = Db::new().unwrap();
+
+        db.clear().unwrap();
     }
 }

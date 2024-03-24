@@ -11,7 +11,7 @@ use cosmic::iced_style::application;
 use cosmic::iced_widget::Column;
 use cosmic::widget::{button, text, text_input};
 
-use cosmic::{Theme, Element};
+use cosmic::{Element, Theme};
 
 use crate::clipboard;
 use crate::config::{Config, CONFIG_VERSION};
@@ -115,8 +115,9 @@ impl cosmic::Application for Window {
                 }
             }
             Message::TogglePopup => {
-                return if let Some(p) = self.popup.take() {
-                    destroy_popup(p)
+                return if let Some(_p) = self.popup.take() {
+                    // destroy_popup(p)
+                    Command::none()
                 } else {
                     let new_id = Id::unique();
                     self.popup.replace(new_id);
@@ -130,7 +131,7 @@ impl cosmic::Application for Window {
                         .min_height(200.0)
                         .max_height(1080.0);
                     get_popup(popup_settings)
-                }
+                };
             }
             Message::PopupClosed(id) => {
                 if self.popup.as_ref() == Some(&id) {
@@ -141,8 +142,9 @@ impl cosmic::Application for Window {
                 self.query = query;
             }
             Message::ClipBoardEvent(data) => {
+                info!("{data}");
                 self.db.insert(data).unwrap();
-            },
+            }
         }
         Command::none()
     }
@@ -154,14 +156,23 @@ impl cosmic::Application for Window {
             .into()
     }
 
-
     fn view_window(&self, _id: Id) -> Element<Self::Message> {
         let text_intput = text_input("value", &self.query)
             .on_clear(Message::Query("".to_string()))
             .on_input(Message::Query);
 
+        fn view_item(data: &Data) -> Element<Message> {
+            text(data.value()).into()
+        }
 
-        let values_text = self.db.iter().map(|data| view_item(data));
+        let values_text = self
+            .db
+            .iter()
+            .rev()
+            .inspect(|e| {
+                println!("{e}");
+            })
+            .map(|data| view_item(data));
 
         let values = Column::with_children(values_text);
 
@@ -189,22 +200,15 @@ impl cosmic::Application for Window {
             Message::Config(update.config)
         });
 
-        let clipboard = clipboard::sub()
-            .map(Message::ClipBoardEvent);
+        let clipboard = clipboard::sub().map(|e| {
+            //info!("sub received {e:?}");
+            Message::ClipBoardEvent(e)
+        });
 
-        Subscription::batch(vec![
-            config,
-            clipboard
-        ])
+        Subscription::batch(vec![config, clipboard])
     }
 
     fn style(&self) -> Option<<Theme as application::StyleSheet>::Style> {
         Some(cosmic::applet::style())
     }
-}
-
-
-
-fn view_item(data: &Data) -> Element<Message> {
-    text(data.value()).into()
 }
