@@ -2,18 +2,50 @@
 #![allow(unused_macros)]
 #![allow(unused_imports)]
 
+use clipboard::watch_keyboard;
 use config::{Config, CONFIG_VERSION};
 use cosmic::cosmic_config;
 use cosmic::cosmic_config::CosmicConfigEntry;
+use log::LevelFilter;
 use window::{Flags, Window};
 
 mod config;
 mod localize;
 mod window;
+mod clipboard;
+
+#[allow(unused_imports)]
+#[macro_use]
+extern crate log;
+
+
+fn setup_logs() {
+    let mut builder = env_logger::builder();
+
+    fn filter_workspace_crates(
+        builder: &mut env_logger::Builder,
+        level_filter: LevelFilter,
+    ) -> &mut env_logger::Builder {
+        // allow other crate to show warn level of error
+        builder.filter_level(LevelFilter::Warn);
+        builder.filter_module("wl_clipboard_rs", level_filter);
+        builder.filter_module(env!("CARGO_CRATE_NAME"), level_filter);
+        builder
+    }
+
+    filter_workspace_crates(&mut builder, LevelFilter::Debug);
+
+   
+    builder.init();
+}
 
 fn main() -> cosmic::iced::Result {
     localize::localize();
-    env_logger::init();
+
+ 
+    setup_logs();
+
+    watch_keyboard();
 
     let (config_handler, config) = match cosmic_config::Config::new(window::APP_ID, CONFIG_VERSION)
     {

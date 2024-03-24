@@ -9,12 +9,12 @@ edition = "2021"
 serde = "1.0"
 env_logger = "0.11"
 log = "0.4"
-tokio = "1.36.0"
-once_cell = "1.19.0"
+tokio = "1.36"
+once_cell = "1.19"
 
 i18n-embed = { version = "0.14.1", features = ["fluent-system", "desktop-requester"] }
-i18n-embed-fl = "0.8.0"
-rust-embed = "8.3.0"
+i18n-embed-fl = "0.8"
+rust-embed = "8.3"
 
 [dependencies.libcosmic]
 git = "https://github.com/pop-os/libcosmic"
@@ -25,3 +25,9 @@ features = [
     "wayland",
     "desktop"
 ] 
+
+
+
+[dependencies.wl-clipboard-rs]
+path = "./../wl-clipboard-rs"
+#version = "0.8"

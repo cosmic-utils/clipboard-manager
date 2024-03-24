@@ -66,15 +66,14 @@ impl cosmic::Application for Window {
             query: "".to_string(),
         };
 
-        /*
+        
         let command = Command::single(Action::Future(Box::pin(async {
             cosmic::app::Message::App(Message::TogglePopup)
-            
+
         })));
-         */
-        let command = Command::none();
-        
-     
+         
+        //let command = Command::none();
+
         (window, command)
     }
 
@@ -136,7 +135,7 @@ impl cosmic::Application for Window {
             }
             Message::Query(query) => {
                 self.query = query;
-            },
+            }
         }
         Command::none()
     }
@@ -149,22 +148,15 @@ impl cosmic::Application for Window {
     }
 
     fn view_window(&self, _id: Id) -> Element<Self::Message> {
-        
-
         let text_intput = text_input("value", &self.query)
             .on_clear(Message::Query("".to_string()))
             .on_input(|text| Message::Query(text));
-        
-        let values_text = DATA.map(|data| {
-            text(data).into()
-        });
+
+        let values_text = DATA.map(|data| text(data).into());
 
         let values = Column::with_children(values_text);
-        
-        let content_list = vec![
-            text_intput.into(),
-            values.into()
-        ];
+
+        let content_list = vec![text_intput.into(), values.into()];
 
         let content = Column::with_children(content_list);
 
@@ -195,6 +187,5 @@ impl cosmic::Application for Window {
         Some(cosmic::applet::style())
     }
 }
-
 
 static DATA: [&str; 2] = ["hello", "world"];

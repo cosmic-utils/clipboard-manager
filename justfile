@@ -4,8 +4,14 @@ install target='debug': build
 	sudo install -Dm0755 ./target/{{target}}/cosmic-clipboard-manager /usr/bin/cosmic-clipboard-manager
 	sudo install -Dm0644 resources/com.wiiznokes.CosmicClipboardManager.desktop /usr/share/applications/com.wiiznokes.CosmicClipboardManager.desktop
 
-build:
-	cargo build
+build target='':
+	{{if target == "release" { \
+		"cargo build --release" \
+	} else { \
+		"cargo build" \
+	} }}
+
+
 
 ###################  Test
 
