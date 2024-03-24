@@ -12,6 +12,7 @@ mod clipboard;
 mod config;
 mod db;
 mod localize;
+mod view;
 mod window;
 
 #[allow(unused_imports)]

@@ -1,4 +1,7 @@
 
+build:
+	clear
+	cargo build
 
 install target='debug':
 	sudo install -Dm0755 ./target/{{target}}/cosmic-clipboard-manager /usr/bin/cosmic-clipboard-manager

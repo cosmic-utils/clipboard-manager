@@ -16,6 +16,7 @@ use cosmic::{Element, Theme};
 use crate::clipboard;
 use crate::config::{Config, CONFIG_VERSION};
 use crate::db::{self, Data, Db};
+use crate::view::windows_view;
 use cosmic::cosmic_config;
 
 pub const APP_ID: &str = "com.wiiznokes.CosmicClipboardManager";
@@ -25,8 +26,8 @@ pub struct Window {
     config: Config,
     config_handler: Option<cosmic_config::Config>,
     popup: Option<Id>,
-    query: String,
 
+    query: String,
     db: Db,
 }
 
@@ -37,6 +38,9 @@ pub enum Message {
     PopupClosed(Id),
     Query(String),
     ClipBoardEvent(Data),
+    OnClick(Data),
+    Delete(Data),
+    Clear,
 }
 
 #[derive(Clone, Debug)]
@@ -115,9 +119,10 @@ impl cosmic::Application for Window {
                 }
             }
             Message::TogglePopup => {
-                return if let Some(_p) = self.popup.take() {
-                    // destroy_popup(p)
-                    Command::none()
+                info!("TogglePopup");
+
+                return if let Some(p) = self.popup.take() {
+                    destroy_popup(p)
                 } else {
                     let new_id = Id::unique();
                     self.popup.replace(new_id);
@@ -129,11 +134,12 @@ impl cosmic::Application for Window {
                         .max_width(500.0)
                         .min_width(300.0)
                         .min_height(200.0)
-                        .max_height(1080.0);
+                        .max_height(550.0);
                     get_popup(popup_settings)
                 };
             }
             Message::PopupClosed(id) => {
+                info!("PopupClosed: {id:?}");
                 if self.popup.as_ref() == Some(&id) {
                     self.popup = None;
                 }
@@ -142,8 +148,22 @@ impl cosmic::Application for Window {
                 self.query = query;
             }
             Message::ClipBoardEvent(data) => {
-                info!("{data}");
-                self.db.insert(data).unwrap();
+                if let Err(e) = self.db.insert(data) {
+                    error!("can't insert data: {e}");
+                }
+            }
+            Message::OnClick(_data) => {
+                // todo
+            }
+            Message::Delete(data) => {
+                if let Err(e) = self.db.delete(&data) {
+                    error!("can't delete {data}: {e}");
+                }
+            }
+            Message::Clear => {
+                if let Err(e) = self.db.clear() {
+                    error!("can't clear db: {e}");
+                }
             }
         }
         Command::none()
@@ -157,29 +177,9 @@ impl cosmic::Application for Window {
     }
 
     fn view_window(&self, _id: Id) -> Element<Self::Message> {
-        let text_intput = text_input("value", &self.query)
-            .on_clear(Message::Query("".to_string()))
-            .on_input(Message::Query);
+        let entries = self.db.iter().rev();
 
-        fn view_item(data: &Data) -> Element<Message> {
-            text(data.value()).into()
-        }
-
-        let values_text = self
-            .db
-            .iter()
-            .rev()
-            .inspect(|e| {
-                println!("{e}");
-            })
-            .map(|data| view_item(data));
-
-        let values = Column::with_children(values_text);
-
-        let content_list = vec![text_intput.into(), values.into()];
-
-        let content = Column::with_children(content_list);
-
+        let content = windows_view(&self.query, entries);
         self.core.applet.popup_container(content).into()
     }
     fn subscription(&self) -> Subscription<Self::Message> {
@@ -200,10 +200,7 @@ impl cosmic::Application for Window {
             Message::Config(update.config)
         });
 
-        let clipboard = clipboard::sub().map(|e| {
-            //info!("sub received {e:?}");
-            Message::ClipBoardEvent(e)
-        });
+        let clipboard = clipboard::sub().map(Message::ClipBoardEvent);
 
         Subscription::batch(vec![config, clipboard])
     }

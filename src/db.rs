@@ -111,19 +111,16 @@ impl Db {
     }
 
     pub fn insert(&mut self, data: Data) -> Result<(), sled::Error> {
-        
-
         if let Some(prev_data) = self.state.get(&data) {
             debug!("already present");
-            
+
             let prev_key = KeyDb(prev_data.creation);
 
             if !self.state.shift_remove(&data) {
                 panic!("");
             }
 
-
-            if self.handle.remove(&prev_key)?.is_none() {
+            if self.handle.remove(prev_key)?.is_none() {
                 log::warn!("there was no entry found in the database");
                 panic!();
             }
@@ -173,12 +170,8 @@ impl AsRef<[u8]> for KeyDb {
     }
 }
 
-
-
 mod test {
     use super::{Data, Db};
-
-
 
     #[test]
     fn clear() {
@@ -189,8 +182,9 @@ mod test {
 
     #[test]
     fn test() {
-
-        env_logger::Builder::new().filter_level(log::LevelFilter::Info).init();
+        env_logger::Builder::new()
+            .filter_level(log::LevelFilter::Info)
+            .init();
         let mut db = Db::new().unwrap();
 
         db.clear().unwrap();
@@ -199,16 +193,13 @@ mod test {
 
         db.insert(data1.clone()).unwrap();
 
-
         db.insert(data1.clone()).unwrap();
 
         assert!(db.state.len() == 1);
 
         let data2 = Data::new("text".into(), "value2".into());
 
-
         db.insert(data2.clone()).unwrap();
-
 
         assert!(db.state.len() == 2);
 
@@ -221,14 +212,11 @@ mod test {
 
         db.insert(new_data1.clone()).unwrap();
 
-
         assert!(db.state.len() == 2);
-        
 
         let mut iter = db.state.iter().rev();
 
         assert!(iter.next().unwrap() == &new_data1);
         assert!(iter.next().unwrap() == &data2);
-
     }
 }
