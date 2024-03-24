@@ -1,3 +1,7 @@
+[workspace]
+members = ["db"]
+resolver = "2"
+
 [package]
 name = "cosmic-clipboard-manager"
 version = "0.1.0"
