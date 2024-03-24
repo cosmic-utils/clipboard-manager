@@ -66,12 +66,10 @@ impl cosmic::Application for Window {
             query: "".to_string(),
         };
 
-        
         let command = Command::single(Action::Future(Box::pin(async {
             cosmic::app::Message::App(Message::TogglePopup)
-
         })));
-         
+
         //let command = Command::none();
 
         (window, command)
@@ -150,7 +148,7 @@ impl cosmic::Application for Window {
     fn view_window(&self, _id: Id) -> Element<Self::Message> {
         let text_intput = text_input("value", &self.query)
             .on_clear(Message::Query("".to_string()))
-            .on_input(|text| Message::Query(text));
+            .on_input(Message::Query);
 
         let values_text = DATA.map(|data| text(data).into());
 

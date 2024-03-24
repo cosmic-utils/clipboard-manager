@@ -1,94 +1,142 @@
+use std::time::{SystemTime, UNIX_EPOCH};
 
-extern crate serde;
-
+use indexmap::IndexSet;
 use serde::{Deserialize, Serialize};
 
+use derivative::Derivative;
+use derive_getters::Getters;
 
+// todo: enforce that only this app can read/write this file.
+const DB_PATH: &str = "/tmp/welcome-to-sled";
 
+#[derive(Derivative)]
+#[derivative(PartialEq, Hash)]
+#[derive(Eq, Clone, Debug, Getters)]
+pub struct Data {
+    #[derivative(PartialEq = "ignore")]
+    #[derivative(Hash = "ignore")]
+    creation: u128,
 
+    #[derivative(PartialEq = "ignore")]
+    #[derivative(Hash = "ignore")]
+    mime: String,
 
+    value: String,
+}
 
+impl Data {
+    pub fn new(mime: String, value: String) -> Self {
+        let since_the_epoch = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards");
+
+        Self {
+            creation: since_the_epoch.as_millis(),
+            mime,
+            value,
+        }
+    }
+}
+
+pub struct Db {
+    handle: sled::Db,
+    state: IndexSet<Data>,
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-struct Payload {
-    
+struct KeyDb(u128);
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct DataDb {
     mime: String,
     value: String,
 }
 
+impl Db {
+    pub fn new() -> Result<Self, sled::Error> {
+        let db_handle = sled::open(DB_PATH)?;
 
-#[test]
-pub fn clear() {
-    let tree = sled::open("/tmp/welcome-to-sled").expect("open");
-    tree.clear().unwrap();
-}
+        let mut state = IndexSet::new();
 
-#[test]
-pub fn init() {
+        for e in db_handle.iter().rev() {
+            match e {
+                Ok((key, value)) => {
+                    let key = bincode::deserialize::<KeyDb>(&key).expect("key");
+                    let value = bincode::deserialize::<DataDb>(&value).expect("value");
 
-    let tree = sled::open("/tmp/welcome-to-sled").expect("open");
-    
-    use std::time::{SystemTime, UNIX_EPOCH};
+                    let value = Data {
+                        mime: value.mime,
+                        value: value.value,
+                        creation: key.0,
+                    };
 
-    let s = Payload {
-        mime: "text".into(),
-        value: "data3".into()
-    };
+                    if !state.insert(value) {
+                        panic!("already exist");
+                    }
+                }
+                Err(e) => {
+                    log::error!("{e}");
+                }
+            }
+        }
 
-    let start = SystemTime::now();
-    let since_the_epoch = start
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards");
-
-    let mut f = Vec::new();
-
-    bincode::serialize_into(&mut f, &s).unwrap();
-
-    let key = U128(since_the_epoch.as_millis());
-
-    tree.insert(&key, f).unwrap();
-
-    tree.flush().unwrap();
-
-    let res = tree.get(&key).unwrap().unwrap();
-
-    let o = bincode::deserialize::<Payload>(res.as_ref()).unwrap();
-
-    dbg!(&o);
-}
-
-#[test]
-pub fn read() {
-    let tree = sled::open("/tmp/welcome-to-sled").expect("open");
-
-    tree.iter().rev().for_each(|i| {
-        
-        let Ok((key, value)) = i else {
-            panic!("iter");
+        let db = Db {
+            handle: db_handle,
+            state,
         };
 
-        let key = bincode::deserialize::<U128>(&key).unwrap();
+        Ok(db)
+    }
 
-        let value = bincode::deserialize::<Payload>(&value).unwrap();
+    pub fn clear(&mut self) -> Result<(), sled::Error> {
+        self.handle.clear()?;
+        self.state.clear();
+        Ok(())
+    }
 
-        dbg!(&key, &value);
-      
-    });
+    pub fn insert(&mut self, data: Data) -> Result<(), sled::Error> {
+        let key = KeyDb(data.creation);
 
-  
+        if !self.state.insert(data.clone()) {
+            // already exist
+
+            if (self.handle.remove(key.clone())?).is_none() {
+                log::warn!("there was no entry found in the database");
+            }
+        }
+
+        let data_db = DataDb {
+            mime: data.mime,
+            value: data.value,
+        };
+
+        let mut data_db_bin = Vec::new();
+
+        bincode::serialize_into(&mut data_db_bin, &data_db).unwrap();
+
+        self.handle.insert(key, data_db_bin)?;
+
+        Ok(())
+    }
+
+    pub fn delete(&mut self, data: &Data) -> Result<(), sled::Error> {
+        if !self.state.shift_remove(data) {
+            log::warn!("delete: no entry to remove in state");
+        }
+
+        if (self.handle.remove(KeyDb(data.creation))?).is_none() {
+            log::warn!("delete: no entry to remove in db");
+        }
+
+        Ok(())
+    }
 }
 
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-struct U128(u128);
-
-
-impl AsRef<[u8]> for U128 {
+impl AsRef<[u8]> for KeyDb {
     fn as_ref(&self) -> &[u8] {
-        let size = std::mem::size_of::<u128>();
+        let size = std::mem::size_of::<KeyDb>();
         // We can use `std::slice::from_raw_parts` to create a slice from the u128 value
         // This is done by casting the reference to a pointer and then creating a slice from it
         unsafe { std::slice::from_raw_parts(self as *const Self as *const u8, size) }
-    
     }
 }

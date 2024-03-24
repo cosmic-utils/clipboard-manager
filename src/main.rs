@@ -9,15 +9,14 @@ use cosmic::cosmic_config::CosmicConfigEntry;
 use log::LevelFilter;
 use window::{Flags, Window};
 
+mod clipboard;
 mod config;
 mod localize;
 mod window;
-mod clipboard;
 
 #[allow(unused_imports)]
 #[macro_use]
 extern crate log;
-
 
 fn setup_logs() {
     let mut builder = env_logger::builder();
@@ -35,14 +34,12 @@ fn setup_logs() {
 
     filter_workspace_crates(&mut builder, LevelFilter::Debug);
 
-   
     builder.init();
 }
 
 fn main() -> cosmic::iced::Result {
     localize::localize();
 
- 
     setup_logs();
 
     watch_keyboard();
