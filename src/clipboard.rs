@@ -6,7 +6,7 @@ use std::{
 
 use cosmic::iced::{futures::SinkExt, subscription, Subscription};
 use tokio::sync::mpsc;
-use wl_clipboard_rs::paste_watch::{get_contents, ClipboardType, MimeType, Seat};
+use wl_clipboard_rs::{copy, paste_watch};
 
 use crate::db::Data;
 
@@ -21,10 +21,10 @@ pub fn sub() -> Subscription<Data> {
         tokio::task::spawn_blocking(|| {
             let handle = tokio::runtime::Handle::current();
 
-            let res = handle.block_on(get_contents(
-                ClipboardType::Regular,
-                Seat::Unspecified,
-                MimeType::Any,
+            let res = handle.block_on(paste_watch::get_contents(
+                paste_watch::ClipboardType::Regular,
+                paste_watch::Seat::Unspecified,
+                paste_watch::MimeType::Any,
                 tx,
             ));
             if let Err(e) = res {
@@ -50,4 +50,18 @@ pub fn sub() -> Subscription<Data> {
             }
         }
     })
+}
+
+pub fn copy(data: Data) -> Result<(), copy::Error> {
+    let options = copy::Options::default();
+
+    let bytes = data.value.into_bytes().into_boxed_slice();
+
+    let source = copy::Source::Bytes(bytes);
+
+    let mime_type = copy::MimeType::Specific(data.mime);
+
+    wl_clipboard_rs::copy::copy(options, source, mime_type)?;
+
+    Ok(())
 }

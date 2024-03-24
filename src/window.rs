@@ -152,8 +152,10 @@ impl cosmic::Application for Window {
                     error!("can't insert data: {e}");
                 }
             }
-            Message::OnClick(_data) => {
-                // todo
+            Message::OnClick(data) => {
+                if let Err(e) = clipboard::copy(data) {
+                    error!("can't copy: {e}");
+                }
             }
             Message::Delete(data) => {
                 if let Err(e) = self.db.delete(&data) {

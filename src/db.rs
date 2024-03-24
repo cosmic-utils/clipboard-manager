@@ -7,24 +7,23 @@ use indexmap::IndexSet;
 use serde::{Deserialize, Serialize};
 
 use derivative::Derivative;
-use derive_getters::Getters;
 
 // todo: enforce that only this app can read/write this file.
 const DB_PATH: &str = "/tmp/welcome-to-sled";
 
 #[derive(Derivative)]
 #[derivative(PartialEq, Hash)]
-#[derive(Eq, Clone, Debug, Getters)]
+#[derive(Eq, Clone, Debug)]
 pub struct Data {
     #[derivative(PartialEq = "ignore")]
     #[derivative(Hash = "ignore")]
-    creation: u128,
+    pub creation: u128,
 
     #[derivative(PartialEq = "ignore")]
     #[derivative(Hash = "ignore")]
-    mime: String,
+    pub mime: String,
 
-    value: String,
+    pub value: String,
 }
 
 impl Display for Data {

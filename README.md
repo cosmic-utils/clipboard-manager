@@ -8,9 +8,8 @@ Currently support storing the history on disk and get data from wayland.
 
 Todo:
 - search (using rayon)
-- choose to copy one item from the clipboard
 - image support
-- Remove old entries
+- auto remove old entries
 - ...
 
 
