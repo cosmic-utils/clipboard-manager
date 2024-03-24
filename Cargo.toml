@@ -23,9 +23,8 @@ rust-embed = "8.3"
 # db
 sled = "0.34"
 bincode = "1.0"
-indexmap = "2.2"
+indexmap = { version = "2.2", features = ["rayon"] }
 derivative = "2.2"
-derive-getters = "0.3"
 os_pipe = "1.1"
 
 [dependencies.libcosmic]
@@ -41,5 +40,7 @@ features = [
 
 
 [dependencies.wl-clipboard-rs]
-path = "./../wl-clipboard-rs"
+#path = "./../wl-clipboard-rs"
+git = "https://github.com/wiiznokes/wl-clipboard-rs.git"
+branch = "watch"
 #version = "0.8"
