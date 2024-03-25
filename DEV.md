@@ -5,6 +5,11 @@
 sudo dnf install libxkbcommon-devel -y
 ```
 
+#### Logs
+
+```
+journalctl --user _EXE=/usr/bin/cosmic-session -r -S -10m | grep cosmic_clipboard_manager > ~/log.txt && code ~/log.txt
+```
 ## INfO
 
 clipboard crates:
