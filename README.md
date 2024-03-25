@@ -19,6 +19,8 @@ Maybe take inspiration on this gnome extension: https://github.com/oae/gnome-she
 ## Install
 
 ```
+git clone https://github.com/wiiznokes/cosmic-clipboard-manager.git
+cd cosmic-clipboard-manager
 cargo build --release
 just install release
 ```
