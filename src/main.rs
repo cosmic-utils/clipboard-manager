@@ -14,6 +14,7 @@ mod db;
 mod localize;
 mod view;
 mod window;
+mod utils;
 
 #[allow(unused_imports)]
 #[macro_use]
@@ -33,7 +34,7 @@ fn setup_logs() {
         builder
     }
 
-    filter_workspace_crates(&mut builder, LevelFilter::Debug);
+    filter_workspace_crates(&mut builder, LevelFilter::Info);
 
     builder.init();
 }

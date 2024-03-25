@@ -13,6 +13,13 @@ Todo:
 - ...
 
 
+## Install
+
+```
+cargo build --release
+just install release
+```
+
 Maybe take inspiration on this gnome extension: https://github.com/oae/gnome-shell-pano
 
 

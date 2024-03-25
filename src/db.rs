@@ -106,6 +106,7 @@ impl Db {
     pub fn clear(&mut self) -> Result<(), sled::Error> {
         self.handle.clear()?;
         self.state.clear();
+        self.handle.flush()?;
         Ok(())
     }
 
@@ -142,20 +143,22 @@ impl Db {
 
         self.handle.insert(key, data_db_bin)?;
 
+        self.handle.flush()?;
         Ok(())
     }
 
     pub fn delete(&mut self, data: &Data) -> Result<(), sled::Error> {
         if !self.state.shift_remove(data) {
-            log::warn!("delete: no entry to remove in state");
+            log::warn!("delete: no entry to remove in state for {data}");
             panic!();
         }
 
         if (self.handle.remove(KeyDb(data.creation))?).is_none() {
-            log::warn!("delete: no entry to remove in db");
+            log::warn!("delete: no entry to remove in db for {data}");
             panic!();
         }
 
+        self.handle.flush()?;
         Ok(())
     }
 }

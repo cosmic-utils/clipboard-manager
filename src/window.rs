@@ -146,6 +146,7 @@ impl cosmic::Application for Window {
             }
             Message::Query(query) => {
                 self.query = query;
+                
             }
             Message::ClipBoardEvent(data) => {
                 if let Err(e) = self.db.insert(data) {
