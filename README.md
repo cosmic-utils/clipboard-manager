@@ -39,7 +39,7 @@ Finally, you will need to set up the applet in cosmic-settings.
 ## Logs
 
 ```
-journalctl --user _EXE=/usr/bin/cosmic-session -r | grep cosmic_clipboard_manager
+journalctl --user _EXE=/usr/bin/cosmic-session -r | grep cosmic_clipboard_manager | less
 ```
 
 
