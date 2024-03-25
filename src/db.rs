@@ -161,6 +161,15 @@ impl Db {
         self.handle.flush()?;
         Ok(())
     }
+
+    pub fn search(&self, query: &str) -> Vec<&Data> {
+        use rayon::prelude::*;
+
+        self.state
+            .par_iter()
+            .filter(|s| s.value.contains(query))
+            .collect()
+    }
 }
 
 impl AsRef<[u8]> for KeyDb {

@@ -12,9 +12,9 @@ mod clipboard;
 mod config;
 mod db;
 mod localize;
+mod utils;
 mod view;
 mod window;
-mod utils;
 
 #[allow(unused_imports)]
 #[macro_use]

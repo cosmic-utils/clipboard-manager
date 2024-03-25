@@ -3,11 +3,10 @@
 The goal is to make a simple yet fast clipboard history, with a focus on UX, rapidity and security.
 
 
-Currently support storing the history on disk and get data from wayland.
+Currently support storing the history on disk, search, delete
 
 
 Todo:
-- search (using rayon)
 - image support
 - auto remove old entries
 - ...

@@ -31,6 +31,7 @@ pub struct Window {
     db: Db,
 }
 
+// todo: filter data in update
 #[derive(Clone, Debug)]
 pub enum Message {
     Config(Config),
@@ -76,11 +77,11 @@ impl cosmic::Application for Window {
             db: db::Db::new().unwrap(),
         };
 
-        let command = Command::single(Action::Future(Box::pin(async {
-            cosmic::app::Message::App(Message::TogglePopup)
-        })));
+        // let command = Command::single(Action::Future(Box::pin(async {
+        //     cosmic::app::Message::App(Message::TogglePopup)
+        // })));
 
-        //let command = Command::none();
+        let command = Command::none();
 
         (window, command)
     }
@@ -146,7 +147,6 @@ impl cosmic::Application for Window {
             }
             Message::Query(query) => {
                 self.query = query;
-                
             }
             Message::ClipBoardEvent(data) => {
                 if let Err(e) = self.db.insert(data) {
@@ -180,9 +180,12 @@ impl cosmic::Application for Window {
     }
 
     fn view_window(&self, _id: Id) -> Element<Self::Message> {
-        let entries = self.db.iter().rev();
+        let content = if self.query.is_empty() {
+            windows_view(&self.query, self.db.iter().rev())
+        } else {
+            windows_view(&self.query, self.db.search(&self.query).iter().copied())
+        };
 
-        let content = windows_view(&self.query, entries);
         self.core.applet.popup_container(content).into()
     }
     fn subscription(&self) -> Subscription<Self::Message> {

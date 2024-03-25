@@ -927,6 +927,7 @@ dependencies = [
  "log",
  "once_cell",
  "os_pipe",
+ "rayon",
  "rust-embed",
  "serde",
  "sled",

@@ -26,6 +26,7 @@ bincode = "1.0"
 indexmap = { version = "2.2", features = ["rayon"] }
 derivative = "2.2"
 os_pipe = "1.1"
+rayon = "1.10"
 
 [dependencies.libcosmic]
 git = "https://github.com/pop-os/libcosmic"

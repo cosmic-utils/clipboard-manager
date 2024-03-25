@@ -9,7 +9,6 @@ use cosmic::{
 
 use crate::{db::Data, utils::formated_value, window::Message};
 
-
 fn entry_view(data: &Data) -> Element<Message> {
     let content = Row::new()
         .align_items(Alignment::Center)
@@ -18,10 +17,7 @@ fn entry_view(data: &Data) -> Element<Message> {
             Container::new(text(formated_value(&data.value, 2, 50)).width(Length::Fixed(300f32))),
         )
         .push(Space::with_width(Length::Fill))
-        .push(
-            Button::new(text("Delete"))
-                .on_press(Message::Delete(data.clone())),
-        )
+        .push(Button::new(text("Delete")).on_press(Message::Delete(data.clone())))
         .padding(5f32);
 
     let card = Container::new(content).style(cosmic::theme::Container::Card);
@@ -41,7 +37,8 @@ where
     let column = Column::with_children(entries_view).spacing(5);
 
     Scrollable::new(column)
-        .height(Length::FillPortion(2)).into()
+        .height(Length::FillPortion(2))
+        .into()
 }
 
 fn query_view(query: &str) -> Element<Message> {
