@@ -13,6 +13,8 @@ Todo:
 - auto remove old entries
 - ...
 
+Maybe take inspiration on this gnome extension: https://github.com/oae/gnome-shell-pano
+
 
 ## Install
 
@@ -21,7 +23,22 @@ cargo build --release
 just install release
 ```
 
-Maybe take inspiration on this gnome extension: https://github.com/oae/gnome-shell-pano
+You curently need to activate a setting of the compositor:
+```
+sudo nano /etc/cosmic-comp/config.ron
+```
+And change `data_control_enabled: false` to `true` at the end of the file. Note that you may need to reset the setting at each update you make (at least, i noticied it on Fedora).
+
+Obiously, a better integration is planned, maybe with a portal that ask the user if they want to activate this protocol (which is insecure since its let an app access the clipboard without receiving an event for it (like ctrl-c) or being focused).
+
+Finally, you will need to set up the applet in cosmic-settings.
+
+
+## Logs
+
+```
+journalctl --user _EXE=/usr/bin/cosmic-session -r | grep cosmic_clipboard_manager
+```
 
 
 ## Contributing
