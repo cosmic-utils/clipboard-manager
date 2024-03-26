@@ -1,15 +1,17 @@
 use std::borrow::Cow;
 
 use cosmic::{
-    iced::{Alignment, Length, Padding},
-    iced_widget::{column, Row, Scrollable},
-    widget::{text, text_input, Button, Column, Container, MouseArea, Space},
-    Element,
+    iced::{Alignment, Length, Padding}, iced_widget::{column, Row, Scrollable}, theme, widget::{mouse_area, text, text_input, Button, Column, Container, MouseArea, Space}, Element
 };
 
 use crate::{db::Data, utils::formated_value, window::Message};
 
 fn entry_view(data: &Data) -> Element<Message> {
+
+    let delete_button = Button::new(text("Delete"))
+        .on_press(Message::Delete(data.clone()))
+        .style(theme::Button::Destructive);
+    
     let content = Row::new()
         .align_items(Alignment::Center)
         .push(
@@ -17,7 +19,7 @@ fn entry_view(data: &Data) -> Element<Message> {
             Container::new(text(formated_value(&data.value, 2, 50)).width(Length::Fixed(300f32))),
         )
         .push(Space::with_width(Length::Fill))
-        .push(Button::new(text("Delete")).on_press(Message::Delete(data.clone())))
+        .push(delete_button)
         .padding(5f32);
 
     let card = Container::new(content).style(cosmic::theme::Container::Card);
@@ -42,9 +44,10 @@ where
 }
 
 fn query_view(query: &str) -> Element<Message> {
-    text_input("value", query)
-        .on_clear(Message::Query("".to_string()))
+    text_input::search_input("value", query)
         .on_input(Message::Query)
+        .on_paste(Message::Query)
+        .on_clear(Message::Query("".into()))
         .into()
 }
 
@@ -52,10 +55,14 @@ pub fn windows_view<'a, I>(query: &'a str, entries: I) -> Element<'a, Message>
 where
     I: Iterator<Item = &'a Data>,
 {
-    Column::new()
+    let content = Column::new()
         .push(query_view(query))
         .push(Space::with_height(20))
         .push(entry_list_view(entries))
-        .padding(Padding::new(10f32))
+        .padding(Padding::new(10f32));
+
+    mouse_area(content)
+        .on_release(Message::TogglePopup)
+        .on_right_release(Message::TogglePopup)
         .into()
 }

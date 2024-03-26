@@ -29,6 +29,14 @@ pub struct Window {
 
     query: String,
     db: Db,
+    clipboard_state: ClipboardState,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ClipboardState {
+    Init,
+    Connected,
+    Error,
 }
 
 // todo: filter data in update
@@ -38,7 +46,7 @@ pub enum Message {
     TogglePopup,
     PopupClosed(Id),
     Query(String),
-    ClipBoardEvent(Data),
+    ClipBoardEvent(clipboard::Message),
     OnClick(Data),
     Delete(Data),
     Clear,
@@ -75,13 +83,14 @@ impl cosmic::Application for Window {
             popup: None,
             query: "".to_string(),
             db: db::Db::new().unwrap(),
+            clipboard_state: ClipboardState::Init,
         };
 
-        // let command = Command::single(Action::Future(Box::pin(async {
-        //     cosmic::app::Message::App(Message::TogglePopup)
-        // })));
+        let command = Command::single(Action::Future(Box::pin(async {
+            cosmic::app::Message::App(Message::TogglePopup)
+        })));
 
-        let command = Command::none();
+        // let command = Command::none();
 
         (window, command)
     }
@@ -120,7 +129,7 @@ impl cosmic::Application for Window {
                 }
             }
             Message::TogglePopup => {
-                info!("TogglePopup");
+                //info!("TogglePopup");
 
                 return if let Some(p) = self.popup.take() {
                     destroy_popup(p)
@@ -140,7 +149,7 @@ impl cosmic::Application for Window {
                 };
             }
             Message::PopupClosed(id) => {
-                info!("PopupClosed: {id:?}");
+                //info!("PopupClosed: {id:?}");
                 if self.popup.as_ref() == Some(&id) {
                     self.popup = None;
                 }
@@ -148,10 +157,24 @@ impl cosmic::Application for Window {
             Message::Query(query) => {
                 self.query = query;
             }
-            Message::ClipBoardEvent(data) => {
-                if let Err(e) = self.db.insert(data) {
-                    error!("can't insert data: {e}");
+            Message::ClipBoardEvent(message) => {
+
+                match message {
+                    clipboard::Message::Connected => {
+                        self.clipboard_state = ClipboardState::Connected;
+                    },
+                    clipboard::Message::Data(data) => {
+                        if let Err(e) = self.db.insert(data) {
+                            error!("can't insert data: {e}");
+                        }
+                    },
+                    clipboard::Message::Error(e) => {
+                        // todo: print error
+                        self.clipboard_state = ClipboardState::Error;
+                    },
                 }
+
+                
             }
             Message::OnClick(data) => {
                 if let Err(e) = clipboard::copy(data) {
@@ -173,7 +196,7 @@ impl cosmic::Application for Window {
     }
 
     fn view(&self) -> Element<Self::Message> {
-        button(text("Clipboard Manager").size(14.0))
+        button(text("Clipboard").size(14.0))
             .style(cosmic::theme::Button::AppletIcon)
             .on_press(Message::TogglePopup)
             .into()
@@ -189,8 +212,10 @@ impl cosmic::Application for Window {
         self.core.applet.popup_container(content).into()
     }
     fn subscription(&self) -> Subscription<Self::Message> {
-        struct ConfigSubscription;
 
+        let mut subscriptions = Vec::new();
+
+        struct ConfigSubscription;
         let config = cosmic_config::config_subscription(
             std::any::TypeId::of::<ConfigSubscription>(),
             Self::APP_ID.into(),
@@ -206,12 +231,19 @@ impl cosmic::Application for Window {
             Message::Config(update.config)
         });
 
-        let clipboard = clipboard::sub().map(Message::ClipBoardEvent);
+        subscriptions.push(config);
 
-        Subscription::batch(vec![config, clipboard])
+        if self.clipboard_state != ClipboardState::Error {
+            subscriptions.push(clipboard::sub().map(Message::ClipBoardEvent));
+        }
+        
+        Subscription::batch(subscriptions)
     }
 
     fn style(&self) -> Option<<Theme as application::StyleSheet>::Style> {
         Some(cosmic::applet::style())
     }
 }
+
+
+

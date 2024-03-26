@@ -1,4 +1,5 @@
 use std::{
+    future::Future,
     io::Read,
     thread::{self, sleep},
     time::Duration,
@@ -12,42 +13,119 @@ use crate::db::Data;
 
 use os_pipe::PipeReader;
 
-pub fn sub() -> Subscription<Data> {
+
+/*
+
+pub fn sub2() -> Subscription<Message> {
     struct Connect;
 
-    subscription::channel(std::any::TypeId::of::<Connect>(), 100, move |mut output| {
-        let (tx, mut rx) = mpsc::channel::<(PipeReader, String)>(100);
+    subscription::unfold(
+        std::any::TypeId::of::<Connect>(),
+        State::Init,
+        |state| {
 
-        tokio::task::spawn_blocking(|| {
-            let handle = tokio::runtime::Handle::current();
-
-            let res = handle.block_on(paste_watch::get_contents(
-                paste_watch::ClipboardType::Regular,
-                paste_watch::Seat::Unspecified,
-                paste_watch::MimeType::Any,
-                tx,
-            ));
-            if let Err(e) = res {
-                error!("{e}");
-            }
-        });
-
-        async move {
-            loop {
-                match rx.recv().await {
-                    Some((mut pipe, mime_type)) => {
-                        let mut contents = String::new();
-                        pipe.read_to_string(&mut contents).unwrap();
-                        let data = Data::new(mime_type, contents);
-                        //info!("sending: {:?}", data);
-                        output.send(data).await.unwrap();
+            async move {
+                match state {
+                    State::Init => {
+                        match paste_watch::Watcher::init(paste_watch::ClipboardType::Regular) {
+                            Ok(watcher) => {
+                                return (Message::Connected, State::Idle(watcher));
+                            }
+                            Err(e) => {
+                                return (Message::Error(e), State::Error);
+                            }
+                        }
                     }
-                    None => {
-                        error!("can't receive from wayland");
-                        panic!();
+                    State::Idle(watcher) => {
+
+                        let e = watcher.start_watching2(
+                            paste_watch::Seat::Unspecified,
+                            paste_watch::MimeType::Any,
+                        );
+
+
+                        todo!()
+                    }
+
+                    State::Error => {
+                        // todo
+                        todo!()
                     }
                 }
             }
+        },
+    )
+}
+
+ */
+
+
+
+#[derive(Debug, Clone)]
+pub enum Message {
+    Connected,
+    Data(Data),
+    Error(String),
+}
+
+pub fn sub() -> Subscription<Message> {
+    enum State {
+        Init,
+        Idle(paste_watch::Watcher),
+        Error,
+    }
+
+    subscription::channel(std::any::TypeId::of::<State>(), 100, move |mut output| {
+        
+        async move {
+            match paste_watch::Watcher::init(paste_watch::ClipboardType::Regular) {
+                Ok(mut clipboard_watcher) => {
+
+                    let (tx, rx) = flume::bounded::<(PipeReader, String)>(100);
+
+                    tokio::task::spawn_blocking(move || {
+                        
+                        loop {
+                            match clipboard_watcher.start_watching2(
+                                paste_watch::Seat::Unspecified,
+                                paste_watch::MimeType::Any,
+                            ) {
+                                Ok(res) => {
+                                    tx.send(res).expect("can't send");
+                                },
+                                Err(e) => {
+                                    error!("{e}");
+                                },
+                            }
+                        }
+                        
+                    });
+
+                    loop {
+                        match rx.recv() { 
+                            Ok((mut pipe, mime_type)) => {
+                                let mut contents = String::new();
+                                pipe.read_to_string(&mut contents).unwrap();
+                                let data = Data::new(mime_type, contents);
+                                //info!("sending: {:?}", data);
+                                output.send(Message::Data(data)).await.unwrap();
+                            },
+                            Err(e) => {
+                                error!("can't receive: {e}");
+                                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                            },
+                        }
+                    }
+                }
+                Err(e) => {
+                    // todo: how to cancel properly?
+                    // https://github.com/pop-os/cosmic-files/blob/d96d48995d49e17f01903ca4d89839eb4a1b1104/src/app.rs#L1704
+                    output.send(Message::Error(e.to_string())).await.expect("can't send");
+                    loop {
+                        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                    }
+                }
+            };
         }
     })
 }
