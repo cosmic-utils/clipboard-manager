@@ -78,21 +78,22 @@ impl cosmic::Application for Window {
             },
         };
 
-        // let command = Command::single(Action::Future(Box::pin(async {
-        //     cosmic::app::Message::App(AppMessage::TogglePopup)
-        // })));
+        let command = Command::single(Action::Future(Box::pin(async {
+             cosmic::app::Message::App(AppMessage::TogglePopup)
+        })));
 
-        let command = Command::none();
+        //let command = Command::none();
 
         (window, command)
     }
 
     fn on_close_requested(&self, id: window::Id) -> Option<AppMessage> {
+        println!("on_close_requested");
         Some(AppMessage::PopupClosed(id))
     }
 
     fn update(&mut self, message: Self::Message) -> Command<cosmic::app::Message<Self::Message>> {
-        // dbg!(&message);
+        dbg!(&message);
 
         macro_rules! config_set {
             ($name: ident, $value: expr) => {

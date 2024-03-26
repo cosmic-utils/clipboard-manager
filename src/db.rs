@@ -3,6 +3,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use aho_corasick::AhoCorasick;
 use indexmap::IndexSet;
 use serde::{Deserialize, Serialize};
 
@@ -165,9 +166,17 @@ impl Db {
     pub fn search(&self, query: &str) -> Vec<&Data> {
         use rayon::prelude::*;
 
+        let ac = AhoCorasick::builder()
+            .ascii_case_insensitive(true)
+            .build(vec![query])
+            .unwrap();
+
         self.state
             .par_iter()
-            .filter(|s| s.value.contains(query))
+            .filter(|s| {
+                let mut iter = ac.find_iter(&s.value);
+                return iter.next().is_some()
+            })
             .collect()
     }
 }
