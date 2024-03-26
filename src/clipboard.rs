@@ -47,6 +47,8 @@ pub fn sub() -> Subscription<ClipboardMessage> {
                         }
                     });
 
+                    output.send(ClipboardMessage::Connected).await.unwrap();
+
                     loop {
                         match rx.recv().await {
                             Some((mut pipe, mime_type)) => {

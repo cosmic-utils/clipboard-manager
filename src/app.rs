@@ -78,11 +78,11 @@ impl cosmic::Application for Window {
             },
         };
 
-        let command = Command::single(Action::Future(Box::pin(async {
-            cosmic::app::Message::App(AppMessage::TogglePopup)
-        })));
+        // let command = Command::single(Action::Future(Box::pin(async {
+        //     cosmic::app::Message::App(AppMessage::TogglePopup)
+        // })));
 
-        // let command = Command::none();
+        let command = Command::none();
 
         (window, command)
     }
@@ -92,6 +92,8 @@ impl cosmic::Application for Window {
     }
 
     fn update(&mut self, message: Self::Message) -> Command<cosmic::app::Message<Self::Message>> {
+        // dbg!(&message);
+
         macro_rules! config_set {
             ($name: ident, $value: expr) => {
                 match &self.config_handler {
@@ -152,7 +154,7 @@ impl cosmic::Application for Window {
             AppMessage::ClipboardEvent(message) => {
                 match message {
                     clipboard::ClipboardMessage::Connected => {
-                        self.state.clipboard_state = ClipboardState::Error;
+                        self.state.clipboard_state = ClipboardState::Connected;
                     }
                     clipboard::ClipboardMessage::Data(data) => {
                         if let Err(e) = self.state.db.insert(data) {
