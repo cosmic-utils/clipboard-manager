@@ -2,70 +2,106 @@ use std::borrow::Cow;
 
 use cosmic::{
     iced::{Alignment, Length, Padding},
-    iced_widget::{column, Row, Scrollable},
+    iced_widget::{column, graphics::image::image_rs::flat::View, Row, Scrollable},
     theme,
-    widget::{mouse_area, text, text_input, Button, Column, Container, MouseArea, Space},
+    widget::{
+        icon::{self, Handle},
+        mouse_area, text, text_input, Button, Column, Container, Icon, MouseArea, Space,
+    },
     Element,
 };
 
-use crate::{db::Data, utils::formated_value, window::Message};
+use crate::{
+    app::{AppState, ClipboardState},
+    db::Data,
+    message::AppMessage,
+    utils::formated_value,
+};
 
-fn entry_view(data: &Data) -> Element<Message> {
-    let delete_button = Button::new(text("Delete"))
-        .on_press(Message::Delete(data.clone()))
-        .style(theme::Button::Destructive);
+impl AppState {
+    pub fn view(&self) -> Element<AppMessage> {
+        let mut elements = Vec::new();
 
-    let content = Row::new()
-        .align_items(Alignment::Center)
-        .push(
-            // todo: remove this fixed size
-            Container::new(text(formated_value(&data.value, 2, 50)).width(Length::Fixed(300f32))),
-        )
-        .push(Space::with_width(Length::Fill))
-        .push(delete_button)
-        .padding(5f32);
+        elements.push(self.top_view().into());
+        elements.push(Space::with_height(20).into());
 
-    let card = Container::new(content).style(cosmic::theme::Container::Card);
+        if self.query.is_empty() {
+            elements.push(Self::entry_list_view(self.db.iter().rev()));
+        } else {
+            elements.push(Self::entry_list_view(
+                self.db.search(&self.query).iter().copied(),
+            ));
+        }
 
-    MouseArea::new(card)
-        .on_release(Message::OnClick(data.clone()))
-        .into()
-}
+        let content = Column::with_children(elements).padding(Padding::new(10f32));
 
-// todo: padding scroll bar
-fn entry_list_view<'a, I>(entries: I) -> Element<'a, Message>
-where
-    I: Iterator<Item = &'a Data>,
-{
-    let entries_view = entries.map(|data| entry_view(data));
+        mouse_area(content)
+            .on_release(AppMessage::TogglePopup)
+            .on_right_release(AppMessage::TogglePopup)
+            .into()
+    }
 
-    let column = Column::with_children(entries_view).spacing(5);
+    // todo: padding scroll bar
+    fn entry_list_view<'a, I>(entries: I) -> Element<'a, AppMessage>
+    where
+        I: Iterator<Item = &'a Data>,
+    {
+        fn entry_view(data: &Data) -> Element<AppMessage> {
+            let delete_button = Button::new(text("Delete"))
+                .on_press(AppMessage::Delete(data.clone()))
+                .style(theme::Button::Destructive);
 
-    Scrollable::new(column)
-        .height(Length::FillPortion(2))
-        .into()
-}
+            let content = Row::new()
+                .align_items(Alignment::Center)
+                .push(
+                    // todo: remove this fixed size
+                    Container::new(
+                        text(formated_value(&data.value, 2, 50)).width(Length::Fixed(300f32)),
+                    ),
+                )
+                .push(Space::with_width(Length::Fill))
+                .push(delete_button)
+                .padding(5f32);
 
-fn query_view(query: &str) -> Element<Message> {
-    text_input::search_input("value", query)
-        .on_input(Message::Query)
-        .on_paste(Message::Query)
-        .on_clear(Message::Query("".into()))
-        .into()
-}
+            let card = Container::new(content).style(cosmic::theme::Container::Card);
 
-pub fn windows_view<'a, I>(query: &'a str, entries: I) -> Element<'a, Message>
-where
-    I: Iterator<Item = &'a Data>,
-{
-    let content = Column::new()
-        .push(query_view(query))
-        .push(Space::with_height(20))
-        .push(entry_list_view(entries))
-        .padding(Padding::new(10f32));
+            MouseArea::new(card)
+                .on_release(AppMessage::OnClick(data.clone()))
+                .into()
+        }
 
-    mouse_area(content)
-        .on_release(Message::TogglePopup)
-        .on_right_release(Message::TogglePopup)
-        .into()
+        let entries_view = entries.map(|data| entry_view(data));
+
+        let column = Column::with_children(entries_view).spacing(5);
+
+        Scrollable::new(column)
+            .height(Length::FillPortion(2))
+            .into()
+    }
+
+    fn top_view(&self) -> Element<AppMessage> {
+        let mut row = Vec::new();
+
+        let text_input = text_input::search_input("value", &self.query)
+            .on_input(AppMessage::Query)
+            .on_paste(AppMessage::Query)
+            .on_clear(AppMessage::Query("".into()))
+            .into();
+
+        row.push(text_input);
+
+        if self.clipboard_state == ClipboardState::Error {
+            let icon_bytes = include_bytes!("../resources/icons/sync_problem24.svg") as &[u8];
+
+            // let a = Cow::Borrowed(icon_bytes);
+
+            let icon = icon::from_svg_bytes(icon_bytes);
+
+            let retry_button = cosmic::widget::button::icon(icon).into();
+
+            row.push(retry_button);
+        }
+
+        Row::with_children(row).into()
+    }
 }

@@ -6,7 +6,7 @@ use config::{Config, CONFIG_VERSION};
 use cosmic::cosmic_config;
 use cosmic::cosmic_config::CosmicConfigEntry;
 use log::LevelFilter;
-use window::{Flags, Window};
+use app::{Flags, Window};
 
 mod clipboard;
 mod config;
@@ -14,7 +14,8 @@ mod db;
 mod localize;
 mod utils;
 mod view;
-mod window;
+mod app;
+mod message;
 
 #[allow(unused_imports)]
 #[macro_use]
@@ -44,7 +45,7 @@ fn main() -> cosmic::iced::Result {
 
     setup_logs();
 
-    let (config_handler, config) = match cosmic_config::Config::new(window::APP_ID, CONFIG_VERSION)
+    let (config_handler, config) = match cosmic_config::Config::new(app::APP_ID, CONFIG_VERSION)
     {
         Ok(config_handler) => {
             let config = match Config::get_entry(&config_handler) {

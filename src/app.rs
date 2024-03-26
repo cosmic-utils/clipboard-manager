@@ -16,7 +16,7 @@ use cosmic::{Element, Theme};
 use crate::clipboard;
 use crate::config::{Config, CONFIG_VERSION};
 use crate::db::{self, Data, Db};
-use crate::view::windows_view;
+use crate::message::AppMessage;
 use cosmic::cosmic_config;
 
 pub const APP_ID: &str = "com.wiiznokes.CosmicClipboardManager";
@@ -26,31 +26,24 @@ pub struct Window {
     config: Config,
     config_handler: Option<cosmic_config::Config>,
     popup: Option<Id>,
+    state: AppState,
+}
 
-    query: String,
-    db: Db,
-    clipboard_state: ClipboardState,
+
+pub struct AppState {
+    pub query: String,
+    pub db: Db,
+    pub clipboard_state: ClipboardState,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum ClipboardState {
+pub enum ClipboardState {
     Init,
     Connected,
     Error,
 }
 
-// todo: filter data in update
-#[derive(Clone, Debug)]
-pub enum Message {
-    Config(Config),
-    TogglePopup,
-    PopupClosed(Id),
-    Query(String),
-    ClipBoardEvent(clipboard::Message),
-    OnClick(Data),
-    Delete(Data),
-    Clear,
-}
+
 
 #[derive(Clone, Debug)]
 pub struct Flags {
@@ -61,7 +54,7 @@ pub struct Flags {
 impl cosmic::Application for Window {
     type Executor = cosmic::executor::Default;
     type Flags = Flags;
-    type Message = Message;
+    type Message = AppMessage;
     const APP_ID: &'static str = APP_ID;
 
     fn core(&self) -> &Core {
@@ -81,13 +74,15 @@ impl cosmic::Application for Window {
             config: flags.config,
             config_handler: flags.config_handler,
             popup: None,
-            query: "".to_string(),
-            db: db::Db::new().unwrap(),
-            clipboard_state: ClipboardState::Init,
+            state: AppState {
+                query: "".to_string(),
+                db: db::Db::new().unwrap(),
+                clipboard_state: ClipboardState::Init,
+            }
         };
 
         let command = Command::single(Action::Future(Box::pin(async {
-            cosmic::app::Message::App(Message::TogglePopup)
+            cosmic::app::Message::App(AppMessage::TogglePopup)
         })));
 
         // let command = Command::none();
@@ -95,8 +90,8 @@ impl cosmic::Application for Window {
         (window, command)
     }
 
-    fn on_close_requested(&self, id: window::Id) -> Option<Message> {
-        Some(Message::PopupClosed(id))
+    fn on_close_requested(&self, id: window::Id) -> Option<AppMessage> {
+        Some(AppMessage::PopupClosed(id))
     }
 
     fn update(&mut self, message: Self::Message) -> Command<cosmic::app::Message<Self::Message>> {
@@ -123,12 +118,12 @@ impl cosmic::Application for Window {
         }
 
         match message {
-            Message::Config(config) => {
+            AppMessage::ChangeConfig(config) => {
                 if config != self.config {
                     self.config = config
                 }
             }
-            Message::TogglePopup => {
+            AppMessage::TogglePopup => {
                 //info!("TogglePopup");
 
                 return if let Some(p) = self.popup.take() {
@@ -148,46 +143,49 @@ impl cosmic::Application for Window {
                     get_popup(popup_settings)
                 };
             }
-            Message::PopupClosed(id) => {
+            AppMessage::PopupClosed(id) => {
                 //info!("PopupClosed: {id:?}");
                 if self.popup.as_ref() == Some(&id) {
                     self.popup = None;
                 }
             }
-            Message::Query(query) => {
-                self.query = query;
+            AppMessage::Query(query) => {
+                self.state.query = query;
             }
-            Message::ClipBoardEvent(message) => {
+            AppMessage::ClipboardEvent(message) => {
                 match message {
-                    clipboard::Message::Connected => {
-                        self.clipboard_state = ClipboardState::Connected;
+                    clipboard::ClipboardMessage::Connected => {
+                        self.state.clipboard_state = ClipboardState::Error;
                     }
-                    clipboard::Message::Data(data) => {
-                        if let Err(e) = self.db.insert(data) {
+                    clipboard::ClipboardMessage::Data(data) => {
+                        if let Err(e) = self.state.db.insert(data) {
                             error!("can't insert data: {e}");
                         }
                     }
-                    clipboard::Message::Error(_e) => {
-                        // todo: print error
-                        self.clipboard_state = ClipboardState::Error;
+                    clipboard::ClipboardMessage::Error(_e) => {
+                        // todo: print error, or desc on the icon
+                        self.state.clipboard_state = ClipboardState::Error;
                     }
                 }
             }
-            Message::OnClick(data) => {
+            AppMessage::OnClick(data) => {
                 if let Err(e) = clipboard::copy(data) {
                     error!("can't copy: {e}");
                 }
             }
-            Message::Delete(data) => {
-                if let Err(e) = self.db.delete(&data) {
+            AppMessage::Delete(data) => {
+                if let Err(e) = self.state.db.delete(&data) {
                     error!("can't delete {data}: {e}");
                 }
             }
-            Message::Clear => {
-                if let Err(e) = self.db.clear() {
+            AppMessage::Clear => {
+                if let Err(e) = self.state.db.clear() {
                     error!("can't clear db: {e}");
                 }
             }
+            AppMessage::RetryConnectingClipboard => {
+                self.state.clipboard_state = ClipboardState::Init;
+            },
         }
         Command::none()
     }
@@ -195,18 +193,12 @@ impl cosmic::Application for Window {
     fn view(&self) -> Element<Self::Message> {
         button(text("Clipboard").size(14.0))
             .style(cosmic::theme::Button::AppletIcon)
-            .on_press(Message::TogglePopup)
+            .on_press(AppMessage::TogglePopup)
             .into()
     }
 
     fn view_window(&self, _id: Id) -> Element<Self::Message> {
-        let content = if self.query.is_empty() {
-            windows_view(&self.query, self.db.iter().rev())
-        } else {
-            windows_view(&self.query, self.db.search(&self.query).iter().copied())
-        };
-
-        self.core.applet.popup_container(content).into()
+        self.core.applet.popup_container(self.state.view()).into()
     }
     fn subscription(&self) -> Subscription<Self::Message> {
         let mut subscriptions = Vec::new();
@@ -224,13 +216,13 @@ impl cosmic::Application for Window {
                     update.keys, update.errors
                 );
             }
-            Message::Config(update.config)
+            AppMessage::ChangeConfig(update.config)
         });
 
         subscriptions.push(config);
 
-        if self.clipboard_state != ClipboardState::Error {
-            subscriptions.push(clipboard::sub().map(Message::ClipBoardEvent));
+        if self.state.clipboard_state != ClipboardState::Error {
+            subscriptions.push(clipboard::sub().map(AppMessage::ClipboardEvent));
         }
 
         Subscription::batch(subscriptions)

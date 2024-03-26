@@ -14,13 +14,13 @@ use crate::db::Data;
 use os_pipe::PipeReader;
 
 #[derive(Debug, Clone)]
-pub enum Message {
+pub enum ClipboardMessage {
     Connected,
     Data(Data),
     Error(String),
 }
 
-pub fn sub() -> Subscription<Message> {
+pub fn sub() -> Subscription<ClipboardMessage> {
     enum State {
         Init,
         Idle(paste_watch::Watcher),
@@ -54,7 +54,7 @@ pub fn sub() -> Subscription<Message> {
                                 pipe.read_to_string(&mut contents).unwrap();
                                 let data = Data::new(mime_type, contents);
                                 //info!("sending: {:?}", data);
-                                output.send(Message::Data(data)).await.unwrap();
+                                output.send(ClipboardMessage::Data(data)).await.unwrap();
                             }
                             None => {
                                 error!("can't receive");
@@ -67,7 +67,7 @@ pub fn sub() -> Subscription<Message> {
                     // todo: how to cancel properly?
                     // https://github.com/pop-os/cosmic-files/blob/d96d48995d49e17f01903ca4d89839eb4a1b1104/src/app.rs#L1704
                     output
-                        .send(Message::Error(e.to_string()))
+                        .send(ClipboardMessage::Error(e.to_string()))
                         .await
                         .expect("can't send");
                     loop {
