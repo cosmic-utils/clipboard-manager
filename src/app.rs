@@ -29,7 +29,6 @@ pub struct Window {
     state: AppState,
 }
 
-
 pub struct AppState {
     pub query: String,
     pub db: Db,
@@ -42,8 +41,6 @@ pub enum ClipboardState {
     Connected,
     Error,
 }
-
-
 
 #[derive(Clone, Debug)]
 pub struct Flags {
@@ -78,7 +75,7 @@ impl cosmic::Application for Window {
                 query: "".to_string(),
                 db: db::Db::new().unwrap(),
                 clipboard_state: ClipboardState::Init,
-            }
+            },
         };
 
         let command = Command::single(Action::Future(Box::pin(async {
@@ -185,7 +182,7 @@ impl cosmic::Application for Window {
             }
             AppMessage::RetryConnectingClipboard => {
                 self.state.clipboard_state = ClipboardState::Init;
-            },
+            }
         }
         Command::none()
     }

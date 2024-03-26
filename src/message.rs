@@ -1,9 +1,10 @@
 use cosmic::iced::window::Id;
 
-use crate::{clipboard::{self, ClipboardMessage}, config::Config, db::Data};
-
-
-
+use crate::{
+    clipboard::{self, ClipboardMessage},
+    config::Config,
+    db::Data,
+};
 
 // todo: filter data in update
 #[derive(Clone, Debug)]
