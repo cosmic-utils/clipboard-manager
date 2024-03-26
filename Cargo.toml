@@ -27,6 +27,8 @@ indexmap = { version = "2.2", features = ["rayon"] }
 derivative = "2.2"
 os_pipe = "1.1"
 rayon = "1.10"
+futures = "0.3.30"
+thiserror = "1.0.58"
 
 [dependencies.libcosmic]
 git = "https://github.com/pop-os/libcosmic"
@@ -41,7 +43,7 @@ features = [
 
 
 [dependencies.wl-clipboard-rs]
-#path = "./../wl-clipboard-rs"
-git = "https://github.com/wiiznokes/wl-clipboard-rs.git"
-branch = "watch"
+path = "./../wl-clipboard-rs"
+# git = "https://github.com/wiiznokes/wl-clipboard-rs.git"
+# branch = "watch"
 #version = "0.8"

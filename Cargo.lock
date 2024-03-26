@@ -920,6 +920,7 @@ dependencies = [
  "bincode",
  "derivative",
  "env_logger",
+ "futures",
  "i18n-embed",
  "i18n-embed-fl",
  "indexmap",
@@ -931,6 +932,7 @@ dependencies = [
  "rust-embed",
  "serde",
  "sled",
+ "thiserror",
  "tokio",
  "wl-clipboard-rs",
 ]
@@ -5458,7 +5460,6 @@ dependencies = [
 [[package]]
 name = "wl-clipboard-rs"
 version = "0.8.1"
-source = "git+https://github.com/wiiznokes/wl-clipboard-rs.git?branch=watch#37cd1b5312a48cede5e1036b0a996f9eb3378515"
 dependencies = [
  "libc",
  "log",
@@ -5466,7 +5467,6 @@ dependencies = [
  "rustix 0.38.32",
  "tempfile",
  "thiserror",
- "tokio",
  "tree_magic_mini",
  "wayland-backend",
  "wayland-client",

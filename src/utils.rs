@@ -1,5 +1,7 @@
 use std::borrow::Cow;
 
+use cosmic::iced::Padding;
+
 pub fn formated_value(value: &str, max_lines: usize, max_chars: usize) -> Cow<str> {
     if value.lines().count() <= max_lines && value.len() <= max_chars {
         Cow::from(value.trim())
@@ -35,5 +37,23 @@ fn split_at(str: &str, n: usize) -> &str {
         str.split_at(n).0
     } else {
         str
+    }
+}
+
+pub fn horizontal_padding(value: f32) -> Padding {
+    Padding {
+        top: 0f32,
+        right: value,
+        bottom: 0f32,
+        left: value,
+    }
+}
+
+pub fn vertical_padding(value: f32) -> Padding {
+    Padding {
+        top: value,
+        right: 0f32,
+        bottom: value,
+        left: 0f32,
     }
 }
