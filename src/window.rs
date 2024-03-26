@@ -158,23 +158,20 @@ impl cosmic::Application for Window {
                 self.query = query;
             }
             Message::ClipBoardEvent(message) => {
-
                 match message {
                     clipboard::Message::Connected => {
                         self.clipboard_state = ClipboardState::Connected;
-                    },
+                    }
                     clipboard::Message::Data(data) => {
                         if let Err(e) = self.db.insert(data) {
                             error!("can't insert data: {e}");
                         }
-                    },
-                    clipboard::Message::Error(e) => {
+                    }
+                    clipboard::Message::Error(_e) => {
                         // todo: print error
                         self.clipboard_state = ClipboardState::Error;
-                    },
+                    }
                 }
-
-                
             }
             Message::OnClick(data) => {
                 if let Err(e) = clipboard::copy(data) {
@@ -212,7 +209,6 @@ impl cosmic::Application for Window {
         self.core.applet.popup_container(content).into()
     }
     fn subscription(&self) -> Subscription<Self::Message> {
-
         let mut subscriptions = Vec::new();
 
         struct ConfigSubscription;
@@ -236,7 +232,7 @@ impl cosmic::Application for Window {
         if self.clipboard_state != ClipboardState::Error {
             subscriptions.push(clipboard::sub().map(Message::ClipBoardEvent));
         }
-        
+
         Subscription::batch(subscriptions)
     }
 
@@ -244,6 +240,3 @@ impl cosmic::Application for Window {
         Some(cosmic::applet::style())
     }
 }
-
-
-

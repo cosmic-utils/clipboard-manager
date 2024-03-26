@@ -1,17 +1,20 @@
 use std::borrow::Cow;
 
 use cosmic::{
-    iced::{Alignment, Length, Padding}, iced_widget::{column, Row, Scrollable}, theme, widget::{mouse_area, text, text_input, Button, Column, Container, MouseArea, Space}, Element
+    iced::{Alignment, Length, Padding},
+    iced_widget::{column, Row, Scrollable},
+    theme,
+    widget::{mouse_area, text, text_input, Button, Column, Container, MouseArea, Space},
+    Element,
 };
 
 use crate::{db::Data, utils::formated_value, window::Message};
 
 fn entry_view(data: &Data) -> Element<Message> {
-
     let delete_button = Button::new(text("Delete"))
         .on_press(Message::Delete(data.clone()))
         .style(theme::Button::Destructive);
-    
+
     let content = Row::new()
         .align_items(Alignment::Center)
         .push(
