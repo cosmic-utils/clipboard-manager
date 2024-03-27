@@ -30,3 +30,9 @@ other app:
 discussions:
 - https://github.com/pop-os/cosmic-epoch/issues/175
 - https://www.reddit.com/r/pop_os/comments/194bugz/comment/khfxyoo/?utm_source=share&utm_medium=web3x&utm_name=web3xcss&utm_term=1&utm_content=share_button
+
+
+
+links:
+- https://github.com/pop-os/cosmic-launcher/blob/master/src/app.rs
+- https://github.com/pop-os/cosmic-applets

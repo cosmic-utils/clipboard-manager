@@ -1,8 +1,9 @@
 use cosmic::app::{command, Core};
 
+use cosmic::iced::advanced::subscription;
 use cosmic::iced::wayland::popup::{destroy_popup, get_popup};
 use cosmic::iced::window::Id;
-use cosmic::iced::{Command, Limits};
+use cosmic::iced::{self, event, Command, Limits};
 
 use cosmic::iced_futures::Subscription;
 use cosmic::iced_runtime::command::Action;
@@ -13,10 +14,11 @@ use cosmic::widget::{button, text, text_input};
 
 use cosmic::{Element, Theme};
 
-use crate::clipboard;
 use crate::config::{Config, CONFIG_VERSION};
 use crate::db::{self, Data, Db};
 use crate::message::AppMessage;
+use crate::utils::command_message;
+use crate::{clipboard, config, navigation};
 use cosmic::cosmic_config;
 
 pub const APP_ID: &str = "com.wiiznokes.CosmicClipboardManager";
@@ -78,10 +80,12 @@ impl cosmic::Application for Window {
             },
         };
 
-        // let command = Command::single(Action::Future(Box::pin(async {
-        //      cosmic::app::Message::App(AppMessage::TogglePopup)
-        // })));
+        #[cfg(debug_assertions)]
+        let command = Command::single(Action::Future(Box::pin(async {
+            cosmic::app::Message::App(AppMessage::TogglePopup)
+        })));
 
+        #[cfg(not(debug_assertions))]
         let command = Command::none();
 
         (window, command)
@@ -89,11 +93,11 @@ impl cosmic::Application for Window {
 
     fn on_close_requested(&self, id: window::Id) -> Option<AppMessage> {
         println!("on_close_requested");
-        Some(AppMessage::PopupClosed(id))
+        Some(AppMessage::ClosePopup(id))
     }
 
     fn update(&mut self, message: Self::Message) -> Command<cosmic::app::Message<Self::Message>> {
-        dbg!(&message);
+        //dbg!(&message);
 
         macro_rules! config_set {
             ($name: ident, $value: expr) => {
@@ -143,7 +147,7 @@ impl cosmic::Application for Window {
                     get_popup(popup_settings)
                 };
             }
-            AppMessage::PopupClosed(id) => {
+            AppMessage::ClosePopup(id) => {
                 //info!("PopupClosed: {id:?}");
                 if self.popup.as_ref() == Some(&id) {
                     self.popup = None;
@@ -172,6 +176,7 @@ impl cosmic::Application for Window {
                 if let Err(e) = clipboard::copy(data) {
                     error!("can't copy: {e}");
                 }
+                return command_message(AppMessage::TogglePopup)
             }
             AppMessage::Delete(data) => {
                 if let Err(e) = self.state.db.delete(&data) {
@@ -186,6 +191,17 @@ impl cosmic::Application for Window {
             AppMessage::RetryConnectingClipboard => {
                 self.state.clipboard_state = ClipboardState::Init;
             }
+            AppMessage::Navigation(message) => match message {
+                navigation::NavigationMessage::Down => return iced::widget::focus_next(),
+                navigation::NavigationMessage::Up => {
+                    return iced::widget::focus_previous();
+                }
+                navigation::NavigationMessage::Enter => {
+                }
+                navigation::NavigationMessage::Quit => {
+                    return command_message(AppMessage::TogglePopup)
+                }
+            },
         }
         Command::none()
     }
@@ -201,25 +217,7 @@ impl cosmic::Application for Window {
         self.core.applet.popup_container(self.state.view()).into()
     }
     fn subscription(&self) -> Subscription<Self::Message> {
-        let mut subscriptions = Vec::new();
-
-        struct ConfigSubscription;
-        let config = cosmic_config::config_subscription(
-            std::any::TypeId::of::<ConfigSubscription>(),
-            Self::APP_ID.into(),
-            CONFIG_VERSION,
-        )
-        .map(|update| {
-            if !update.errors.is_empty() {
-                eprintln!(
-                    "errors loading config {:?}: {:?}",
-                    update.keys, update.errors
-                );
-            }
-            AppMessage::ChangeConfig(update.config)
-        });
-
-        subscriptions.push(config);
+        let mut subscriptions = vec![config::sub(), navigation::sub().map(AppMessage::Navigation)];
 
         if self.state.clipboard_state != ClipboardState::Error {
             subscriptions.push(clipboard::sub().map(AppMessage::ClipboardEvent));

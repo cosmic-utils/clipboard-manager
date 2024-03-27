@@ -171,6 +171,7 @@ impl Db {
             .build(vec![query])
             .unwrap();
 
+        // https://www.reddit.com/r/rust/comments/1boo2fb/comment/kwqahjv/?context=3
         self.state
             .par_iter()
             .filter(|s| {
