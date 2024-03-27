@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use cosmic::iced::Padding;
+use cosmic::{app::Message, iced::Padding, iced_runtime::command::Action, Command};
 
 pub fn formated_value(value: &str, max_lines: usize, max_chars: usize) -> Cow<str> {
     if value.lines().count() <= max_lines && value.len() <= max_chars {
@@ -56,4 +56,10 @@ pub fn vertical_padding(value: f32) -> Padding {
         bottom: value,
         left: 0f32,
     }
+}
+
+pub fn command_message<M: Send + 'static>(message: M) -> Command<Message<M>> {
+    Command::single(Action::Future(Box::pin(async {
+        cosmic::app::Message::App(message)
+    })))
 }

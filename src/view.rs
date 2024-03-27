@@ -35,10 +35,7 @@ impl AppState {
             ))
         };
 
-        mouse_area(content)
-            .on_release(AppMessage::TogglePopup)
-            .on_right_release(AppMessage::TogglePopup)
-            .into()
+        content.into()
     }
 
     fn top_view(&self) -> Element<AppMessage> {
@@ -53,7 +50,6 @@ impl AppState {
         row.push(text_input);
 
         if self.clipboard_state == ClipboardState::Error {
-            println!("hello");
             let icon_bytes = include_bytes!("../resources/icons/sync_problem24.svg") as &[u8];
 
             let icon = icon::from_svg_bytes(icon_bytes);
