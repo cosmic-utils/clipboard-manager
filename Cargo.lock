@@ -2807,6 +2807,7 @@ dependencies = [
  "iced_sctk",
  "iced_style",
  "iced_tiny_skia",
+ "iced_wgpu",
  "iced_widget",
  "lazy_static",
  "mime 0.3.17",

@@ -1,4 +1,4 @@
-use cosmic::app::Core;
+use cosmic::app::{command, Core};
 
 use cosmic::iced::wayland::popup::{destroy_popup, get_popup};
 use cosmic::iced::window::Id;
@@ -78,11 +78,11 @@ impl cosmic::Application for Window {
             },
         };
 
-        let command = Command::single(Action::Future(Box::pin(async {
-             cosmic::app::Message::App(AppMessage::TogglePopup)
-        })));
+        // let command = Command::single(Action::Future(Box::pin(async {
+        //      cosmic::app::Message::App(AppMessage::TogglePopup)
+        // })));
 
-        //let command = Command::none();
+        let command = Command::none();
 
         (window, command)
     }

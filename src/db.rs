@@ -175,7 +175,7 @@ impl Db {
             .par_iter()
             .filter(|s| {
                 let mut iter = ac.find_iter(&s.value);
-                return iter.next().is_some()
+                iter.next().is_some()
             })
             .collect()
     }

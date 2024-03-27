@@ -35,10 +35,7 @@ impl AppState {
             ))
         };
 
-        mouse_area(content)
-            .on_release(AppMessage::TogglePopup)
-            .on_right_release(AppMessage::TogglePopup)
-            .into()
+        content.into()
     }
 
     fn top_view(&self) -> Element<AppMessage> {
