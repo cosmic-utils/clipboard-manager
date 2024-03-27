@@ -930,6 +930,7 @@ dependencies = [
  "log",
  "once_cell",
  "os_pipe",
+ "paste",
  "rayon",
  "rust-embed",
  "serde",
