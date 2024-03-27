@@ -10,7 +10,7 @@ use cosmic::iced_runtime::command::Action;
 use cosmic::iced_runtime::core::window;
 use cosmic::iced_style::application;
 use cosmic::iced_widget::Column;
-use cosmic::widget::{button, text, text_input};
+use cosmic::widget::{button, icon, text, text_input};
 
 use cosmic::{Element, Theme};
 
@@ -207,10 +207,15 @@ impl cosmic::Application for Window {
     }
 
     fn view(&self) -> Element<Self::Message> {
-        button(text("Clipboard").size(14.0))
-            .style(cosmic::theme::Button::AppletIcon)
+
+
+        let icon_bytes = include_bytes!("../resources/icons/assignment24.svg") as &[u8];
+        let icon = icon::from_svg_bytes(icon_bytes);
+
+        self.core.applet.icon_button(icon)
             .on_press(AppMessage::TogglePopup)
             .into()
+
     }
 
     fn view_window(&self, _id: Id) -> Element<Self::Message> {
