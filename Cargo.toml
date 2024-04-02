@@ -40,7 +40,7 @@ features = [
     "tokio",
     "wayland",
     "desktop",
-    "wgpu",
+    #"wgpu",
     #"winit",
 ] 
 
