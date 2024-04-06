@@ -30,6 +30,7 @@ rayon = "1.10"
 futures = "0.3"
 thiserror = "1.0"
 aho-corasick = { version = "1.1", features = ["perf-literal"] }
+paste = "1.0.14"
 
 [dependencies.libcosmic]
 git = "https://github.com/pop-os/libcosmic"
@@ -39,14 +40,20 @@ features = [
     "tokio",
     "wayland",
     "desktop",
-    "wgpu",
+    #"wgpu",
     #"winit",
 ] 
 
 
 
 [dependencies.wl-clipboard-rs]
-#path = "./../wl-clipboard-rs"
 git = "https://github.com/wiiznokes/wl-clipboard-rs.git"
 branch = "watch"
-#version = "0.8"
+
+[patch."https://github.com/pop-os/libcosmic".libcosmic]
+#path = "../libcosmic"
+git = "https://github.com/wiiznokes/libcosmic"
+branch = "icon-applet"
+
+[patch."https://github.com/wiiznokes/wl-clipboard-rs.git"]
+#wl-clipboard-rs = { path = "../wl-clipboard-rs" }

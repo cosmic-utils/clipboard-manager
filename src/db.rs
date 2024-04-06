@@ -10,7 +10,13 @@ use serde::{Deserialize, Serialize};
 use derivative::Derivative;
 
 // todo: enforce that only this app can read/write this file.
-const DB_PATH: &str = "/tmp/welcome-to-sled";
+
+#[cfg(debug_assertions)]
+const DB_PATH: &str = "/tmp/cosmic-clipboard-manager-db-debug";
+
+
+#[cfg(not(debug_assertions))]
+const DB_PATH: &str = "/tmp/cosmic-clipboard-manager-db";
 
 #[derive(Derivative)]
 #[derivative(PartialEq, Hash)]
