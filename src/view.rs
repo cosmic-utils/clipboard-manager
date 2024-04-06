@@ -26,7 +26,7 @@ impl AppState {
             .push(self.top_view())
             .push(Space::with_height(20))
             .padding(Padding::new(10f32))
-            .push(Self::entry_list_view(self.db.iter()));
+            .push(Self::entry_list_view(self.db.iter(), self.focused));
 
       
         content.into()
@@ -61,11 +61,14 @@ impl AppState {
             .into()
     }
 
-    fn entry_list_view<'a, I>(entries: I) -> Element<'a, AppMessage>
+    fn entry_list_view<'a, I>(entries: I, focused: usize) -> Element<'a, AppMessage>
     where
         I: Iterator<Item = &'a Data>,
     {
-        fn entry_view(data: &Data) -> Element<AppMessage> {
+        
+        let entry_view = |index: usize, data: &'a Data| -> Element<'a, AppMessage> {
+             let is_focused = focused == index;
+            
             let icon_bytes = include_bytes!("../resources/icons/close24.svg") as &[u8];
 
             let icon = icon::from_svg_bytes(icon_bytes);
@@ -93,9 +96,10 @@ impl AppState {
             MouseArea::new(card)
                 .on_release(AppMessage::OnClick(data.clone()))
                 .into()
-        }
-
-        let entries_view = entries.map(|data| entry_view(data));
+        };
+        
+     
+        let entries_view = entries.enumerate().map(|(index, data)| entry_view(index, data));
 
         let mut padding = horizontal_padding(10f32);
         // try to fix scroll bar

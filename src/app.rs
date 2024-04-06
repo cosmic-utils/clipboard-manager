@@ -38,7 +38,13 @@ pub struct AppState {
 }
 
 impl AppState {
+    fn focus_next(&mut self) {
+        self.focused = (self.focused + 1) % self.db.len();
+    }
 
+    fn focus_previous(&mut self) {
+        self.focused = (self.focused + self.db.len() - 1) % self.db.len();
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -204,12 +210,17 @@ impl cosmic::Application for Window {
                 self.state.clipboard_state = ClipboardState::Init;
             }
             AppMessage::Navigation(message) => match message {
-                navigation::NavigationMessage::Down => return iced::widget::focus_next(),
+                navigation::NavigationMessage::Down => {
+                    self.state.focus_previous();
+                },
                 navigation::NavigationMessage::Up => {
-                    return iced::widget::focus_previous();
+                    self.state.focus_next();
                 }
-                navigation::NavigationMessage::Enter => {}
+                navigation::NavigationMessage::Enter => {
+                    
+                }
                 navigation::NavigationMessage::Quit => {
+                    self.state.db.search("".into());
                     return command_message(AppMessage::TogglePopup)
                 }
             },
