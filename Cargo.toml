@@ -47,7 +47,11 @@ features = [
 
 
 [dependencies.wl-clipboard-rs]
-#path = "./../wl-clipboard-rs"
 git = "https://github.com/wiiznokes/wl-clipboard-rs.git"
 branch = "watch"
-#version = "0.8"
+
+[patch."https://github.com/pop-os/libcosmic"]
+libcosmic = { path = "../libcosmic" }
+
+[patch."https://github.com/wiiznokes/wl-clipboard-rs.git"]
+#wl-clipboard-rs = { path = "../wl-clipboard-rs" }

@@ -49,19 +49,14 @@ impl AppState {
 
         row.push(text_input);
 
-        if self.clipboard_state == ClipboardState::Error {
-            let icon_bytes = include_bytes!("../resources/icons/sync_problem24.svg") as &[u8];
+        row.push(Space::with_width(Length::Fill).into());
 
-            let icon = icon::from_svg_bytes(icon_bytes);
+        let clear_button = cosmic::widget::button("Clear")
+            .on_press(AppMessage::Clear)
+            .style(theme::Button::Destructive)
+            .into();
 
-            let retry_button = cosmic::widget::button::icon(icon)
-                .on_press(AppMessage::RetryConnectingClipboard)
-                .style(theme::Button::Suggested)
-                .into();
-
-            row.push(Space::with_width(Length::Fill).into());
-            row.push(retry_button);
-        }
+        row.push(clear_button);
 
         let mut padding = Padding::new(10f32);
         padding.bottom = 0f32;

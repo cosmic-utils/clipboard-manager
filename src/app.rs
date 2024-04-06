@@ -41,7 +41,17 @@ pub struct AppState {
 pub enum ClipboardState {
     Init,
     Connected,
-    Error,
+    Error(String),
+}
+
+impl ClipboardState {
+    pub fn is_error(&self) -> bool {
+        if let ClipboardState::Error(..) = self {
+            true
+        } else {
+            false
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -156,27 +166,25 @@ impl cosmic::Application for Window {
             AppMessage::Query(query) => {
                 self.state.query = query;
             }
-            AppMessage::ClipboardEvent(message) => {
-                match message {
-                    clipboard::ClipboardMessage::Connected => {
-                        self.state.clipboard_state = ClipboardState::Connected;
-                    }
-                    clipboard::ClipboardMessage::Data(data) => {
-                        if let Err(e) = self.state.db.insert(data) {
-                            error!("can't insert data: {e}");
-                        }
-                    }
-                    clipboard::ClipboardMessage::Error(_e) => {
-                        // todo: print error, or desc on the icon
-                        self.state.clipboard_state = ClipboardState::Error;
+            AppMessage::ClipboardEvent(message) => match message {
+                clipboard::ClipboardMessage::Connected => {
+                    self.state.clipboard_state = ClipboardState::Connected;
+                }
+                clipboard::ClipboardMessage::Data(data) => {
+                    if let Err(e) = self.state.db.insert(data) {
+                        error!("can't insert data: {e}");
                     }
                 }
-            }
+                clipboard::ClipboardMessage::Error(e) => {
+                    error!("{e}");
+                    self.state.clipboard_state = ClipboardState::Error(e);
+                }
+            },
             AppMessage::OnClick(data) => {
                 if let Err(e) = clipboard::copy(data) {
                     error!("can't copy: {e}");
                 }
-                return command_message(AppMessage::TogglePopup)
+                return command_message(AppMessage::TogglePopup);
             }
             AppMessage::Delete(data) => {
                 if let Err(e) = self.state.db.delete(&data) {
@@ -196,8 +204,7 @@ impl cosmic::Application for Window {
                 navigation::NavigationMessage::Up => {
                     return iced::widget::focus_previous();
                 }
-                navigation::NavigationMessage::Enter => {
-                }
+                navigation::NavigationMessage::Enter => {}
                 navigation::NavigationMessage::Quit => {
                     return command_message(AppMessage::TogglePopup)
                 }
@@ -207,15 +214,14 @@ impl cosmic::Application for Window {
     }
 
     fn view(&self) -> Element<Self::Message> {
-
-
         let icon_bytes = include_bytes!("../resources/icons/assignment24.svg") as &[u8];
         let icon = icon::from_svg_bytes(icon_bytes);
 
-        self.core.applet.icon_button(icon)
+        self.core
+            .applet
+            .icon_button_with_handle(icon)
             .on_press(AppMessage::TogglePopup)
             .into()
-
     }
 
     fn view_window(&self, _id: Id) -> Element<Self::Message> {
@@ -224,7 +230,7 @@ impl cosmic::Application for Window {
     fn subscription(&self) -> Subscription<Self::Message> {
         let mut subscriptions = vec![config::sub(), navigation::sub().map(AppMessage::Navigation)];
 
-        if self.state.clipboard_state != ClipboardState::Error {
+        if !self.state.clipboard_state.is_error() {
             subscriptions.push(clipboard::sub().map(AppMessage::ClipboardEvent));
         }
 
