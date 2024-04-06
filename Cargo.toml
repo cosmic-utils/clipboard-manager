@@ -50,8 +50,10 @@ features = [
 git = "https://github.com/wiiznokes/wl-clipboard-rs.git"
 branch = "watch"
 
-[patch."https://github.com/pop-os/libcosmic"]
-libcosmic = { path = "../libcosmic" }
+[patch."https://github.com/pop-os/libcosmic".libcosmic]
+#path = "../libcosmic"
+git = "https://github.com/wiiznokes/libcosmic"
+branch = "icon-applet"
 
 [patch."https://github.com/wiiznokes/wl-clipboard-rs.git"]
 #wl-clipboard-rs = { path = "../wl-clipboard-rs" }
