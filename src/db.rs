@@ -1,6 +1,5 @@
 use std::{
-    fmt::Display,
-    time::{SystemTime, UNIX_EPOCH},
+    fmt::Display, ptr::NonNull, time::{SystemTime, UNIX_EPOCH}
 };
 
 use aho_corasick::AhoCorasick;
@@ -53,16 +52,18 @@ impl Data {
     }
 }
 
+
+struct NonNullButSend<T>(NonNull<T>);
+unsafe impl <T>Send for NonNullButSend<T> {}
+
 pub struct Db {
     handle: sled::Db,
     state: IndexSet<Data>,
+    filtered: Vec<NonNullButSend<Data>>,
+    query: String,
 }
 
-impl Db {
-    pub fn iter(&self) -> indexmap::set::Iter<'_, Data> {
-        self.state.iter()
-    }
-}
+
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct KeyDb(u128);
@@ -105,6 +106,8 @@ impl Db {
         let db = Db {
             handle: db_handle,
             state,
+            filtered: Vec::new(),
+            query: String::new(),
         };
 
         Ok(db)
@@ -114,6 +117,7 @@ impl Db {
         self.handle.clear()?;
         self.state.clear();
         self.handle.flush()?;
+        self.do_search();
         Ok(())
     }
 
@@ -151,6 +155,9 @@ impl Db {
         self.handle.insert(key, data_db_bin)?;
 
         self.handle.flush()?;
+
+
+        self.do_search();
         Ok(())
     }
 
@@ -166,25 +173,72 @@ impl Db {
         }
 
         self.handle.flush()?;
+
+        self.do_search();
         Ok(())
     }
 
-    pub fn search(&self, query: &str) -> Vec<&Data> {
+    pub fn search(&mut self, query: String) {
+        self.query = query;
+        self.do_search();
+    }
+
+    pub fn query(&self) -> &str {
+        &self.query
+    }
+
+    fn do_search(&mut self) {
         use rayon::prelude::*;
+
+        if self.query.is_empty() {
+            self.filtered.clear();
+            return;
+        }
 
         let ac = AhoCorasick::builder()
             .ascii_case_insensitive(true)
-            .build(vec![query])
+            .build(vec![&self.query])
             .unwrap();
 
         // https://www.reddit.com/r/rust/comments/1boo2fb/comment/kwqahjv/?context=3
-        self.state
+        self.filtered = self.state
             .par_iter()
             .filter(|s| {
                 let mut iter = ac.find_iter(&s.value);
                 iter.next().is_some()
             })
-            .collect()
+            .map(|e| {
+                NonNullButSend(NonNull::from(e))
+            })
+            .collect::<Vec<_>>()
+            .into_iter()
+            // we can't call rev on par_iter and par_bridge
+            // doesn't preserve order + it is less fast
+            // maybe droping completelly rayon could be better
+            // https://github.com/rayon-rs/rayon/issues/551
+            .rev() 
+            .collect();
+            
+    }
+
+ 
+
+    pub fn iter(&self) ->  Box<dyn Iterator<Item = &Data> + '_> {
+        if self.query.is_empty() {
+            Box::new(self.state.iter().rev())
+        } else {
+            Box::new(self.filtered.iter().map(|e| {
+                unsafe { e.0.as_ref() }
+            }))
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        if self.query.is_empty() {
+            self.state.len()
+        } else {
+            self.filtered.len()
+        }
     }
 }
 

@@ -32,9 +32,13 @@ pub struct Window {
 }
 
 pub struct AppState {
-    pub query: String,
     pub db: Db,
     pub clipboard_state: ClipboardState,
+    pub focused: usize,
+}
+
+impl AppState {
+
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -84,9 +88,9 @@ impl cosmic::Application for Window {
             config_handler: flags.config_handler,
             popup: None,
             state: AppState {
-                query: "".to_string(),
                 db: db::Db::new().unwrap(),
                 clipboard_state: ClipboardState::Init,
+                focused: 0,
             },
         };
 
@@ -163,8 +167,8 @@ impl cosmic::Application for Window {
                     self.popup = None;
                 }
             }
-            AppMessage::Query(query) => {
-                self.state.query = query;
+            AppMessage::Search(query) => {
+                self.state.db.search(query);
             }
             AppMessage::ClipboardEvent(message) => match message {
                 clipboard::ClipboardMessage::Connected => {

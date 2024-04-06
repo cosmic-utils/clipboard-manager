@@ -25,26 +25,20 @@ impl AppState {
             .width(Length::Fill)
             .push(self.top_view())
             .push(Space::with_height(20))
-            .padding(Padding::new(10f32));
+            .padding(Padding::new(10f32))
+            .push(Self::entry_list_view(self.db.iter()));
 
-        let content = if self.query.is_empty() {
-            content.push(Self::entry_list_view(self.db.iter().rev()))
-        } else {
-            content.push(Self::entry_list_view(
-                self.db.search(&self.query).iter().copied(),
-            ))
-        };
-
+      
         content.into()
     }
 
     fn top_view(&self) -> Element<AppMessage> {
         let mut row = Vec::new();
 
-        let text_input = text_input::search_input("value", &self.query)
-            .on_input(AppMessage::Query)
-            .on_paste(AppMessage::Query)
-            .on_clear(AppMessage::Query("".into()))
+        let text_input = text_input::search_input("value", self.db.query())
+            .on_input(AppMessage::Search)
+            .on_paste(AppMessage::Search)
+            .on_clear(AppMessage::Search("".into()))
             .into();
 
         row.push(text_input);

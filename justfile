@@ -1,9 +1,13 @@
 
-build:
-	clear
-	cargo build
 
-install target='debug':
+
+install:
+	cargo build -r
+	sudo install -Dm0755 ./target/release/cosmic-clipboard-manager /usr/bin/cosmic-clipboard-manager
+	sudo install -Dm0644 resources/com.wiiznokes.CosmicClipboardManager.desktop /usr/share/applications/com.wiiznokes.CosmicClipboardManager.desktop
+
+
+install_ target='release':
 	sudo install -Dm0755 ./target/{{target}}/cosmic-clipboard-manager /usr/bin/cosmic-clipboard-manager
 	sudo install -Dm0644 resources/com.wiiznokes.CosmicClipboardManager.desktop /usr/share/applications/com.wiiznokes.CosmicClipboardManager.desktop
 
