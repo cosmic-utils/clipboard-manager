@@ -212,16 +212,14 @@ impl cosmic::Application for Window {
             AppMessage::Navigation(message) => match message {
                 navigation::NavigationMessage::Down => {
                     self.state.focus_previous();
-                },
+                }
                 navigation::NavigationMessage::Up => {
                     self.state.focus_next();
                 }
-                navigation::NavigationMessage::Enter => {
-                    
-                }
+                navigation::NavigationMessage::Enter => {}
                 navigation::NavigationMessage::Quit => {
                     self.state.db.search("".into());
-                    return command_message(AppMessage::TogglePopup)
+                    return command_message(AppMessage::TogglePopup);
                 }
             },
         }
@@ -229,12 +227,10 @@ impl cosmic::Application for Window {
     }
 
     fn view(&self) -> Element<Self::Message> {
-        let icon_bytes = include_bytes!("../resources/icons/assignment24.svg") as &[u8];
-        let icon = icon::from_svg_bytes(icon_bytes);
-
+    
         self.core
             .applet
-            .icon_button_with_handle(icon)
+            .icon_button("/usr/share/com.wiiznokes.CosmicClipboardManager/icons/assignment24.svg")
             .on_press(AppMessage::TogglePopup)
             .into()
     }
