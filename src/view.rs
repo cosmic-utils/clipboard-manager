@@ -25,26 +25,20 @@ impl AppState {
             .width(Length::Fill)
             .push(self.top_view())
             .push(Space::with_height(20))
-            .padding(Padding::new(10f32));
+            .padding(Padding::new(10f32))
+            .push(Self::entry_list_view(self.db.iter(), self.focused));
 
-        let content = if self.query.is_empty() {
-            content.push(Self::entry_list_view(self.db.iter().rev()))
-        } else {
-            content.push(Self::entry_list_view(
-                self.db.search(&self.query).iter().copied(),
-            ))
-        };
-
+      
         content.into()
     }
 
     fn top_view(&self) -> Element<AppMessage> {
         let mut row = Vec::new();
 
-        let text_input = text_input::search_input("value", &self.query)
-            .on_input(AppMessage::Query)
-            .on_paste(AppMessage::Query)
-            .on_clear(AppMessage::Query("".into()))
+        let text_input = text_input::search_input("value", self.db.query())
+            .on_input(AppMessage::Search)
+            .on_paste(AppMessage::Search)
+            .on_clear(AppMessage::Search("".into()))
             .into();
 
         row.push(text_input);
@@ -67,11 +61,14 @@ impl AppState {
             .into()
     }
 
-    fn entry_list_view<'a, I>(entries: I) -> Element<'a, AppMessage>
+    fn entry_list_view<'a, I>(entries: I, focused: usize) -> Element<'a, AppMessage>
     where
         I: Iterator<Item = &'a Data>,
     {
-        fn entry_view(data: &Data) -> Element<AppMessage> {
+        
+        let entry_view = |index: usize, data: &'a Data| -> Element<'a, AppMessage> {
+             let is_focused = focused == index;
+            
             let icon_bytes = include_bytes!("../resources/icons/close24.svg") as &[u8];
 
             let icon = icon::from_svg_bytes(icon_bytes);
@@ -99,9 +96,10 @@ impl AppState {
             MouseArea::new(card)
                 .on_release(AppMessage::OnClick(data.clone()))
                 .into()
-        }
-
-        let entries_view = entries.map(|data| entry_view(data));
+        };
+        
+     
+        let entries_view = entries.enumerate().map(|(index, data)| entry_view(index, data));
 
         let mut padding = horizontal_padding(10f32);
         // try to fix scroll bar

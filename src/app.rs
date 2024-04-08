@@ -32,9 +32,19 @@ pub struct Window {
 }
 
 pub struct AppState {
-    pub query: String,
     pub db: Db,
     pub clipboard_state: ClipboardState,
+    pub focused: usize,
+}
+
+impl AppState {
+    fn focus_next(&mut self) {
+        self.focused = (self.focused + 1) % self.db.len();
+    }
+
+    fn focus_previous(&mut self) {
+        self.focused = (self.focused + self.db.len() - 1) % self.db.len();
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -84,9 +94,9 @@ impl cosmic::Application for Window {
             config_handler: flags.config_handler,
             popup: None,
             state: AppState {
-                query: "".to_string(),
                 db: db::Db::new().unwrap(),
                 clipboard_state: ClipboardState::Init,
+                focused: 0,
             },
         };
 
@@ -163,8 +173,8 @@ impl cosmic::Application for Window {
                     self.popup = None;
                 }
             }
-            AppMessage::Query(query) => {
-                self.state.query = query;
+            AppMessage::Search(query) => {
+                self.state.db.search(query);
             }
             AppMessage::ClipboardEvent(message) => match message {
                 clipboard::ClipboardMessage::Connected => {
@@ -200,13 +210,16 @@ impl cosmic::Application for Window {
                 self.state.clipboard_state = ClipboardState::Init;
             }
             AppMessage::Navigation(message) => match message {
-                navigation::NavigationMessage::Down => return iced::widget::focus_next(),
+                navigation::NavigationMessage::Down => {
+                    self.state.focus_previous();
+                }
                 navigation::NavigationMessage::Up => {
-                    return iced::widget::focus_previous();
+                    self.state.focus_next();
                 }
                 navigation::NavigationMessage::Enter => {}
                 navigation::NavigationMessage::Quit => {
-                    return command_message(AppMessage::TogglePopup)
+                    self.state.db.search("".into());
+                    return command_message(AppMessage::TogglePopup);
                 }
             },
         }
@@ -214,12 +227,10 @@ impl cosmic::Application for Window {
     }
 
     fn view(&self) -> Element<Self::Message> {
-        let icon_bytes = include_bytes!("../resources/icons/assignment24.svg") as &[u8];
-        let icon = icon::from_svg_bytes(icon_bytes);
-
+    
         self.core
             .applet
-            .icon_button_with_handle(icon)
+            .icon_button("/usr/share/com.wiiznokes.CosmicClipboardManager/icons/assignment24.svg")
             .on_press(AppMessage::TogglePopup)
             .into()
     }

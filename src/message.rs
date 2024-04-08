@@ -13,7 +13,7 @@ pub enum AppMessage {
     ChangeConfig(Config),
     TogglePopup,
     ClosePopup(Id),
-    Query(String),
+    Search(String),
     ClipboardEvent(ClipboardMessage),
     RetryConnectingClipboard,
     OnClick(Data),

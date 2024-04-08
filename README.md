@@ -21,8 +21,7 @@ Maybe take inspiration on this gnome extension: https://github.com/oae/gnome-she
 ```
 git clone https://github.com/wiiznokes/cosmic-clipboard-manager.git
 cd cosmic-clipboard-manager
-cargo build --release
-just install release
+just install
 ```
 
 You curently need to activate a setting of the compositor:
