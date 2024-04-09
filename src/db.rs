@@ -1,5 +1,8 @@
 use std::{
-    fmt::Display, ptr::NonNull, time::{SystemTime, UNIX_EPOCH}
+    fmt::Display,
+    io,
+    ptr::NonNull,
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 use aho_corasick::AhoCorasick;
@@ -12,7 +15,6 @@ use derivative::Derivative;
 
 #[cfg(debug_assertions)]
 const DB_PATH: &str = "/tmp/cosmic-clipboard-manager-db-debug";
-
 
 #[cfg(not(debug_assertions))]
 const DB_PATH: &str = "/tmp/cosmic-clipboard-manager-db";
@@ -52,9 +54,8 @@ impl Data {
     }
 }
 
-
 struct NonNullButSend<T>(NonNull<T>);
-unsafe impl <T>Send for NonNullButSend<T> {}
+unsafe impl<T> Send for NonNullButSend<T> {}
 
 pub struct Db {
     handle: sled::Db,
@@ -62,8 +63,6 @@ pub struct Db {
     filtered: Vec<NonNullButSend<Data>>,
     query: String,
 }
-
-
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct KeyDb(u128);
@@ -147,7 +146,6 @@ impl Db {
             mime: data.mime,
             value: data.value,
         };
-
         let mut data_db_bin = Vec::new();
 
         bincode::serialize_into(&mut data_db_bin, &data_db).unwrap();
@@ -155,7 +153,6 @@ impl Db {
         self.handle.insert(key, data_db_bin)?;
 
         self.handle.flush()?;
-
 
         self.do_search();
         Ok(())
@@ -201,35 +198,29 @@ impl Db {
             .unwrap();
 
         // https://www.reddit.com/r/rust/comments/1boo2fb/comment/kwqahjv/?context=3
-        self.filtered = self.state
+        self.filtered = self
+            .state
             .par_iter()
             .filter(|s| {
                 let mut iter = ac.find_iter(&s.value);
                 iter.next().is_some()
             })
-            .map(|e| {
-                NonNullButSend(NonNull::from(e))
-            })
+            .map(|e| NonNullButSend(NonNull::from(e)))
             .collect::<Vec<_>>()
             .into_iter()
             // we can't call rev on par_iter and par_bridge
             // doesn't preserve order + it is less fast
             // maybe droping completelly rayon could be better
             // https://github.com/rayon-rs/rayon/issues/551
-            .rev() 
+            .rev()
             .collect();
-            
     }
 
- 
-
-    pub fn iter(&self) ->  Box<dyn Iterator<Item = &Data> + '_> {
+    pub fn iter(&self) -> Box<dyn Iterator<Item = &Data> + '_> {
         if self.query.is_empty() {
             Box::new(self.state.iter().rev())
         } else {
-            Box::new(self.filtered.iter().map(|e| {
-                unsafe { e.0.as_ref() }
-            }))
+            Box::new(self.filtered.iter().map(|e| unsafe { e.0.as_ref() }))
         }
     }
 

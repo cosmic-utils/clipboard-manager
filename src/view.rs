@@ -7,29 +7,41 @@ use cosmic::{
     widget::{
         self,
         icon::{self, Handle},
-        mouse_area, text, text_input, Button, Column, Container, Icon, MouseArea, Space,
+        mouse_area, text, text_input, toggler, Button, Column, Container, Icon, MouseArea, Space,
     },
     Element,
 };
 
 use crate::{
     app::{AppState, ClipboardState},
+    config::Config,
     db::Data,
     message::AppMessage,
     utils::{formated_value, horizontal_padding},
 };
 
 impl AppState {
-    pub fn view(&self) -> Element<AppMessage> {
+    pub fn view(&self, config: &Config) -> Element<AppMessage> {
         let content = Column::new()
             .width(Length::Fill)
+            .spacing(20)
+            .padding(10)
             .push(self.top_view())
-            .push(Space::with_height(20))
-            .padding(Padding::new(10f32))
-            .push(Self::entry_list_view(self.db.iter(), self.focused));
+            .push(Self::entry_list_view(self.db.iter(), self.focused))
+            .push(self.bottom_view(config.private_mode));
 
-      
         content.into()
+    }
+
+    fn bottom_view(&self, private_mode_enabled: bool) -> Element<AppMessage> {
+        let private_mode = toggler(
+            "Incognito".to_string(),
+            private_mode_enabled,
+            AppMessage::PrivateMode,
+        );
+        let space = widget::horizontal_space(Length::Fill);
+        let row = widget::row::with_capacity(2).push(space).push(private_mode);
+        row.padding([0, 10, 10, 10]).into()
     }
 
     fn top_view(&self) -> Element<AppMessage> {
@@ -39,15 +51,15 @@ impl AppState {
             .on_input(AppMessage::Search)
             .on_paste(AppMessage::Search)
             .on_clear(AppMessage::Search("".into()))
+            .width(Length::FillPortion(8))
             .into();
 
         row.push(text_input);
 
         row.push(Space::with_width(Length::Fill).into());
 
-        let clear_button = cosmic::widget::button("Clear")
+        let clear_button = widget::button::destructive("Clear")
             .on_press(AppMessage::Clear)
-            .style(theme::Button::Destructive)
             .into();
 
         row.push(clear_button);
@@ -57,6 +69,7 @@ impl AppState {
 
         Row::with_children(row)
             .width(Length::Fill)
+            .align_items(Alignment::Center)
             .padding(padding)
             .into()
     }
@@ -65,15 +78,14 @@ impl AppState {
     where
         I: Iterator<Item = &'a Data>,
     {
-        
         let entry_view = |index: usize, data: &'a Data| -> Element<'a, AppMessage> {
-             let is_focused = focused == index;
-            
+            let _is_focused = focused == index;
+
             let icon_bytes = include_bytes!("../resources/icons/close24.svg") as &[u8];
 
             let icon = icon::from_svg_bytes(icon_bytes);
 
-            let delete_button = cosmic::widget::button::icon(icon)
+            let delete_button = widget::button::icon(icon)
                 .extra_small()
                 .on_press(AppMessage::Delete(data.clone()))
                 .style(theme::Button::Destructive);
@@ -97,9 +109,11 @@ impl AppState {
                 .on_release(AppMessage::OnClick(data.clone()))
                 .into()
         };
-        
-     
-        let entries_view = entries.enumerate().map(|(index, data)| entry_view(index, data));
+
+        let entries_view = entries
+            .enumerate()
+            .filter(|(_, data)| !data.value.is_empty())
+            .map(|(index, data)| entry_view(index, data));
 
         let mut padding = horizontal_padding(10f32);
         // try to fix scroll bar

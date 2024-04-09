@@ -1,6 +1,10 @@
 use std::{
     future::Future,
     io::Read,
+    sync::{
+        atomic::{self, AtomicBool},
+        Arc,
+    },
     thread::{self, sleep},
     time::Duration,
 };
@@ -9,8 +13,8 @@ use cosmic::iced::{futures::SinkExt, subscription, Subscription};
 use tokio::sync::mpsc;
 use wl_clipboard_rs::{copy, paste_watch};
 
+use crate::config::PRIVATE_MODE;
 use crate::db::Data;
-
 use os_pipe::PipeReader;
 
 #[derive(Debug, Clone)]
@@ -27,7 +31,7 @@ pub fn sub() -> Subscription<ClipboardMessage> {
         Error,
     }
 
-    subscription::channel(std::any::TypeId::of::<State>(), 100, move |mut output| {
+    subscription::channel(std::any::TypeId::of::<State>(), 500, move |mut output| {
         async move {
             match paste_watch::Watcher::init(paste_watch::ClipboardType::Regular) {
                 Ok(mut clipboard_watcher) => {
@@ -39,14 +43,17 @@ pub fn sub() -> Subscription<ClipboardMessage> {
                             paste_watch::MimeType::Any,
                         ) {
                             Ok(res) => {
-                                tx.blocking_send(res).expect("can't send");
+                                if !PRIVATE_MODE.load(atomic::Ordering::Relaxed) {
+                                    tx.blocking_send(res).expect("can't send");
+                                } else {
+                                    log::info!("private mode")
+                                }
                             }
                             Err(e) => {
-                                error!("{e}");
+                                error!("watch clipboard error: {e}");
                             }
                         }
                     });
-
                     output.send(ClipboardMessage::Connected).await.unwrap();
 
                     loop {
@@ -54,10 +61,12 @@ pub fn sub() -> Subscription<ClipboardMessage> {
                             Some((mut pipe, mime_type)) => {
                                 let mut contents = String::new();
                                 pipe.read_to_string(&mut contents).unwrap();
+
                                 let data = Data::new(mime_type, contents);
-                                //info!("sending: {:?}", data);
+                                info!("sending data to database: {:?}", data);
                                 output.send(ClipboardMessage::Data(data)).await.unwrap();
                             }
+
                             None => {
                                 error!("can't receive");
                                 tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
@@ -65,6 +74,7 @@ pub fn sub() -> Subscription<ClipboardMessage> {
                         }
                     }
                 }
+
                 Err(e) => {
                     // todo: how to cancel properly?
                     // https://github.com/pop-os/cosmic-files/blob/d96d48995d49e17f01903ca4d89839eb4a1b1104/src/app.rs#L1704
@@ -73,6 +83,7 @@ pub fn sub() -> Subscription<ClipboardMessage> {
                         .await
                         .expect("can't send");
                     loop {
+                        log::error!("inside error: {e}");
                         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
                     }
                 }
@@ -82,8 +93,8 @@ pub fn sub() -> Subscription<ClipboardMessage> {
 }
 
 pub fn copy(data: Data) -> Result<(), copy::Error> {
+    dbg!("copy", &data);
     let options = copy::Options::default();
-
     let bytes = data.value.into_bytes().into_boxed_slice();
 
     let source = copy::Source::Bytes(bytes);

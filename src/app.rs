@@ -14,12 +14,14 @@ use cosmic::widget::{button, icon, text, text_input};
 
 use cosmic::{Element, Theme};
 
-use crate::config::{Config, CONFIG_VERSION};
+use crate::config::{Config, CONFIG_VERSION, PRIVATE_MODE};
 use crate::db::{self, Data, Db};
 use crate::message::AppMessage;
 use crate::utils::command_message;
 use crate::{clipboard, config, navigation};
+
 use cosmic::cosmic_config;
+use std::sync::atomic::{self, AtomicBool};
 
 pub const APP_ID: &str = "com.wiiznokes.CosmicClipboardManager";
 
@@ -56,11 +58,7 @@ pub enum ClipboardState {
 
 impl ClipboardState {
     pub fn is_error(&self) -> bool {
-        if let ClipboardState::Error(..) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, ClipboardState::Error(..))
     }
 }
 
@@ -88,9 +86,10 @@ impl cosmic::Application for Window {
         core: Core,
         flags: Self::Flags,
     ) -> (Self, cosmic::Command<cosmic::app::Message<Self::Message>>) {
+        let config = flags.config;
+        PRIVATE_MODE.store(config.private_mode, atomic::Ordering::Relaxed);
         let window = Window {
             core,
-            config: flags.config,
             config_handler: flags.config_handler,
             popup: None,
             state: AppState {
@@ -98,6 +97,7 @@ impl cosmic::Application for Window {
                 clipboard_state: ClipboardState::Init,
                 focused: 0,
             },
+            config,
         };
 
         #[cfg(debug_assertions)]
@@ -144,7 +144,8 @@ impl cosmic::Application for Window {
         match message {
             AppMessage::ChangeConfig(config) => {
                 if config != self.config {
-                    self.config = config
+                    PRIVATE_MODE.store(config.private_mode, atomic::Ordering::Relaxed);
+                    self.config = config;
                 }
             }
             AppMessage::TogglePopup => {
@@ -222,12 +223,15 @@ impl cosmic::Application for Window {
                     return command_message(AppMessage::TogglePopup);
                 }
             },
+            AppMessage::PrivateMode(private_mode) => {
+                config_set!(private_mode, private_mode);
+                PRIVATE_MODE.store(private_mode, atomic::Ordering::Relaxed);
+            }
         }
         Command::none()
     }
 
     fn view(&self) -> Element<Self::Message> {
-    
         self.core
             .applet
             .icon_button("/usr/share/com.wiiznokes.CosmicClipboardManager/icons/assignment24.svg")
@@ -236,7 +240,10 @@ impl cosmic::Application for Window {
     }
 
     fn view_window(&self, _id: Id) -> Element<Self::Message> {
-        self.core.applet.popup_container(self.state.view()).into()
+        self.core
+            .applet
+            .popup_container(self.state.view(&self.config))
+            .into()
     }
     fn subscription(&self) -> Subscription<Self::Message> {
         let mut subscriptions = vec![config::sub(), navigation::sub().map(AppMessage::Navigation)];

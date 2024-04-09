@@ -18,6 +18,7 @@ pub enum AppMessage {
     RetryConnectingClipboard,
     OnClick(Data),
     Delete(Data),
+    PrivateMode(bool),
     Clear,
     Navigation(NavigationMessage),
 }
