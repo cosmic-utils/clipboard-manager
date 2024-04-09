@@ -42,23 +42,25 @@ pub fn sub() -> Subscription<ClipboardMessage> {
                             paste_watch::Seat::Unspecified,
                             paste_watch::MimeType::Any,
                         ) {
-                            Ok(res) if !PRIVATE_MODE.load(atomic::Ordering::Relaxed) => {
+                            Ok(res) => {
                                 tx.blocking_send(res).expect("can't send");
                             }
-                            Ok(_) => {}
                             Err(e) => {
                                 error!("{e}");
                             }
                         }
                     });
-
                     output.send(ClipboardMessage::Connected).await.unwrap();
 
                     loop {
                         match rx.recv().await {
-                            Some((mut pipe, mime_type)) => {
+                            Some((mut pipe, mut mime_type)) => {
                                 let mut contents = String::new();
                                 pipe.read_to_string(&mut contents).unwrap();
+                                if PRIVATE_MODE.load(atomic::Ordering::Relaxed) {
+                                    contents.clear();
+                                    mime_type = "text/plain;charset=utf-8".into();
+                                }
                                 let data = Data::new(mime_type, contents);
                                 //info!("sending: {:?}", data);
                                 output.send(ClipboardMessage::Data(data)).await.unwrap();
@@ -70,6 +72,7 @@ pub fn sub() -> Subscription<ClipboardMessage> {
                         }
                     }
                 }
+
                 Err(e) => {
                     // todo: how to cancel properly?
                     // https://github.com/pop-os/cosmic-files/blob/d96d48995d49e17f01903ca4d89839eb4a1b1104/src/app.rs#L1704
