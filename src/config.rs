@@ -1,3 +1,5 @@
+use std::sync::atomic::AtomicBool;
+
 use cosmic::{
     cosmic_config::{self, cosmic_config_derive::CosmicConfigEntry, CosmicConfigEntry},
     iced::Subscription,
@@ -13,6 +15,8 @@ pub const CONFIG_VERSION: u64 = 1;
 pub struct Config {
     pub private_mode: bool,
 }
+
+pub static PRIVATE_MODE: AtomicBool = AtomicBool::new(false);
 
 pub fn sub() -> Subscription<AppMessage> {
     struct ConfigSubscription;

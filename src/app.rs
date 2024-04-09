@@ -14,7 +14,7 @@ use cosmic::widget::{button, icon, text, text_input};
 
 use cosmic::{Element, Theme};
 
-use crate::config::{Config, CONFIG_VERSION};
+use crate::config::{Config, CONFIG_VERSION, PRIVATE_MODE};
 use crate::db::{self, Data, Db};
 use crate::message::AppMessage;
 use crate::utils::command_message;
@@ -24,7 +24,6 @@ use cosmic::cosmic_config;
 use std::sync::atomic::{self, AtomicBool};
 
 pub const APP_ID: &str = "com.wiiznokes.CosmicClipboardManager";
-pub static PRIVATE_MODE: AtomicBool = AtomicBool::new(false);
 
 pub struct Window {
     core: Core,
@@ -38,7 +37,6 @@ pub struct AppState {
     pub db: Db,
     pub clipboard_state: ClipboardState,
     pub focused: usize,
-    pub private_mode: bool,
 }
 
 impl AppState {
@@ -60,11 +58,7 @@ pub enum ClipboardState {
 
 impl ClipboardState {
     pub fn is_error(&self) -> bool {
-        if let ClipboardState::Error(..) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, ClipboardState::Error(..))
     }
 }
 
@@ -102,7 +96,6 @@ impl cosmic::Application for Window {
                 db: db::Db::new().unwrap(),
                 clipboard_state: ClipboardState::Init,
                 focused: 0,
-                private_mode: config.private_mode,
             },
             config,
         };
@@ -151,7 +144,6 @@ impl cosmic::Application for Window {
         match message {
             AppMessage::ChangeConfig(config) => {
                 if config != self.config {
-                    self.state.private_mode = config.private_mode;
                     PRIVATE_MODE.store(config.private_mode, atomic::Ordering::Relaxed);
                     self.config = config;
                 }
@@ -234,7 +226,6 @@ impl cosmic::Application for Window {
             AppMessage::PrivateMode(private_mode) => {
                 config_set!(private_mode, private_mode);
                 PRIVATE_MODE.store(private_mode, atomic::Ordering::Relaxed);
-                self.state.private_mode = private_mode;
             }
         }
         Command::none()
@@ -249,7 +240,10 @@ impl cosmic::Application for Window {
     }
 
     fn view_window(&self, _id: Id) -> Element<Self::Message> {
-        self.core.applet.popup_container(self.state.view()).into()
+        self.core
+            .applet
+            .popup_container(self.state.view(&self.config))
+            .into()
     }
     fn subscription(&self) -> Subscription<Self::Message> {
         let mut subscriptions = vec![config::sub(), navigation::sub().map(AppMessage::Navigation)];

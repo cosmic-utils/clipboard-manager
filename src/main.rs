@@ -36,7 +36,7 @@ fn setup_logs() {
         builder
     }
 
-    filter_workspace_crates(&mut builder, LevelFilter::Info);
+    filter_workspace_crates(&mut builder, LevelFilter::Debug);
 
     builder.init();
 }
