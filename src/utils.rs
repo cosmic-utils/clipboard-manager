@@ -34,7 +34,13 @@ pub fn formated_value(value: &str, max_lines: usize, max_chars: usize) -> Cow<st
 
 fn split_at(str: &str, n: usize) -> &str {
     if str.len() > n {
-        str.split_at(n).0
+        let mut i = n;
+        loop {
+            if let Some((left, _)) = str.split_at_checked(i) {
+                return left;
+            }
+            i -= 1;
+        }
     } else {
         str
     }
