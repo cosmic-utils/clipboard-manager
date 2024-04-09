@@ -65,6 +65,7 @@ pub fn sub() -> Subscription<ClipboardMessage> {
                                 //info!("sending: {:?}", data);
                                 output.send(ClipboardMessage::Data(data)).await.unwrap();
                             }
+                            
                             None => {
                                 error!("can't receive");
                                 tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;

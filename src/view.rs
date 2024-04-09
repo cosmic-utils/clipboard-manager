@@ -50,15 +50,15 @@ impl AppState {
             .on_input(AppMessage::Search)
             .on_paste(AppMessage::Search)
             .on_clear(AppMessage::Search("".into()))
+            .width(Length::FillPortion(8))
             .into();
 
         row.push(text_input);
 
         row.push(Space::with_width(Length::Fill).into());
 
-        let clear_button = cosmic::widget::button("Clear")
+        let clear_button = widget::button::destructive("Clear")
             .on_press(AppMessage::Clear)
-            .style(theme::Button::Destructive)
             .into();
 
         row.push(clear_button);
@@ -84,7 +84,7 @@ impl AppState {
 
             let icon = icon::from_svg_bytes(icon_bytes);
 
-            let delete_button = cosmic::widget::button::icon(icon)
+            let delete_button = widget::button::icon(icon)
                 .extra_small()
                 .on_press(AppMessage::Delete(data.clone()))
                 .style(theme::Button::Destructive);
@@ -111,6 +111,7 @@ impl AppState {
 
         let entries_view = entries
             .enumerate()
+            .filter(|(_, data)| !data.value.is_empty())
             .map(|(index, data)| entry_view(index, data));
 
         let mut padding = horizontal_padding(10f32);
