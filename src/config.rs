@@ -10,7 +10,9 @@ use crate::{app::APP_ID, message::AppMessage};
 pub const CONFIG_VERSION: u64 = 1;
 
 #[derive(CosmicConfigEntry, Debug, Clone, Default, Eq, PartialEq, Deserialize, Serialize)]
-pub struct Config {}
+pub struct Config {
+    pub private_mode: bool,
+}
 
 pub fn sub() -> Subscription<AppMessage> {
     struct ConfigSubscription;

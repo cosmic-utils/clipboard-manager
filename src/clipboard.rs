@@ -1,6 +1,10 @@
 use std::{
     future::Future,
     io::Read,
+    sync::{
+        atomic::{self, AtomicBool},
+        Arc,
+    },
     thread::{self, sleep},
     time::Duration,
 };
@@ -9,8 +13,8 @@ use cosmic::iced::{futures::SinkExt, subscription, Subscription};
 use tokio::sync::mpsc;
 use wl_clipboard_rs::{copy, paste_watch};
 
+use crate::app::PRIVATE_MODE;
 use crate::db::Data;
-
 use os_pipe::PipeReader;
 
 #[derive(Debug, Clone)]
@@ -38,9 +42,10 @@ pub fn sub() -> Subscription<ClipboardMessage> {
                             paste_watch::Seat::Unspecified,
                             paste_watch::MimeType::Any,
                         ) {
-                            Ok(res) => {
+                            Ok(res) if !PRIVATE_MODE.load(atomic::Ordering::Relaxed) => {
                                 tx.blocking_send(res).expect("can't send");
                             }
+                            Ok(_) => {}
                             Err(e) => {
                                 error!("{e}");
                             }

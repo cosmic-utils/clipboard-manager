@@ -19,9 +19,12 @@ use crate::db::{self, Data, Db};
 use crate::message::AppMessage;
 use crate::utils::command_message;
 use crate::{clipboard, config, navigation};
+
 use cosmic::cosmic_config;
+use std::sync::atomic::{self, AtomicBool};
 
 pub const APP_ID: &str = "com.wiiznokes.CosmicClipboardManager";
+pub static PRIVATE_MODE: AtomicBool = AtomicBool::new(false);
 
 pub struct Window {
     core: Core,
@@ -35,6 +38,7 @@ pub struct AppState {
     pub db: Db,
     pub clipboard_state: ClipboardState,
     pub focused: usize,
+    pub private_mode: bool,
 }
 
 impl AppState {
@@ -88,16 +92,19 @@ impl cosmic::Application for Window {
         core: Core,
         flags: Self::Flags,
     ) -> (Self, cosmic::Command<cosmic::app::Message<Self::Message>>) {
+        let config = flags.config;
+        PRIVATE_MODE.store(config.private_mode, atomic::Ordering::Relaxed);
         let window = Window {
             core,
-            config: flags.config,
             config_handler: flags.config_handler,
             popup: None,
             state: AppState {
                 db: db::Db::new().unwrap(),
                 clipboard_state: ClipboardState::Init,
                 focused: 0,
+                private_mode: config.private_mode,
             },
+            config,
         };
 
         #[cfg(debug_assertions)]
@@ -144,7 +151,9 @@ impl cosmic::Application for Window {
         match message {
             AppMessage::ChangeConfig(config) => {
                 if config != self.config {
-                    self.config = config
+                    self.state.private_mode = config.private_mode;
+                    PRIVATE_MODE.store(config.private_mode, atomic::Ordering::Relaxed);
+                    self.config = config;
                 }
             }
             AppMessage::TogglePopup => {
@@ -222,12 +231,16 @@ impl cosmic::Application for Window {
                     return command_message(AppMessage::TogglePopup);
                 }
             },
+            AppMessage::PrivateMode(private_mode) => {
+                config_set!(private_mode, private_mode);
+                PRIVATE_MODE.store(private_mode, atomic::Ordering::Relaxed);
+                self.state.private_mode = private_mode;
+            }
         }
         Command::none()
     }
 
     fn view(&self) -> Element<Self::Message> {
-    
         self.core
             .applet
             .icon_button("/usr/share/com.wiiznokes.CosmicClipboardManager/icons/assignment24.svg")
