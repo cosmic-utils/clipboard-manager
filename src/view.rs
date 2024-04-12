@@ -20,41 +20,27 @@ use crate::{
     utils::{formated_value, horizontal_padding},
 };
 
+pub fn quick_settings_view<'a>(
+    _state: &'a AppState,
+    config: &'a Config,
+) -> Element<'a, AppMessage> {
+    Column::new()
+        .width(Length::Fill)
+        .spacing(20)
+        .padding(10)
+        .push(toggler(
+            "Incognito".to_string(),
+            config.private_mode,
+            AppMessage::PrivateMode,
+        ))
+        .into()
+}
 
-
-
-
-
-impl AppState {
-    pub fn quick_settings_view(&self, config: &Config) -> Element<AppMessage> {
-     
-        Column::new()
-            .width(Length::Fill)
-            .spacing(20)
-            .padding(10)
-            .push(toggler(
-                "Incognito".to_string(),
-                config.private_mode,
-                AppMessage::PrivateMode,
-            ))
-            .into()
-    }
-
-    pub fn view(&self, _config: &Config) -> Element<AppMessage> {
-        Column::new()
-            .width(Length::Fill)
-            .spacing(20)
-            .padding(10)
-            .push(self.top_view())
-            .push(Self::entry_list_view(self.db.iter(), self.focused))
-            .into()
-    }
-
-
-    fn top_view(&self) -> Element<AppMessage> {
+pub fn popup_view<'a>(state: &'a AppState, _config: &'a Config) -> Element<'a, AppMessage> {
+    fn top_view(state: &AppState) -> Element<AppMessage> {
         let mut row = Vec::new();
 
-        let text_input = text_input::search_input("value", self.db.query())
+        let text_input = text_input::search_input("value", state.db.query())
             .on_input(AppMessage::Search)
             .on_paste(AppMessage::Search)
             .on_clear(AppMessage::Search("".into()))
@@ -134,4 +120,12 @@ impl AppState {
             .height(Length::FillPortion(2))
             .into()
     }
+
+    Column::new()
+        .width(Length::Fill)
+        .spacing(20)
+        .padding(10)
+        .push(top_view(state))
+        .push(entry_list_view(state.db.iter(), state.focused))
+        .into()
 }

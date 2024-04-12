@@ -18,6 +18,7 @@ use crate::config::{Config, CONFIG_VERSION, PRIVATE_MODE};
 use crate::db::{self, Data, Db};
 use crate::message::AppMessage;
 use crate::utils::command_message;
+use crate::view::{popup_view, quick_settings_view};
 use crate::{clipboard, config, navigation};
 
 use cosmic::cosmic_config;
@@ -152,11 +153,9 @@ impl cosmic::Application for Window {
             }
             AppMessage::QuickSettings => {
                 return if let Some(p) = self.popup.take() {
-
                     self.quick_settings_visible = false;
                     destroy_popup(p)
                 } else {
-
                     self.quick_settings_visible = true;
                     let new_id = Id::unique();
                     self.popup.replace(new_id);
@@ -257,29 +256,25 @@ impl cosmic::Application for Window {
     }
 
     fn view(&self) -> Element<Self::Message> {
-
-        let icon = self.core
+        let icon = self
+            .core
             .applet
             .icon_button("/usr/share/com.wiiznokes.CosmicClipboardManager/icons/assignment24.svg")
             .on_press(AppMessage::TogglePopup);
-        
+
         MouseArea::new(icon)
-                .on_right_release(AppMessage::QuickSettings)
-                .into()
+            .on_right_release(AppMessage::QuickSettings)
+            .into()
     }
 
     fn view_window(&self, _id: Id) -> Element<Self::Message> {
-
         let view = if self.quick_settings_visible {
-            self.state.quick_settings_view(&self.config)
+            quick_settings_view(&self.state, &self.config)
         } else {
-            self.state.view(&self.config)
+            popup_view(&self.state, &self.config)
         };
 
-        self.core
-            .applet
-            .popup_container(view)
-            .into()
+        self.core.applet.popup_container(view).into()
     }
     fn subscription(&self) -> Subscription<Self::Message> {
         let mut subscriptions = vec![config::sub(), navigation::sub().map(AppMessage::Navigation)];
