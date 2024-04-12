@@ -67,46 +67,47 @@ pub fn popup_view<'a>(state: &'a AppState, _config: &'a Config) -> Element<'a, A
             .into()
     }
 
-    fn entry_list_view<'a, I>(entries: I, focused: usize) -> Element<'a, AppMessage>
+
+    fn entry<'a>(entry: &'a Data, _focused: bool) -> Element<'a, AppMessage> {
+
+        let icon_bytes = include_bytes!("../resources/icons/close24.svg") as &[u8];
+
+        let icon = icon::from_svg_bytes(icon_bytes);
+
+        let delete_button = widget::button::icon(icon)
+            .extra_small()
+            .on_press(AppMessage::Delete(entry.clone()))
+            .style(theme::Button::Destructive);
+
+        let content = Row::new()
+            .align_items(Alignment::Center)
+            .push(
+                // todo: remove this fixed size
+                Container::new(
+                    text(formated_value(&entry.value, 2, 50)).width(Length::Fixed(300f32)),
+                ),
+            )
+            .push(Space::with_width(Length::Fill))
+            .push(delete_button);
+
+        let card = Container::new(content)
+            .padding(10f32)
+            .style(cosmic::theme::Container::Card);
+
+        MouseArea::new(card)
+            .on_release(AppMessage::OnClick(entry.clone()))
+            .into()
+    }   
+
+    fn entries<'a, I>(entries: I, focused: usize) -> Element<'a, AppMessage>
     where
         I: Iterator<Item = &'a Data>,
     {
-        let entry_view = |index: usize, data: &'a Data| -> Element<'a, AppMessage> {
-            let _is_focused = focused == index;
-
-            let icon_bytes = include_bytes!("../resources/icons/close24.svg") as &[u8];
-
-            let icon = icon::from_svg_bytes(icon_bytes);
-
-            let delete_button = widget::button::icon(icon)
-                .extra_small()
-                .on_press(AppMessage::Delete(data.clone()))
-                .style(theme::Button::Destructive);
-
-            let content = Row::new()
-                .align_items(Alignment::Center)
-                .push(
-                    // todo: remove this fixed size
-                    Container::new(
-                        text(formated_value(&data.value, 2, 50)).width(Length::Fixed(300f32)),
-                    ),
-                )
-                .push(Space::with_width(Length::Fill))
-                .push(delete_button);
-
-            let card = Container::new(content)
-                .padding(10f32)
-                .style(cosmic::theme::Container::Card);
-
-            MouseArea::new(card)
-                .on_release(AppMessage::OnClick(data.clone()))
-                .into()
-        };
-
+       
         let entries_view = entries
             .enumerate()
             .filter(|(_, data)| !data.value.is_empty())
-            .map(|(index, data)| entry_view(index, data));
+            .map(|(index, data)| entry(data, index == focused));
 
         let mut padding = horizontal_padding(10f32);
         // try to fix scroll bar
@@ -126,6 +127,6 @@ pub fn popup_view<'a>(state: &'a AppState, _config: &'a Config) -> Element<'a, A
         .spacing(20)
         .padding(10)
         .push(top_view(state))
-        .push(entry_list_view(state.db.iter(), state.focused))
+        .push(entries(state.db.iter(), state.focused))
         .into()
 }
