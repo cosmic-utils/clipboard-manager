@@ -7,6 +7,10 @@ install:
 	sudo install -Dm0644 resources/{{APP_ID}}.desktop /usr/share/app_IDlications/com.wiiznokes.CosmicClipboardManager.desktop
 	sudo install -Dm0644 resources/icons/assignment24.svg /usr/share/{{APP_ID}}/icons/assignment24.svg
 
+
+pull: fmt prettier fix
+	
+
 ###################  Test
 
 test:

@@ -1,4 +1,3 @@
-#![feature(split_at_checked)]
 
 #![allow(dead_code)]
 #![allow(unused_macros)]

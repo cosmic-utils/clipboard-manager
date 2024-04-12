@@ -10,7 +10,7 @@ use cosmic::iced_runtime::command::Action;
 use cosmic::iced_runtime::core::window;
 use cosmic::iced_style::application;
 use cosmic::iced_widget::Column;
-use cosmic::widget::{button, icon, text, text_input};
+use cosmic::widget::{button, icon, text, text_input, MouseArea};
 
 use cosmic::{Element, Theme};
 
@@ -18,6 +18,7 @@ use crate::config::{Config, CONFIG_VERSION, PRIVATE_MODE};
 use crate::db::{self, Data, Db};
 use crate::message::AppMessage;
 use crate::utils::command_message;
+use crate::view::{popup_view, quick_settings_view};
 use crate::{clipboard, config, navigation};
 
 use cosmic::cosmic_config;
@@ -31,6 +32,7 @@ pub struct Window {
     config_handler: Option<cosmic_config::Config>,
     popup: Option<Id>,
     state: AppState,
+    quick_settings_visible: bool,
 }
 
 pub struct AppState {
@@ -98,11 +100,12 @@ impl cosmic::Application for Window {
                 focused: 0,
             },
             config,
+            quick_settings_visible: false,
         };
 
         #[cfg(debug_assertions)]
         let command = Command::single(Action::Future(Box::pin(async {
-            cosmic::app::Message::App(AppMessage::TogglePopup)
+            cosmic::app::Message::App(AppMessage::QuickSettings)
         })));
 
         #[cfg(not(debug_assertions))]
@@ -148,9 +151,30 @@ impl cosmic::Application for Window {
                     self.config = config;
                 }
             }
+            AppMessage::QuickSettings => {
+                return if let Some(p) = self.popup.take() {
+                    self.quick_settings_visible = false;
+                    destroy_popup(p)
+                } else {
+                    self.quick_settings_visible = true;
+                    let new_id = Id::unique();
+                    self.popup.replace(new_id);
+                    let mut popup_settings =
+                        self.core
+                            .applet
+                            .get_popup_settings(Id::MAIN, new_id, None, None, None);
+                    popup_settings.positioner.size_limits = Limits::NONE
+                        .max_width(250.0)
+                        .min_width(200.0)
+                        .min_height(200.0)
+                        .max_height(550.0);
+                    get_popup(popup_settings)
+                };
+            }
+
             AppMessage::TogglePopup => {
                 //info!("TogglePopup");
-
+                self.quick_settings_visible = false;
                 return if let Some(p) = self.popup.take() {
                     destroy_popup(p)
                 } else {
@@ -232,18 +256,25 @@ impl cosmic::Application for Window {
     }
 
     fn view(&self) -> Element<Self::Message> {
-        self.core
+        let icon = self
+            .core
             .applet
             .icon_button("/usr/share/com.wiiznokes.CosmicClipboardManager/icons/assignment24.svg")
-            .on_press(AppMessage::TogglePopup)
+            .on_press(AppMessage::TogglePopup);
+
+        MouseArea::new(icon)
+            .on_right_release(AppMessage::QuickSettings)
             .into()
     }
 
     fn view_window(&self, _id: Id) -> Element<Self::Message> {
-        self.core
-            .applet
-            .popup_container(self.state.view(&self.config))
-            .into()
+        let view = if self.quick_settings_visible {
+            quick_settings_view(&self.state, &self.config)
+        } else {
+            popup_view(&self.state, &self.config)
+        };
+
+        self.core.applet.popup_container(view).into()
     }
     fn subscription(&self) -> Subscription<Self::Message> {
         let mut subscriptions = vec![config::sub(), navigation::sub().map(AppMessage::Navigation)];

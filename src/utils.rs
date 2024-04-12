@@ -36,13 +36,24 @@ fn split_at(str: &str, n: usize) -> &str {
     if str.len() > n {
         let mut i = n;
         loop {
-            if let Some((left, _)) = str.split_at_checked(i) {
+            if let Some((left, _)) = split_at_checked(str, i) {
                 return left;
             }
             i -= 1;
         }
     } else {
         str
+    }
+}
+
+// https://github.com/rust-lang/rust/issues/119128
+pub fn split_at_checked(s: &str, mid: usize) -> Option<(&str, &str)> {
+    // is_char_boundary checks that the index is in [0, .len()]
+    if s.is_char_boundary(mid) {
+        // SAFETY: just checked that `mid` is on a char boundary.
+        Some(unsafe { (s.get_unchecked(0..mid), s.get_unchecked(mid..s.len())) })
+    } else {
+        None
     }
 }
 

@@ -12,6 +12,7 @@ use crate::{
 pub enum AppMessage {
     ChangeConfig(Config),
     TogglePopup,
+    QuickSettings,
     ClosePopup(Id),
     Search(String),
     ClipboardEvent(ClipboardMessage),

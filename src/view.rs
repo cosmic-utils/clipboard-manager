@@ -20,34 +20,27 @@ use crate::{
     utils::{formated_value, horizontal_padding},
 };
 
-impl AppState {
-    pub fn view(&self, config: &Config) -> Element<AppMessage> {
-        let content = Column::new()
-            .width(Length::Fill)
-            .spacing(20)
-            .padding(10)
-            .push(self.top_view())
-            .push(Self::entry_list_view(self.db.iter(), self.focused))
-            .push(self.bottom_view(config.private_mode));
-
-        content.into()
-    }
-
-    fn bottom_view(&self, private_mode_enabled: bool) -> Element<AppMessage> {
-        let private_mode = toggler(
+pub fn quick_settings_view<'a>(
+    _state: &'a AppState,
+    config: &'a Config,
+) -> Element<'a, AppMessage> {
+    Column::new()
+        .width(Length::Fill)
+        .spacing(20)
+        .padding(10)
+        .push(toggler(
             "Incognito".to_string(),
-            private_mode_enabled,
+            config.private_mode,
             AppMessage::PrivateMode,
-        );
-        let space = widget::horizontal_space(Length::Fill);
-        let row = widget::row::with_capacity(2).push(space).push(private_mode);
-        row.padding([0, 10, 10, 10]).into()
-    }
+        ))
+        .into()
+}
 
-    fn top_view(&self) -> Element<AppMessage> {
+pub fn popup_view<'a>(state: &'a AppState, _config: &'a Config) -> Element<'a, AppMessage> {
+    fn top_view(state: &AppState) -> Element<AppMessage> {
         let mut row = Vec::new();
 
-        let text_input = text_input::search_input("value", self.db.query())
+        let text_input = text_input::search_input("value", state.db.query())
             .on_input(AppMessage::Search)
             .on_paste(AppMessage::Search)
             .on_clear(AppMessage::Search("".into()))
@@ -127,4 +120,12 @@ impl AppState {
             .height(Length::FillPortion(2))
             .into()
     }
+
+    Column::new()
+        .width(Length::Fill)
+        .spacing(20)
+        .padding(10)
+        .push(top_view(state))
+        .push(entry_list_view(state.db.iter(), state.focused))
+        .into()
 }
