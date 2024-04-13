@@ -4,17 +4,8 @@
 
 The goal is to make a simple yet fast clipboard history, with a focus on UX, rapidity and security.
 
-Currently support storing the history on disk, search, delete
-
 There is a quick settings popup when you right click the icon.
 
-Todo:
-
-- image support
-- auto remove old entries
-- ...
-
-Maybe take inspiration on this gnome extension: https://github.com/oae/gnome-shell-pano
 
 ## Install
 
