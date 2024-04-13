@@ -122,7 +122,7 @@ impl cosmic::Application for Window {
     }
 
     fn update(&mut self, message: Self::Message) -> Command<cosmic::app::Message<Self::Message>> {
-        //dbg!(&message);
+        dbg!(&message);
 
         macro_rules! config_set {
             ($name: ident, $value: expr) => {
@@ -218,7 +218,7 @@ impl cosmic::Application for Window {
                     self.state.clipboard_state = ClipboardState::Error(e);
                 }
             },
-            AppMessage::OnClick(data) => {
+            AppMessage::Copy(data) => {
                 if let Err(e) = clipboard::copy(data) {
                     error!("can't copy: {e}");
                 }
@@ -239,12 +239,17 @@ impl cosmic::Application for Window {
             }
             AppMessage::Navigation(message) => match message {
                 navigation::NavigationMessage::Down => {
-                    self.state.focus_previous();
-                }
-                navigation::NavigationMessage::Up => {
                     self.state.focus_next();
                 }
-                navigation::NavigationMessage::Enter => {}
+                navigation::NavigationMessage::Up => {
+                    self.state.focus_previous();
+                }
+                navigation::NavigationMessage::Enter => {
+                    dbg!(self.state.focused);
+                    if let Some(data) = self.state.db.get(self.state.focused) {
+                        return command_message(AppMessage::Copy(data.clone()));
+                    }
+                }
                 navigation::NavigationMessage::Quit => {
                     self.state.db.search("".into());
                     return command_message(AppMessage::TogglePopup);

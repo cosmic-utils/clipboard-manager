@@ -116,11 +116,13 @@ fn entry<'a>(
     let btn = mouse_area(
         cosmic::widget::button(content)
             .width(Length::Fill)
-            .on_press(AppMessage::OnClick(entry.clone()))
+            .on_press(AppMessage::Copy(entry.clone()))
             .padding([8, 16])
             .style(Button::Custom {
                 active: Box::new(move |focused, theme| {
                     let rad_s = theme.cosmic().corner_radii.radius_s;
+                    let focused = is_focused || focused;
+
                     let a = if focused {
                         button::StyleSheet::hovered(theme, focused, focused, &Button::Standard)
                     } else {

@@ -216,6 +216,15 @@ impl Db {
             .collect();
     }
 
+    pub fn get(&self, index: usize) -> Option<&Data> {
+        if self.query.is_empty() {
+            // because we expose the tree in reverse
+            self.state.get_index(self.len() - 1 - index)
+        } else {
+            self.filtered.get(index).map(|e| unsafe { e.0.as_ref() })
+        }
+    }
+
     pub fn iter(&self) -> Box<dyn Iterator<Item = &Data> + '_> {
         if self.query.is_empty() {
             Box::new(self.state.iter().rev())
