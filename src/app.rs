@@ -239,10 +239,10 @@ impl cosmic::Application for Window {
                 self.state.clipboard_state = ClipboardState::Init;
             }
             AppMessage::Navigation(message) => match message {
-                navigation::NavigationMessage::Down => {
+                navigation::NavigationMessage::Next => {
                     self.state.focus_next();
                 }
-                navigation::NavigationMessage::Up => {
+                navigation::NavigationMessage::Previous => {
                     self.state.focus_previous();
                 }
                 navigation::NavigationMessage::Enter => {
