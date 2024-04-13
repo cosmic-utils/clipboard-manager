@@ -39,6 +39,7 @@ pub struct AppState {
     pub db: Db,
     pub clipboard_state: ClipboardState,
     pub focused: usize,
+    pub more_action: Option<Data>,
 }
 
 impl AppState {
@@ -98,6 +99,7 @@ impl cosmic::Application for Window {
                 db: db::Db::new().unwrap(),
                 clipboard_state: ClipboardState::Init,
                 focused: 0,
+                more_action: None,
             },
             config,
             quick_settings_visible: false,
@@ -105,7 +107,7 @@ impl cosmic::Application for Window {
 
         #[cfg(debug_assertions)]
         let command = Command::single(Action::Future(Box::pin(async {
-            cosmic::app::Message::App(AppMessage::QuickSettings)
+            cosmic::app::Message::App(AppMessage::TogglePopup)
         })));
 
         #[cfg(not(debug_assertions))]
@@ -120,7 +122,7 @@ impl cosmic::Application for Window {
     }
 
     fn update(&mut self, message: Self::Message) -> Command<cosmic::app::Message<Self::Message>> {
-        //dbg!(&message);
+        dbg!(&message);
 
         macro_rules! config_set {
             ($name: ident, $value: expr) => {
@@ -194,6 +196,8 @@ impl cosmic::Application for Window {
             }
             AppMessage::ClosePopup(id) => {
                 //info!("PopupClosed: {id:?}");
+                self.state.focused = 0;
+                self.state.more_action.take();
                 if self.popup.as_ref() == Some(&id) {
                     self.popup = None;
                 }
@@ -215,7 +219,7 @@ impl cosmic::Application for Window {
                     self.state.clipboard_state = ClipboardState::Error(e);
                 }
             },
-            AppMessage::OnClick(data) => {
+            AppMessage::Copy(data) => {
                 if let Err(e) = clipboard::copy(data) {
                     error!("can't copy: {e}");
                 }
@@ -236,12 +240,17 @@ impl cosmic::Application for Window {
             }
             AppMessage::Navigation(message) => match message {
                 navigation::NavigationMessage::Down => {
-                    self.state.focus_previous();
-                }
-                navigation::NavigationMessage::Up => {
                     self.state.focus_next();
                 }
-                navigation::NavigationMessage::Enter => {}
+                navigation::NavigationMessage::Up => {
+                    self.state.focus_previous();
+                }
+                navigation::NavigationMessage::Enter => {
+                    dbg!(self.state.focused);
+                    if let Some(data) = self.state.db.get(self.state.focused) {
+                        return command_message(AppMessage::Copy(data.clone()));
+                    }
+                }
                 navigation::NavigationMessage::Quit => {
                     self.state.db.search("".into());
                     return command_message(AppMessage::TogglePopup);
@@ -250,6 +259,9 @@ impl cosmic::Application for Window {
             AppMessage::PrivateMode(private_mode) => {
                 config_set!(private_mode, private_mode);
                 PRIVATE_MODE.store(private_mode, atomic::Ordering::Relaxed);
+            }
+            AppMessage::MoreAction(data) => {
+                self.state.more_action = data;
             }
         }
         Command::none()

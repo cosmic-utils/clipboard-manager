@@ -17,9 +17,10 @@ pub enum AppMessage {
     Search(String),
     ClipboardEvent(ClipboardMessage),
     RetryConnectingClipboard,
-    OnClick(Data),
+    Copy(Data),
     Delete(Data),
     PrivateMode(bool),
     Clear,
     Navigation(NavigationMessage),
+    MoreAction(Option<Data>),
 }

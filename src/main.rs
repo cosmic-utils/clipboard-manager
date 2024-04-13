@@ -18,6 +18,7 @@ mod message;
 mod navigation;
 mod utils;
 mod view;
+mod my_widgets;
 
 #[allow(unused_imports)]
 #[macro_use]
