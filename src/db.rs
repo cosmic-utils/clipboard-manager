@@ -60,6 +60,7 @@ unsafe impl<T> Send for NonNullButSend<T> {}
 
 pub struct Db {
     handle: sled::Db,
+    // this field probably need to be Pin
     state: IndexSet<Data>,
     filtered: Vec<NonNullButSend<Data>>,
     query: String,
@@ -224,7 +225,7 @@ impl Db {
                 .collect::<Vec<_>>()
                 .into_iter()
                 // we can't call rev on par_iter and par_bridge
-                // doesn't preserve order + it is less fast
+                // doesn't preserve order + it's slower
                 // maybe droping completelly rayon could be better
                 // https://github.com/rayon-rs/rayon/issues/551
                 .rev()
