@@ -25,15 +25,28 @@ pub fn quick_settings_view<'a>(
     _state: &'a AppState,
     config: &'a Config,
 ) -> Element<'a, AppMessage> {
+    fn toogle_settings<'a>(
+        info: &'a str,
+        value: bool,
+        f: impl Fn(bool) -> AppMessage + 'a,
+    ) -> Element<'a, AppMessage> {
+        Row::new()
+            .push(text(info))
+            .push(Space::with_width(Length::Fill))
+            .push(toggler(None, value, f))
+            .into()
+    }
+
     Column::new()
         .width(Length::Fill)
         .spacing(20)
         .padding(10)
-        .push(toggler(
-            "Incognito".to_string(),
+        .push(toogle_settings(
+            "Incognito",
             config.private_mode,
             AppMessage::PrivateMode,
         ))
+        .push(widget::button::destructive("Clear").on_press(AppMessage::Clear))
         .into()
 }
 
@@ -48,33 +61,15 @@ pub fn popup_view<'a>(state: &'a AppState, _config: &'a Config) -> Element<'a, A
 }
 
 fn top_view(state: &AppState) -> Element<AppMessage> {
-    let mut row = Vec::new();
-
-    let text_input = text_input::search_input("value", state.db.query())
-        .on_input(AppMessage::Search)
-        .on_paste(AppMessage::Search)
-        .on_clear(AppMessage::Search("".into()))
-        .width(Length::FillPortion(8))
-        .into();
-
-    row.push(text_input);
-
-    row.push(Space::with_width(Length::Fill).into());
-
-    let clear_button = widget::button::destructive("Clear")
-        .on_press(AppMessage::Clear)
-        .into();
-
-    row.push(clear_button);
-
     let mut padding = Padding::new(10f32);
     padding.bottom = 0f32;
 
-    Row::with_children(row)
-        .width(Length::Fill)
-        .align_items(Alignment::Center)
-        .padding(padding)
-        .into()
+    let input = text_input::search_input("value", state.db.query())
+        .on_input(AppMessage::Search)
+        .on_paste(AppMessage::Search)
+        .on_clear(AppMessage::Search("".into()));
+
+    container(input).padding(padding).into()
 }
 
 fn entries<'a>(state: &'a AppState) -> Element<'a, AppMessage> {
@@ -98,7 +93,7 @@ fn entries<'a>(state: &'a AppState) -> Element<'a, AppMessage> {
     padding.right += 10f32;
 
     let column = Column::with_children(entries_view)
-        .spacing(10f32)
+        .spacing(5f32)
         .padding(padding);
 
     Scrollable::new(column)
