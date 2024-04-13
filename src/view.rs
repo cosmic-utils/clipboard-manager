@@ -124,7 +124,7 @@ fn entry<'a>(
                     let focused = is_focused || focused;
 
                     let a = if focused {
-                        button::StyleSheet::hovered(theme, focused, focused, &Button::Standard)
+                        button::StyleSheet::hovered(theme, focused, focused, &Button::Text)
                     } else {
                         button::StyleSheet::active(theme, focused, focused, &Button::Standard)
                     };
