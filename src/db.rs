@@ -10,6 +10,7 @@ use indexmap::IndexSet;
 use serde::{Deserialize, Serialize};
 
 use derivative::Derivative;
+use unicode_normalization::UnicodeNormalization;
 
 // todo: enforce that only this app can read/write this file.
 
@@ -62,6 +63,7 @@ pub struct Db {
     state: IndexSet<Data>,
     filtered: Vec<NonNullButSend<Data>>,
     query: String,
+    search_engine: Option<AhoCorasick>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -107,6 +109,7 @@ impl Db {
             state,
             filtered: Vec::new(),
             query: String::new(),
+            search_engine: None,
         };
 
         Ok(db)
@@ -177,43 +180,56 @@ impl Db {
 
     pub fn search(&mut self, query: String) {
         self.query = query;
-        self.do_search();
+
+        if self.query.is_empty() {
+            self.filtered.clear();
+            self.search_engine.take();
+        } else {
+            let search_engine = AhoCorasick::builder()
+                .ascii_case_insensitive(true)
+                .build(vec![Self::normalize_text(&self.query)])
+                .unwrap();
+
+            self.search_engine.replace(search_engine);
+            self.do_search();
+        }
     }
 
     pub fn query(&self) -> &str {
         &self.query
     }
 
+    fn normalize_text(value: &str) -> String {
+        // collect<Cow<str>> always have the type Owned("...")
+        // in my test, and it don't seems to be an acceptable
+        // format for other api
+        // https://github.com/unicode-rs/unicode-normalization/issues/99
+        value.nfkd().collect()
+    }
+
     fn do_search(&mut self) {
         use rayon::prelude::*;
 
-        if self.query.is_empty() {
-            self.filtered.clear();
-            return;
+        if let Some(search_engine) = &self.search_engine {
+            // https://www.reddit.com/r/rust/comments/1boo2fb/comment/kwqahjv/?context=3
+            self.filtered = self
+                .state
+                .par_iter()
+                .filter(|s| {
+                    let normalized = Self::normalize_text(&s.value);
+                    let mut iter = search_engine.find_iter(&normalized);
+                    iter.next().is_some()
+                })
+                .map(|e| NonNullButSend(NonNull::from(e)))
+                .collect::<Vec<_>>()
+                .into_iter()
+                // we can't call rev on par_iter and par_bridge
+                // doesn't preserve order + it is less fast
+                // maybe droping completelly rayon could be better
+                // https://github.com/rayon-rs/rayon/issues/551
+                .rev()
+                .collect();
         }
-
-        let ac = AhoCorasick::builder()
-            .ascii_case_insensitive(true)
-            .build(vec![&self.query])
-            .unwrap();
-
-        // https://www.reddit.com/r/rust/comments/1boo2fb/comment/kwqahjv/?context=3
-        self.filtered = self
-            .state
-            .par_iter()
-            .filter(|s| {
-                let mut iter = ac.find_iter(&s.value);
-                iter.next().is_some()
-            })
-            .map(|e| NonNullButSend(NonNull::from(e)))
-            .collect::<Vec<_>>()
-            .into_iter()
-            // we can't call rev on par_iter and par_bridge
-            // doesn't preserve order + it is less fast
-            // maybe droping completelly rayon could be better
-            // https://github.com/rayon-rs/rayon/issues/551
-            .rev()
-            .collect();
     }
 
     pub fn get(&self, index: usize) -> Option<&Data> {

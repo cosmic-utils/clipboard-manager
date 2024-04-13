@@ -2,8 +2,8 @@ use cosmic::iced::{event, Subscription};
 
 #[derive(Debug, Clone)]
 pub enum NavigationMessage {
-    Down,
-    Up,
+    Next,
+    Previous,
     Enter,
     Quit,
 }
@@ -24,10 +24,10 @@ pub fn sub() -> Subscription<NavigationMessage> {
                                     }
 
                                     cosmic::iced::keyboard::key::Named::ArrowDown => {
-                                        Some(NavigationMessage::Down)
+                                        Some(NavigationMessage::Next)
                                     }
                                     cosmic::iced::keyboard::key::Named::ArrowUp => {
-                                        Some(NavigationMessage::Up)
+                                        Some(NavigationMessage::Previous)
                                     }
                                     cosmic::iced::keyboard::key::Named::Escape => {
                                         Some(NavigationMessage::Quit)

@@ -964,6 +964,7 @@ dependencies = [
  "sled",
  "thiserror",
  "tokio",
+ "unicode-normalization",
  "wl-clipboard-rs",
 ]
 
