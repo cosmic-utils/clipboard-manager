@@ -39,6 +39,7 @@ pub struct AppState {
     pub db: Db,
     pub clipboard_state: ClipboardState,
     pub focused: usize,
+    pub more_action: Option<Data>,
 }
 
 impl AppState {
@@ -98,6 +99,7 @@ impl cosmic::Application for Window {
                 db: db::Db::new().unwrap(),
                 clipboard_state: ClipboardState::Init,
                 focused: 0,
+                more_action: None,
             },
             config,
             quick_settings_visible: false,
@@ -105,7 +107,7 @@ impl cosmic::Application for Window {
 
         #[cfg(debug_assertions)]
         let command = Command::single(Action::Future(Box::pin(async {
-            cosmic::app::Message::App(AppMessage::QuickSettings)
+            cosmic::app::Message::App(AppMessage::TogglePopup)
         })));
 
         #[cfg(not(debug_assertions))]
@@ -194,6 +196,7 @@ impl cosmic::Application for Window {
             }
             AppMessage::ClosePopup(id) => {
                 //info!("PopupClosed: {id:?}");
+                self.state.more_action.take();
                 if self.popup.as_ref() == Some(&id) {
                     self.popup = None;
                 }
@@ -250,6 +253,9 @@ impl cosmic::Application for Window {
             AppMessage::PrivateMode(private_mode) => {
                 config_set!(private_mode, private_mode);
                 PRIVATE_MODE.store(private_mode, atomic::Ordering::Relaxed);
+            }
+            AppMessage::MoreAction(data) => {
+                self.state.more_action = data;
             }
         }
         Command::none()
