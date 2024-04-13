@@ -196,6 +196,7 @@ impl cosmic::Application for Window {
             }
             AppMessage::ClosePopup(id) => {
                 //info!("PopupClosed: {id:?}");
+                self.state.focused = 0;
                 self.state.more_action.take();
                 if self.popup.as_ref() == Some(&id) {
                     self.popup = None;
