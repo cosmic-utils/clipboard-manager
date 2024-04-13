@@ -1,29 +1,32 @@
 use std::borrow::Cow;
+use std::cmp::min;
 
 use cosmic::{app::Message, iced::Padding, iced_runtime::command::Action, Command};
 
 pub fn formated_value(value: &str, max_lines: usize, max_chars: usize) -> Cow<str> {
+    let value = value.trim();
+
     if value.lines().count() <= max_lines && value.len() <= max_chars {
-        Cow::from(value.trim())
+        Cow::from(value)
     } else {
-        let mut str = String::with_capacity(max_chars + 3);
+        let mut str = String::with_capacity(min(value.len(), max_chars + 7));
 
-        let mut lines = value.trim().lines();
+        let mut lines = value.lines();
 
-        let mut current_ligne = 0;
+        let mut lines_count = 0;
 
-        while current_ligne < max_lines && str.len() < max_chars {
+        while lines_count < max_lines && str.len() < max_chars {
             let Some(line) = lines.next() else {
                 break;
             };
 
-            if current_ligne > 0 {
+            if lines_count > 0 {
                 str.push('\n');
             }
 
             str.push_str(split_at(line.trim(), max_chars - str.len()));
 
-            current_ligne += 1;
+            lines_count += 1;
         }
 
         str.push_str("...");

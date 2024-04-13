@@ -101,12 +101,8 @@ fn entries(state: &AppState) -> Element<'_, AppMessage> {
         .into()
 }
 
-fn entry(
-    entry: &Data,
-    is_focused: bool,
-    more_action_expanded: bool,
-) -> Element<'_, AppMessage> {
-    let content = text(formated_value(&entry.value, 2, 50)).width(Length::Fixed(300f32));
+fn entry(entry: &Data, is_focused: bool, more_action_expanded: bool) -> Element<'_, AppMessage> {
+    let content = text(formated_value(&entry.value, 5, 200));
 
     let btn = mouse_area(
         cosmic::widget::button(content)
