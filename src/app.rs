@@ -122,7 +122,7 @@ impl cosmic::Application for Window {
     }
 
     fn update(&mut self, message: Self::Message) -> Command<cosmic::app::Message<Self::Message>> {
-        dbg!(&message);
+        //dbg!(&message);
 
         macro_rules! config_set {
             ($name: ident, $value: expr) => {

@@ -72,7 +72,7 @@ fn top_view(state: &AppState) -> Element<AppMessage> {
     container(input).padding(padding).into()
 }
 
-fn entries<'a>(state: &'a AppState) -> Element<'a, AppMessage> {
+fn entries(state: &AppState) -> Element<'_, AppMessage> {
     let entries_view = state
         .db
         .iter()
@@ -101,11 +101,11 @@ fn entries<'a>(state: &'a AppState) -> Element<'a, AppMessage> {
         .into()
 }
 
-fn entry<'a>(
-    entry: &'a Data,
+fn entry(
+    entry: &Data,
     is_focused: bool,
     more_action_expanded: bool,
-) -> Element<'a, AppMessage> {
+) -> Element<'_, AppMessage> {
     let content = text(formated_value(&entry.value, 2, 50)).width(Length::Fixed(300f32));
 
     let btn = mouse_area(

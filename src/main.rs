@@ -1,4 +1,3 @@
-
 #![allow(dead_code)]
 #![allow(unused_macros)]
 #![allow(unused_imports)]
@@ -15,10 +14,10 @@ mod config;
 mod db;
 mod localize;
 mod message;
+mod my_widgets;
 mod navigation;
 mod utils;
 mod view;
-mod my_widgets;
 
 #[allow(unused_imports)]
 #[macro_use]
