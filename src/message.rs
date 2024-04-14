@@ -12,8 +12,8 @@ use crate::{
 pub enum AppMessage {
     ChangeConfig(Config),
     TogglePopup,
-    QuickSettings,
-    ClosePopup(Id),
+    ToggleQuickSettings,
+    ClosePopup,
     Search(String),
     ClipboardEvent(ClipboardMessage),
     RetryConnectingClipboard,
