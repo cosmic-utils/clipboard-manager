@@ -63,7 +63,7 @@ pub fn sub() -> Subscription<ClipboardMessage> {
                                 pipe.read_to_string(&mut contents).unwrap();
 
                                 let data = Data::new(mime_type, contents);
-                                info!("sending data to database: {:?}", data);
+                                //info!("sending data to database: {:?}", data);
                                 output.send(ClipboardMessage::Data(data)).await.unwrap();
                             }
 
@@ -93,7 +93,7 @@ pub fn sub() -> Subscription<ClipboardMessage> {
 }
 
 pub fn copy(data: Data) -> Result<(), copy::Error> {
-    dbg!("copy", &data);
+    //dbg!("copy", &data);
     let options = copy::Options::default();
     let bytes = data.value.into_bytes().into_boxed_slice();
 

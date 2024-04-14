@@ -91,7 +91,7 @@ impl Window {
         self.state.db.search("".into());
 
         if let Some(popup) = self.popup.take() {
-            info!("destroy {:?}", popup.id);
+            //info!("destroy {:?}", popup.id);
             destroy_popup(popup.id)
         } else {
             Command::none()
@@ -113,7 +113,7 @@ impl Window {
 
     fn open_popup(&mut self, kind: PopupKind) -> Command<cosmic::app::Message<AppMessage>> {
         let new_id = Id::unique();
-        info!("will create {:?}", new_id);
+        //info!("will create {:?}", new_id);
 
         let popup = Popup { kind, id: new_id };
 
@@ -319,7 +319,7 @@ impl cosmic::Application for Window {
     }
 
     fn view_window(&self, _id: Id) -> Element<Self::Message> {
-        dbg!(&_id, &self.popup);
+        //dbg!(&_id, &self.popup);
 
         let Some(popup) = &self.popup else {
             return self

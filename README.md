@@ -30,7 +30,7 @@ Finally, you will need to set up the applet in cosmic-settings.
 ## Logs
 
 ```
-journalctl -p 3 -xb --user _EXE=/usr/bin/cosmic-panel | grep com.wiiznokes.CosmicClipboardManager
+journalctl -p 3 -xb --user _EXE=/usr/bin/cosmic-panel | grep com.wiiznokes.CosmicClipboardManager | less
 ```
 
 -p 3 means priority error
