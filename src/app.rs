@@ -72,12 +72,13 @@ pub struct Flags {
     pub config: Config,
 }
 
+#[derive(Debug, Clone)]
 struct Popup {
     pub kind: PopupKind,
     pub id: window::Id,
 }
 
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 enum PopupKind {
     Popup,
     QuickSettings,
@@ -90,6 +91,7 @@ impl Window {
         self.state.db.search("".into());
 
         if let Some(popup) = self.popup.take() {
+            info!("destroy {:?}", popup.id);
             destroy_popup(popup.id)
         } else {
             Command::none()
@@ -111,6 +113,7 @@ impl Window {
 
     fn open_popup(&mut self, kind: PopupKind) -> Command<cosmic::app::Message<AppMessage>> {
         let new_id = Id::unique();
+        info!("will create {:?}", new_id);
 
         let popup = Popup { kind, id: new_id };
 
@@ -316,8 +319,14 @@ impl cosmic::Application for Window {
     }
 
     fn view_window(&self, _id: Id) -> Element<Self::Message> {
+        dbg!(&_id, &self.popup);
+
         let Some(popup) = &self.popup else {
-            unreachable!()
+            return self
+                .core
+                .applet
+                .popup_container(popup_view(&self.state, &self.config))
+                .into();
         };
 
         let view = match &popup.kind {
