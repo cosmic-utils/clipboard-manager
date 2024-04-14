@@ -94,9 +94,8 @@ impl Db {
                         creation: key.0,
                     };
 
-                    // todo: remove this clone
-                    if !state.insert(value.clone()) {
-                        panic!("already exist: {}", value);
+                    if !state.insert(value) {
+                        panic!("already exist");
                     }
                 }
                 Err(e) => {

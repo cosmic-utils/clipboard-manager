@@ -1,5 +1,6 @@
 use cosmic::app::{command, Core};
 
+use cosmic::cctk::sctk::reexports::protocols::wp::presentation_time::client::wp_presentation_feedback::Kind;
 use cosmic::iced::advanced::subscription;
 use cosmic::iced::wayland::popup::{destroy_popup, get_popup};
 use cosmic::iced::window::Id;
@@ -9,6 +10,7 @@ use cosmic::iced_futures::Subscription;
 use cosmic::iced_runtime::command::Action;
 use cosmic::iced_runtime::core::window;
 use cosmic::iced_style::application;
+use cosmic::iced_widget::graphics::text::cosmic_text::rustybuzz::ttf_parser::name_id::POST_SCRIPT_NAME;
 use cosmic::iced_widget::Column;
 use cosmic::widget::{button, icon, text, text_input, MouseArea};
 
@@ -30,9 +32,8 @@ pub struct Window {
     core: Core,
     config: Config,
     config_handler: Option<cosmic_config::Config>,
-    popup: Option<Id>,
+    popup: Option<Popup>,
     state: AppState,
-    quick_settings_visible: bool,
 }
 
 pub struct AppState {
@@ -71,6 +72,79 @@ pub struct Flags {
     pub config: Config,
 }
 
+#[derive(Debug, Clone)]
+struct Popup {
+    pub kind: PopupKind,
+    pub id: window::Id,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+enum PopupKind {
+    Popup,
+    QuickSettings,
+}
+
+impl Window {
+    fn close_popup(&mut self) -> Command<cosmic::app::Message<AppMessage>> {
+        self.state.focused = 0;
+        self.state.more_action.take();
+        self.state.db.search("".into());
+
+        if let Some(popup) = self.popup.take() {
+            //info!("destroy {:?}", popup.id);
+            destroy_popup(popup.id)
+        } else {
+            Command::none()
+        }
+    }
+
+    fn toogle_popup(&mut self, kind: PopupKind) -> Command<cosmic::app::Message<AppMessage>> {
+        match &self.popup {
+            Some(popup) => {
+                if popup.kind == kind {
+                    self.close_popup()
+                } else {
+                    Command::batch(vec![self.close_popup(), self.open_popup(kind)])
+                }
+            }
+            None => self.open_popup(kind),
+        }
+    }
+
+    fn open_popup(&mut self, kind: PopupKind) -> Command<cosmic::app::Message<AppMessage>> {
+        let new_id = Id::unique();
+        //info!("will create {:?}", new_id);
+
+        let popup = Popup { kind, id: new_id };
+
+        self.popup.replace(popup);
+        let mut popup_settings =
+            self.core
+                .applet
+                .get_popup_settings(Id::MAIN, new_id, None, None, None);
+
+        match kind {
+            PopupKind::Popup => {
+                popup_settings.positioner.size_limits = Limits::NONE
+                    .max_width(500.0)
+                    .min_width(300.0)
+                    .min_height(200.0)
+                    .max_height(550.0);
+                get_popup(popup_settings)
+            }
+            PopupKind::QuickSettings => {
+                popup_settings.positioner.size_limits = Limits::NONE
+                    .max_width(250.0)
+                    .min_width(200.0)
+                    .min_height(200.0)
+                    .max_height(550.0);
+
+                get_popup(popup_settings)
+            }
+        }
+    }
+}
+
 impl cosmic::Application for Window {
     type Executor = cosmic::executor::Default;
     type Flags = Flags;
@@ -102,7 +176,6 @@ impl cosmic::Application for Window {
                 more_action: None,
             },
             config,
-            quick_settings_visible: false,
         };
 
         #[cfg(debug_assertions)]
@@ -118,7 +191,13 @@ impl cosmic::Application for Window {
 
     fn on_close_requested(&self, id: window::Id) -> Option<AppMessage> {
         println!("on_close_requested");
-        Some(AppMessage::ClosePopup(id))
+
+        if let Some(popup) = &self.popup {
+            if popup.id == id {
+                return Some(AppMessage::ClosePopup);
+            }
+        }
+        None
     }
 
     fn update(&mut self, message: Self::Message) -> Command<cosmic::app::Message<Self::Message>> {
@@ -153,55 +232,14 @@ impl cosmic::Application for Window {
                     self.config = config;
                 }
             }
-            AppMessage::QuickSettings => {
-                return if let Some(p) = self.popup.take() {
-                    self.quick_settings_visible = false;
-                    destroy_popup(p)
-                } else {
-                    self.quick_settings_visible = true;
-                    let new_id = Id::unique();
-                    self.popup.replace(new_id);
-                    let mut popup_settings =
-                        self.core
-                            .applet
-                            .get_popup_settings(Id::MAIN, new_id, None, None, None);
-                    popup_settings.positioner.size_limits = Limits::NONE
-                        .max_width(250.0)
-                        .min_width(200.0)
-                        .min_height(200.0)
-                        .max_height(550.0);
-                    get_popup(popup_settings)
-                };
+            AppMessage::ToggleQuickSettings => {
+                return self.toogle_popup(PopupKind::QuickSettings);
             }
 
             AppMessage::TogglePopup => {
-                //info!("TogglePopup");
-                self.quick_settings_visible = false;
-                return if let Some(p) = self.popup.take() {
-                    destroy_popup(p)
-                } else {
-                    let new_id = Id::unique();
-                    self.popup.replace(new_id);
-                    let mut popup_settings =
-                        self.core
-                            .applet
-                            .get_popup_settings(Id::MAIN, new_id, None, None, None);
-                    popup_settings.positioner.size_limits = Limits::NONE
-                        .max_width(500.0)
-                        .min_width(300.0)
-                        .min_height(200.0)
-                        .max_height(550.0);
-                    get_popup(popup_settings)
-                };
+                return self.toogle_popup(PopupKind::Popup);
             }
-            AppMessage::ClosePopup(id) => {
-                //info!("PopupClosed: {id:?}");
-                self.state.focused = 0;
-                self.state.more_action.take();
-                if self.popup.as_ref() == Some(&id) {
-                    self.popup = None;
-                }
-            }
+            AppMessage::ClosePopup => return self.close_popup(),
             AppMessage::Search(query) => {
                 self.state.db.search(query);
             }
@@ -223,7 +261,7 @@ impl cosmic::Application for Window {
                 if let Err(e) = clipboard::copy(data) {
                     error!("can't copy: {e}");
                 }
-                return command_message(AppMessage::TogglePopup);
+                return self.close_popup();
             }
             AppMessage::Delete(data) => {
                 if let Err(e) = self.state.db.delete(&data) {
@@ -246,14 +284,15 @@ impl cosmic::Application for Window {
                     self.state.focus_previous();
                 }
                 navigation::NavigationMessage::Enter => {
-                    dbg!(self.state.focused);
                     if let Some(data) = self.state.db.get(self.state.focused) {
-                        return command_message(AppMessage::Copy(data.clone()));
+                        if let Err(e) = clipboard::copy(data.clone()) {
+                            error!("can't copy: {e}");
+                        }
+                        return self.close_popup();
                     }
                 }
                 navigation::NavigationMessage::Quit => {
-                    self.state.db.search("".into());
-                    return command_message(AppMessage::TogglePopup);
+                    return self.close_popup();
                 }
             },
             AppMessage::PrivateMode(private_mode) => {
@@ -275,15 +314,24 @@ impl cosmic::Application for Window {
             .on_press(AppMessage::TogglePopup);
 
         MouseArea::new(icon)
-            .on_right_release(AppMessage::QuickSettings)
+            .on_right_release(AppMessage::ToggleQuickSettings)
             .into()
     }
 
     fn view_window(&self, _id: Id) -> Element<Self::Message> {
-        let view = if self.quick_settings_visible {
-            quick_settings_view(&self.state, &self.config)
-        } else {
-            popup_view(&self.state, &self.config)
+        //dbg!(&_id, &self.popup);
+
+        let Some(popup) = &self.popup else {
+            return self
+                .core
+                .applet
+                .popup_container(popup_view(&self.state, &self.config))
+                .into();
+        };
+
+        let view = match &popup.kind {
+            PopupKind::Popup => popup_view(&self.state, &self.config),
+            PopupKind::QuickSettings => quick_settings_view(&self.state, &self.config),
         };
 
         self.core.applet.popup_container(view).into()

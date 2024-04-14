@@ -7,13 +7,12 @@ use crate::{
     navigation::NavigationMessage,
 };
 
-// todo: filter data in update
 #[derive(Clone, Debug)]
 pub enum AppMessage {
     ChangeConfig(Config),
     TogglePopup,
-    QuickSettings,
-    ClosePopup(Id),
+    ToggleQuickSettings,
+    ClosePopup,
     Search(String),
     ClipboardEvent(ClipboardMessage),
     RetryConnectingClipboard,
