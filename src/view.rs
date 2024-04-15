@@ -55,6 +55,10 @@ pub fn popup_view<'a>(state: &'a AppState, _config: &'a Config) -> Element<'a, A
         .width(Length::Fill)
         .spacing(20)
         .padding(10)
+        .push(
+            widget::button::standard("Clipboard Indicator")
+                .on_press(AppMessage::ActivateWaylandPopup),
+        )
         .push(top_view(state))
         .push(entries(state))
         .into()

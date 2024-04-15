@@ -13,6 +13,8 @@ pub enum AppMessage {
     TogglePopup,
     ToggleQuickSettings,
     ClosePopup,
+    ActivateWaylandPopup,
+    CloseWaylandPopup,
     Search(String),
     ClipboardEvent(ClipboardMessage),
     RetryConnectingClipboard,
