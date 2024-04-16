@@ -360,7 +360,7 @@ impl cosmic::Application for Window {
                 let item: Element<_>;
                 match content_group {
                     ContentGroup::Color(hex) => {
-                        let color = color!(hex);
+                        let color = convert_color(hex);
                         let txt = widget::text(format!("#{:x}", hex));
 
                         let container = widget::container(txt).width(250).height(250).style(
