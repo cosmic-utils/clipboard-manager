@@ -357,30 +357,28 @@ impl cosmic::Application for Window {
 
             for entry in self.state.db.iter().take(10) {
                 let content_group = content_group(&entry.value);
-                let item: Element<_>;
+                let container;
                 match content_group {
                     ContentGroup::Color(hex) => {
                         let color = convert_color(hex);
                         let txt = widget::text(format!("#{:x}", hex));
 
-                        let container = widget::container(txt).width(250).height(250).style(
-                            cosmic::theme::Container::custom(move |_theme| {
-                                widget::container::Appearance {
-                                    background: Some(color.into()),
-                                    ..Default::default()
-                                }
-                            }),
-                        );
-                        item = container.into()
+                        container = widget::container(txt).style(cosmic::theme::Container::custom(
+                            move |_theme| widget::container::Appearance {
+                                background: Some(color.into()),
+                                ..Default::default()
+                            },
+                        ));
                     }
                     ContentGroup::Emoji(emoji) => {
-                        item = widget::text(emoji).into();
+                        container = widget::container(widget::text(emoji))
                     }
                     ContentGroup::Text(text) => {
-                        item = widget::text(text).into();
+                        container = widget::container(widget::text(text));
                     }
                 }
-                content = content.push(item);
+
+                content = content.push(container.width(250).height(250));
             }
 
             widget::mouse_area(
