@@ -371,10 +371,26 @@ impl cosmic::Application for Window {
                         ));
                     }
                     ContentGroup::Emoji(emoji) => {
-                        container = widget::container(widget::text(emoji))
+                        container =
+                            widget::container(widget::text(emoji).size(40).width(70).height(70))
+                                .center_x()
+                                .center_y()
+                                .style(cosmic::theme::Container::custom(move |_theme| {
+                                    widget::container::Appearance {
+                                        background: Some(color!(0xfca903).into()),
+                                        ..Default::default()
+                                    }
+                                }));
                     }
                     ContentGroup::Text(text) => {
-                        container = widget::container(widget::text(text));
+                        container = widget::container(widget::text(text)).style(
+                            cosmic::theme::Container::custom(move |_theme| {
+                                widget::container::Appearance {
+                                    background: Some(color!(0x994e15).into()),
+                                    ..Default::default()
+                                }
+                            }),
+                        );
                     }
                 }
 
