@@ -32,6 +32,7 @@ thiserror = "1.0"
 aho-corasick = { version = "1.1", features = ["perf-literal"] }
 paste = "1.0.14"
 unicode-normalization = "0.1"
+emojis = "0.6.1"
 
 [dependencies.libcosmic]
 git = "https://github.com/pop-os/libcosmic"

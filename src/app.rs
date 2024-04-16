@@ -6,8 +6,10 @@ use cosmic::iced::wayland::actions::layer_surface::SctkLayerSurfaceSettings;
 use cosmic::iced::wayland::popup::{destroy_popup, get_popup};
 use cosmic::iced::window::Id;
 use cosmic::iced::{self, event, Command, Limits};
-use cosmic::iced_core::{Length, Color, Border, alignment, Shadow};
+use cosmic::iced_core::{Length, Color, Border, alignment, Shadow, color};
 use cosmic::iced_sctk::commands::layer_surface::{destroy_layer_surface, KeyboardInteractivity, Anchor, get_layer_surface};
+use cosmic::iced_widget::graphics::color;
+use cosmic::prelude::CollectionWidget;
 use cosmic::widget;
 use cosmic::iced_futures::Subscription;
 use cosmic::iced_runtime::command::Action;
@@ -22,7 +24,7 @@ use cosmic::{Element, Theme};
 use crate::config::{Config, CONFIG_VERSION, PRIVATE_MODE};
 use crate::db::{self, Data, Db};
 use crate::message::AppMessage;
-use crate::utils::command_message;
+use crate::utils::{command_message, formated_value};
 use crate::view::{popup_view, quick_settings_view};
 use crate::{clipboard, config, navigation};
 
@@ -351,28 +353,53 @@ impl cosmic::Application for Window {
             };
             self.core.applet.popup_container(view).into()
         } else if matches!(self.wayland_popup, Some(p) if p == id) {
-            let content = widget::column::with_children(vec![
-                widget::button::suggested("heyo").into(),
-                widget::button::destructive("bye").into(),
-            ]);
+            let mut content = widget::row::with_capacity(10).spacing(10);
+
+            for entry in self.state.db.iter().take(10) {
+                let content_group = content_group(&entry.value);
+                let item: Element<_>;
+                match content_group {
+                    ContentGroup::Color(color) => {
+                        let txt = widget::text(format!("#{:x}", color));
+                        let container = widget::container(txt).width(250).height(250).style(
+                            cosmic::theme::Container::custom(move |theme| {
+                                widget::container::Appearance {
+                                    background: Some(color!(color).into()),
+                                    ..Default::default()
+                                }
+                            }),
+                        );
+                        item = container.into()
+                    }
+                    ContentGroup::Emoji(emoji) => {
+                        item = widget::text(emoji).into();
+                    }
+                    ContentGroup::Text(text) => {
+                        item = widget::text(text).into();
+                    }
+                }
+                content = content.push(item);
+            }
+
             widget::mouse_area(
                 widget::container(
                     widget::container(content)
+                        /*
                         .style(cosmic::theme::Container::custom(|theme| {
                             widget::container::Appearance {
                                 icon_color: Some(theme.cosmic().background.on.into()),
                                 text_color: Some(theme.cosmic().background.on.into()),
-                                background: Some(
-                                    Color::from(theme.cosmic().background.base).into(),
-                                ),
-                                border: Border {
-                                    radius: 12.0.into(),
-                                    width: 2.0,
-                                    color: theme.cosmic().bg_divider().into(),
-                                },
+                                background: Some(Color::from(theme.cosmic().secondary.base).into()),
+                                // border: Border {
+                                //     radius: 12.0.into(),
+                                //     width: 2.0,
+                                //     color: theme.cosmic().bg_divider().into(),
+                                // },
                                 shadow: Shadow::default(),
+                                ..Default::default()
                             }
                         }))
+                        */
                         .width(Length::Fill)
                         .height(Length::Shrink),
                 )
@@ -402,4 +429,25 @@ impl cosmic::Application for Window {
     fn style(&self) -> Option<<Theme as application::StyleSheet>::Style> {
         Some(cosmic::applet::style())
     }
+}
+
+fn content_group(content: &str) -> ContentGroup {
+    let content_trim = content.trim();
+    if content_trim.is_ascii() && content_trim.len() < 7 {
+        let color_value = content_trim.strip_prefix('#').unwrap_or(content_trim);
+        if let Ok(color) = u32::from_str_radix(color_value, 16) {
+            if color <= 0xffffff {
+                return ContentGroup::Color(color);
+            }
+        }
+    }
+    if let Some(emoji) = emojis::get(content_trim) {
+        return ContentGroup::Emoji(emoji.as_str().into());
+    }
+    return ContentGroup::Text(content.into());
+}
+enum ContentGroup {
+    Color(u32),
+    Emoji(String),
+    Text(String),
 }
