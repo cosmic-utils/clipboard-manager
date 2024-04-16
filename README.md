@@ -1,7 +1,7 @@
 # clipboard manager for cosmic
 
 
-![screenshot of the applet](https://media.githubusercontent.com/media/wiiznokes/cosmic-clipboard-manager/master/resoources/screenshots/main_popup.png)
+![screenshot of the applet](https://media.githubusercontent.com/media/wiiznokes/cosmic-clipboard-manager/master/resources/screenshots/main_popup.png)
 
 The goal is to make a simple yet fast clipboard history, with a focus on UX, rapidity and security.
 
