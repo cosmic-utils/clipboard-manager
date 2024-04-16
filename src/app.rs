@@ -361,14 +361,27 @@ impl cosmic::Application for Window {
                 match content_group {
                     ContentGroup::Color(hex) => {
                         let color = convert_color(hex);
-                        let txt = widget::text(format!("#{:x}", hex));
+                        let txt = widget::text(format!("#{:0>6x}", hex));
+                        let txt_container = widget::container(txt)
+                            .center_x()
+                            .center_y()
+                            .padding(10)
+                            .style(cosmic::theme::Container::custom(move |_theme| {
+                                widget::container::Appearance {
+                                    background: Some(Color::BLACK.into()),
+                                    ..Default::default()
+                                }
+                            }));
 
-                        container = widget::container(txt).style(cosmic::theme::Container::custom(
-                            move |_theme| widget::container::Appearance {
-                                background: Some(color.into()),
-                                ..Default::default()
-                            },
-                        ));
+                        container = widget::container(txt_container)
+                            .center_x()
+                            .center_y()
+                            .style(cosmic::theme::Container::custom(move |_theme| {
+                                widget::container::Appearance {
+                                    background: Some(color.into()),
+                                    ..Default::default()
+                                }
+                            }));
                     }
                     ContentGroup::Emoji(emoji) => {
                         container =
@@ -451,7 +464,10 @@ fn content_group(content: &str) -> ContentGroup {
     let content_trim = content.trim();
     if content_trim.is_ascii() && content_trim.len() <= 9 {
         let color_value = content_trim.strip_prefix('#').unwrap_or(content_trim);
-        if let Ok(color) = u32::from_str_radix(color_value, 16) {
+        if let Ok(mut color) = u32::from_str_radix(color_value, 16) {
+            if color_value.len() == 3 {
+                color = convert_short_color(color)
+            }
             return ContentGroup::Color(color);
         }
     }
@@ -471,6 +487,12 @@ fn convert_color(hex: u32) -> Color {
         return Color::from_rgba8(r as _, g as _, b as _, a as f32 / 255.0);
     }
     return Color::from_rgb8(r as _, g as _, b as _);
+}
+fn convert_short_color(hex: u32) -> u32 {
+    let r = (hex >> 8) & 0xf;
+    let g = (hex >> 4) & 0xf;
+    let b = hex & 0xf;
+    return (r << 20) | (r << 16) | (g << 12) | (g << 8) | (b << 4) | b;
 }
 
 enum ContentGroup {
