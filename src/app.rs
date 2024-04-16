@@ -359,12 +359,14 @@ impl cosmic::Application for Window {
                 let content_group = content_group(&entry.value);
                 let item: Element<_>;
                 match content_group {
-                    ContentGroup::Color(color) => {
-                        let txt = widget::text(format!("#{:x}", color));
+                    ContentGroup::Color(hex) => {
+                        let color = color!(hex);
+                        let txt = widget::text(format!("#{:x}", hex));
+
                         let container = widget::container(txt).width(250).height(250).style(
-                            cosmic::theme::Container::custom(move |theme| {
+                            cosmic::theme::Container::custom(move |_theme| {
                                 widget::container::Appearance {
-                                    background: Some(color!(color).into()),
+                                    background: Some(color.into()),
                                     ..Default::default()
                                 }
                             }),
@@ -433,12 +435,10 @@ impl cosmic::Application for Window {
 
 fn content_group(content: &str) -> ContentGroup {
     let content_trim = content.trim();
-    if content_trim.is_ascii() && content_trim.len() < 7 {
+    if content_trim.is_ascii() && content_trim.len() <= 9 {
         let color_value = content_trim.strip_prefix('#').unwrap_or(content_trim);
         if let Ok(color) = u32::from_str_radix(color_value, 16) {
-            if color <= 0xffffff {
-                return ContentGroup::Color(color);
-            }
+            return ContentGroup::Color(color);
         }
     }
     if let Some(emoji) = emojis::get(content_trim) {
@@ -446,6 +446,19 @@ fn content_group(content: &str) -> ContentGroup {
     }
     return ContentGroup::Text(content.into());
 }
+fn convert_color(hex: u32) -> Color {
+    let has_alpha = hex > 0x00ffffff;
+    let alpha = if has_alpha { 8 } else { 0 };
+    let r = (hex >> (16 + alpha)) & 0xff;
+    let g = (hex >> (8 + alpha)) & 0xff;
+    let b = (hex >> (alpha)) & 0xff;
+    if has_alpha {
+        let a = hex & 0xff;
+        return Color::from_rgba8(r as _, g as _, b as _, a as f32 / 255.0);
+    }
+    return Color::from_rgb8(r as _, g as _, b as _);
+}
+
 enum ContentGroup {
     Color(u32),
     Emoji(String),
