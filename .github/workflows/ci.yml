@@ -29,8 +29,30 @@ jobs:
       - run: rustup update
       - uses: Swatinem/rust-cache@v2
 
+      - name: install system deps
+        run: sudo apt install libxkbcommon-dev
+
       - name: Run tests
         run: cargo test --workspace --all-features
+
+  clippy:
+    name: Clippy on ${{ matrix.os }}
+    if: github.event.pull_request.draft == false
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup update
+      - uses: Swatinem/rust-cache@v2
+
+      - name: install system deps
+        run: sudo apt install libxkbcommon-dev
+
+      - name: Run clippy
+        run: cargo clippy --workspace --all-features
 
   fmt:
     name: Rustfmt
@@ -44,19 +66,3 @@ jobs:
 
       - name: Run rustfmt
         run: cargo fmt --all --check --verbose
-
-  clippy:
-    name: Clippy on ${{ matrix.os }}
-    if: github.event.pull_request.draft == false
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ ubuntu-latest ]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - run: rustup update
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Run clippy
-        run: cargo clippy --workspace --all-features

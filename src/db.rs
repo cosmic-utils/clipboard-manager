@@ -80,7 +80,6 @@ struct DataDb {
 
 impl Db {
     pub fn new() -> Result<Self, sled::Error> {
-
         let directories = directories::ProjectDirs::from(QUALIFIER, ORG, APP).unwrap();
         let db_path = directories.cache_dir().join(DB_FILE);
 

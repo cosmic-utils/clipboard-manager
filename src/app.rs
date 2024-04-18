@@ -26,8 +26,6 @@ use crate::{clipboard, config, navigation};
 use cosmic::cosmic_config;
 use std::sync::atomic::{self, AtomicBool};
 
-
-
 // todo: converge this 4 strings
 pub static QUALIFIER: &str = "com";
 pub static ORG: &str = "wiiznokes";
