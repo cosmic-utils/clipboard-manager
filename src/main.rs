@@ -52,15 +52,15 @@ fn main() -> cosmic::iced::Result {
             let config = match Config::get_entry(&config_handler) {
                 Ok(ok) => ok,
                 Err((errs, config)) => {
-                    eprintln!("errors loading config: {:?}", errs);
+                    error!("errors loading config: {:?}", errs);
                     config
                 }
             };
-            (Some(config_handler), config)
+            (config_handler, config)
         }
         Err(err) => {
-            eprintln!("failed to create config handler: {}", err);
-            (None, Config::default())
+            error!("failed to create config handler: {}", err);
+            panic!();
         }
     };
 

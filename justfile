@@ -4,7 +4,7 @@ APP_ID := "com.wiiznokes.CosmicClipboardManager"
 install:
 	cargo build -r
 	sudo install -Dm0755 ./target/release/cosmic-clipboard-manager /usr/bin/cosmic-clipboard-manager
-	sudo install -Dm0644 resources/{{APP_ID}}.desktop /usr/share/app_IDlications/com.wiiznokes.CosmicClipboardManager.desktop
+	sudo install -Dm0644 resources/{{APP_ID}}.desktop /usr/share/applications/{{APP_ID}}.desktop
 	sudo install -Dm0644 resources/icons/assignment24.svg /usr/share/{{APP_ID}}/icons/assignment24.svg
 
 
