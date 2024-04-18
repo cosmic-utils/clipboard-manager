@@ -26,12 +26,17 @@ use crate::{clipboard, config, navigation};
 use cosmic::cosmic_config;
 use std::sync::atomic::{self, AtomicBool};
 
+// todo: converge this 4 strings
+pub static QUALIFIER: &str = "com";
+pub static ORG: &str = "wiiznokes";
+pub static APP: &str = "CosmicClipboardManager";
+
 pub const APP_ID: &str = "com.wiiznokes.CosmicClipboardManager";
 
 pub struct Window {
     core: Core,
     config: Config,
-    config_handler: Option<cosmic_config::Config>,
+    config_handler: cosmic_config::Config,
     popup: Option<Popup>,
     state: AppState,
 }
@@ -68,7 +73,7 @@ impl ClipboardState {
 
 #[derive(Clone, Debug)]
 pub struct Flags {
-    pub config_handler: Option<cosmic_config::Config>,
+    pub config_handler: cosmic_config::Config,
     pub config: Config,
 }
 
@@ -205,21 +210,10 @@ impl cosmic::Application for Window {
 
         macro_rules! config_set {
             ($name: ident, $value: expr) => {
-                match &self.config_handler {
-                    Some(config_handler) => {
-                        match paste::paste! { self.config.[<set_ $name>](config_handler, $value) } {
-                            Ok(_) => {}
-                            Err(err) => {
-                                eprintln!("failed to save config {:?}: {}", stringify!($name), err);
-                            }
-                        }
-                    }
-                    None => {
-                        self.config.$name = $value;
-                        eprintln!(
-                            "failed to save config {:?}: no config handler",
-                            stringify!($name),
-                        );
+                match paste::paste! { self.config.[<set_ $name>](&self.config_handler, $value) } {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("failed to save config {:?}: {}", stringify!($name), err);
                     }
                 }
             };
