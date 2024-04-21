@@ -10,7 +10,7 @@ labels: bug
 
 #### Steps to Reproduce:
 
-#### Posible Solutions:
+#### Possible Solutions:
 
 #### Possible Additional Information:
 
