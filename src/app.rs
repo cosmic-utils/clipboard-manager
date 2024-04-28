@@ -175,7 +175,7 @@ impl cosmic::Application for Window {
             config_handler: flags.config_handler,
             popup: None,
             state: AppState {
-                db: db::Db::new().unwrap(),
+                db: db::Db::new(&config.remove_old_entries).unwrap(),
                 clipboard_state: ClipboardState::Init,
                 focused: 0,
                 more_action: None,

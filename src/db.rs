@@ -6,13 +6,18 @@ use std::{
 };
 
 use aho_corasick::AhoCorasick;
+use bincode::de;
 use indexmap::IndexSet;
 use serde::{Deserialize, Serialize};
 
 use derivative::Derivative;
+use time::Duration;
 use unicode_normalization::UnicodeNormalization;
 
-use crate::app::{APP, ORG, QUALIFIER};
+use crate::{
+    app::{APP, ORG, QUALIFIER},
+    utils,
+};
 
 // todo: enforce that only this app can read/write this file.
 
@@ -45,12 +50,8 @@ impl Display for Data {
 
 impl Data {
     pub fn new(mime: String, value: String) -> Self {
-        let since_the_epoch = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("Time went backwards");
-
         Self {
-            creation: since_the_epoch.as_millis(),
+            creation: utils::now_millis(),
             mime,
             value,
         }
@@ -79,7 +80,7 @@ struct DataDb {
 }
 
 impl Db {
-    pub fn new() -> Result<Self, sled::Error> {
+    pub fn new(remove_old_entries: &Option<Duration>) -> Result<Self, sled::Error> {
         let directories = directories::ProjectDirs::from(QUALIFIER, ORG, APP).unwrap();
         let db_path = directories.cache_dir().join(DB_FILE);
 
@@ -87,20 +88,42 @@ impl Db {
 
         let mut state = IndexSet::new();
 
+        let mut should_remove = false;
+
         for e in db_handle.iter() {
             match e {
                 Ok((key, value)) => {
-                    let key = bincode::deserialize::<KeyDb>(&key).expect("key");
-                    let value = bincode::deserialize::<DataDb>(&value).expect("value");
+                    if should_remove {
+                        if let Err(e) = db_handle.remove(&key) {
+                            error!("can't remove old entry: {e}");
+                        }
+                    } else {
+                        let key = bincode::deserialize::<KeyDb>(&key).expect("key");
 
-                    let value = Data {
-                        mime: value.mime,
-                        value: value.value,
-                        creation: key.0,
-                    };
+                        if let Some(max_duration) = &remove_old_entries {
+                            let delta = utils::now_millis() - key.0;
+                            let delta: i64 = delta.try_into().unwrap_or(-1);
 
-                    if !state.insert(value) {
-                        panic!("already exist");
+                            if delta < 0 || &Duration::milliseconds(delta) > max_duration {
+                                should_remove = true;
+                                if let Err(e) = db_handle.remove(&key) {
+                                    error!("can't remove old entry: {e}");
+                                }
+                                continue;
+                            }
+                        }
+
+                        let value = bincode::deserialize::<DataDb>(&value).expect("value");
+
+                        let value = Data {
+                            mime: value.mime,
+                            value: value.value,
+                            creation: key.0,
+                        };
+
+                        if !state.insert(value) {
+                            panic!("already exist");
+                        }
                     }
                 }
                 Err(e) => {
@@ -272,20 +295,21 @@ impl AsRef<[u8]> for KeyDb {
     }
 }
 
+// todo: re enable tests when they pass locally
+/*
 #[cfg(test)]
 mod test {
     use super::{Data, Db};
 
-    // todo: re enable tests when they pass locally
 
-    //#[test]
+    #[test]
     fn clear() {
         let mut db = Db::new().unwrap();
 
         db.clear().unwrap();
     }
 
-    //#[test]
+    #[test]
     fn test() {
         env_logger::Builder::new()
             .filter_level(log::LevelFilter::Info)
@@ -325,3 +349,4 @@ mod test {
         assert!(iter.next().unwrap() == &data2);
     }
 }
+ */
