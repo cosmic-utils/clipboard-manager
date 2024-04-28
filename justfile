@@ -1,12 +1,52 @@
+name := 'cosmic-clipboard-manager'
+export APPID := 'com.wiiznokes.CosmicClipboardManager'
 
-APP_ID := "com.wiiznokes.CosmicClipboardManager"
+rootdir := ''
+prefix := '/usr'
+
+base-dir := absolute_path(clean(rootdir / prefix))
+
+export INSTALL_DIR := base-dir / 'share'
+
+bin-src := 'target' / 'release' / name
+bin-dst := base-dir / 'bin' / name
+
+desktop := APPID + '.desktop'
+desktop-src := 'res' / desktop
+desktop-dst := clean(rootdir / prefix) / 'share' / 'applications' / desktop
+
+metainfo := APPID + '.metainfo.xml'
+metainfo-src := 'res' / metainfo
+metainfo-dst := clean(rootdir / prefix) / 'share' / 'metainfo' / metainfo
+
+res-src := 'res'
+res-dst := clean(rootdir / prefix) / 'share' / APPID
+
+# Default recipe which runs `just build-release`
+default: build-release
+
+clean:
+  cargo clean
+
+
+
+# Compiles with debug profile
+build-debug *args:
+  cargo build {{args}}
+
+# Compiles with release profile
+build-release *args: (build-debug '--release' args)
 
 install:
-	cargo build -r
-	sudo install -Dm0755 ./target/release/cosmic-clipboard-manager /usr/bin/cosmic-clipboard-manager
-	sudo install -Dm0644 resources/{{APP_ID}}.desktop /usr/share/applications/{{APP_ID}}.desktop
-	sudo install -Dm0644 resources/icons/assignment24.svg /usr/share/{{APP_ID}}/icons/assignment24.svg
+  install -Dm0755 {{bin-src}} {{bin-dst}}
+  install -Dm0644 {{desktop-src}} {{desktop-dst}}
+  install -Dm0644 {{res-src}}/icons/assignment24.svg {{res-dst}}/icons/assignment24.svg
 
+# Uninstalls installed files
+uninstall:
+  rm {{bin-dst}}
+  rm {{desktop-dst}}
+  rm -r {{res-dst}}
 
 pull: fmt prettier fix
 	
