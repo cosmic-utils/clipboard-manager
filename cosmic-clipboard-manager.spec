@@ -2,7 +2,7 @@
 %bcond_without check
 
 %global ver 0.1.0
-%global commit 90227471bf66b4f63554905becfcf3308f3fedeb
+%global commit 876c73d228c24e7a85e1e39ef7265e1e81d106ca
 %global date 20240426.18
 
 Name:           cosmic-clipboard-manager
@@ -11,6 +11,7 @@ Release:        %autorelease
 Summary:        Clipboard manager for the COSMIC Desktop Environment
 
 SourceLicense: MIT
+License: MIT
 
 URL:            https://github.com/wiiznokes/cosmic-clipboard-manager
 
