@@ -35,7 +35,8 @@ build-debug *args:
   cargo build {{args}}
 
 # Compiles with release profile
-build-release *args: (build-debug '--release' args)
+build-release *args:
+  cargo build --release {{args}}
 
 install:
   install -Dm0755 {{bin-src}} {{bin-dst}}

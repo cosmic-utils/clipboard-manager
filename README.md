@@ -11,7 +11,7 @@ There is a quick settings popup when you right click the icon.
 ```
 git clone https://github.com/wiiznokes/cosmic-clipboard-manager.git
 cd cosmic-clipboard-manager
-just
+just build-release
 just install
 ```
 
