@@ -53,8 +53,8 @@ just rootdir=%{buildroot} prefix=%{_prefix} install
 %license LICENSE.dependencies
 %license cargo-vendor.txt
 %{_bindir}/cosmic-clipboard-manager
-%{_datadir}/applications/com.wiiznokes.CosmicClipboardManager.desktop
-%{_datadir}/com.wiiznokes.CosmicClipboardManager/icons/assignment24.svg
+%{_datadir}/applications/io.github.wiiznokes.cosmic-clipboard-manager.desktop
+%{_datadir}/share/icons/hicolor/scalable/apps/io.github.wiiznokes.cosmic-clipboard-manager.svg
 
 %changelog
 %autochangelog

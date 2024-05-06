@@ -1,5 +1,5 @@
 name := 'cosmic-clipboard-manager'
-export APPID := 'com.wiiznokes.CosmicClipboardManager'
+export APPID := 'io.github.wiiznokes.cosmic-clipboard-manager'
 
 rootdir := ''
 prefix := '/usr'
@@ -11,23 +11,17 @@ export INSTALL_DIR := base-dir / 'share'
 bin-src := 'target' / 'release' / name
 bin-dst := base-dir / 'bin' / name
 
-desktop := APPID + '.desktop'
-desktop-src := 'res' / desktop
-desktop-dst := clean(rootdir / prefix) / 'share' / 'applications' / desktop
+desktop-src := 'res' / 'desktop_entry.desktop'
+desktop-dst := clean(rootdir / prefix) / 'share' / 'applications' / APPID + '.desktop'
 
-metainfo := APPID + '.metainfo.xml'
-metainfo-src := 'res' / metainfo
-metainfo-dst := clean(rootdir / prefix) / 'share' / 'metainfo' / metainfo
+metainfo-src := 'res' / 'metainfo.xml'
+metainfo-dst := clean(rootdir / prefix) / 'share' / 'metainfo' / APPID + '.metainfo.xml'
 
 res-src := 'res'
-res-dst := clean(rootdir / prefix) / 'share' / APPID
+res-dst := clean(rootdir / prefix) / 'share'
 
 # Default recipe which runs `just build-release`
 default: build-release
-
-clean:
-  cargo clean
-
 
 
 # Compiles with debug profile
@@ -41,13 +35,18 @@ build-release *args:
 install:
   install -Dm0755 {{bin-src}} {{bin-dst}}
   install -Dm0644 {{desktop-src}} {{desktop-dst}}
-  install -Dm0644 {{res-src}}/icons/assignment24.svg {{res-dst}}/icons/assignment24.svg
+  install -Dm0644 {{res-src}}/app_icon.svg {{res-dst}}/icons/hicolor/scalable/apps/{{APPID}}.svg
 
 # Uninstalls installed files
 uninstall:
   rm {{bin-dst}}
   rm {{desktop-dst}}
-  rm -r {{res-dst}}
+  rm {{res-dst}}/icons/hicolor/scalable/apps/{{APPID}}.svg
+
+
+clean:
+  cargo clean
+
 
 pull: fmt prettier fix
 	
