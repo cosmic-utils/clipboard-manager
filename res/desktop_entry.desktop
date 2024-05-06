@@ -1,0 +1,15 @@
+[Desktop Entry]
+Name=Clipboard Manager
+Comment=A wayland clipboard manager
+Keywords=Cosmic;Iced;history;
+
+# translators: do not translate this part
+Icon=io.github.wiiznokes.cosmic-clipboard-manager
+Categories=Cosmic;Iced;
+Type=Application
+Exec=cosmic-clipboard-manager
+Terminal=false
+StartupNotify=true
+NoDisplay=true
+X-CosmicApplet=true
+X-CosmicHoverPopup=true

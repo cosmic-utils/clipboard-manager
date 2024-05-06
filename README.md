@@ -11,6 +11,7 @@ There is a quick settings popup when you right click the icon.
 ```
 git clone https://github.com/wiiznokes/cosmic-clipboard-manager.git
 cd cosmic-clipboard-manager
+just build-release
 just install
 ```
 
@@ -20,7 +21,7 @@ You curently need to activate a setting of the compositor:
 sudo nano /etc/cosmic-comp/config.ron
 ```
 
-And change `data_control_enabled: false` to `true` at the end of the file. Note that you may need to reset the setting at each update you make (at least, i noticied it on Fedora).
+And change `data_control_enabled: false` to `true` at the end of the file.
 
 Obiously, a better integration is planned, maybe with a portal that ask the user if they want to activate this protocol (which is insecure since its let an app access the clipboard without receiving an event for it (like ctrl-c) or being focused).
 
