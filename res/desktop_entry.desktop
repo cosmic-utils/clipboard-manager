@@ -12,4 +12,4 @@ Terminal=false
 StartupNotify=true
 NoDisplay=true
 X-CosmicApplet=true
-X-CosmicHoverPopup=true
+X-CosmicHoverPopup=Auto
