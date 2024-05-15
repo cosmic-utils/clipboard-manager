@@ -131,10 +131,10 @@ impl Window {
         match kind {
             PopupKind::Popup => {
                 popup_settings.positioner.size_limits = Limits::NONE
-                    .max_width(500.0)
+                    .max_width(400.0)
                     .min_width(300.0)
                     .min_height(200.0)
-                    .max_height(550.0);
+                    .max_height(500.0);
                 get_popup(popup_settings)
             }
             PopupKind::QuickSettings => {
