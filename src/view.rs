@@ -64,7 +64,7 @@ fn top_view(state: &AppState) -> Element<AppMessage> {
     let mut padding = Padding::new(10f32);
     padding.bottom = 0f32;
 
-    let input = text_input::search_input("value", state.db.query())
+    let input = text_input::search_input("Search in last entries", state.db.query())
         .on_input(AppMessage::Search)
         .on_paste(AppMessage::Search)
         .on_clear(AppMessage::Search("".into()));
