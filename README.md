@@ -8,7 +8,18 @@ There is a quick settings popup when you right click the icon.
 
 ## Install
 
+### Fedora
+
+You can use this [copr](https://copr.fedorainfracloud.org/coprs/wiiznokes/cosmic-applets-unofficial/).
+
+```sh
+dnf copr enable wiiznokes/cosmic-applets-unofficial
+dnf install cosmic-clipboard-manager
 ```
+
+### Other distros
+
+```sh
 git clone https://github.com/wiiznokes/cosmic-clipboard-manager.git
 cd cosmic-clipboard-manager
 just build-release
