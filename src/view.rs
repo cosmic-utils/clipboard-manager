@@ -16,6 +16,7 @@ use crate::{
     app::{AppState, ClipboardState},
     config::Config,
     db::Data,
+    fl,
     message::AppMessage,
     my_widgets,
     utils::{formated_value, horizontal_padding},
@@ -26,7 +27,7 @@ pub fn quick_settings_view<'a>(
     config: &'a Config,
 ) -> Element<'a, AppMessage> {
     fn toogle_settings<'a>(
-        info: &'a str,
+        info: impl Into<Cow<'a, str>> + 'a,
         value: bool,
         f: impl Fn(bool) -> AppMessage + 'a,
     ) -> Element<'a, AppMessage> {
@@ -42,11 +43,11 @@ pub fn quick_settings_view<'a>(
         .spacing(20)
         .padding(10)
         .push(toogle_settings(
-            "Incognito",
+            fl!("incognito"),
             config.private_mode,
             AppMessage::PrivateMode,
         ))
-        .push(widget::button::destructive("Clear").on_press(AppMessage::Clear))
+        .push(widget::button::destructive(fl!("clear_entries")).on_press(AppMessage::Clear))
         .into()
 }
 
@@ -64,7 +65,7 @@ fn top_view(state: &AppState) -> Element<AppMessage> {
     let mut padding = Padding::new(10f32);
     padding.bottom = 0f32;
 
-    let input = text_input::search_input("Search in last entries", state.db.query())
+    let input = text_input::search_input(fl!("search_entries"), state.db.query())
         .on_input(AppMessage::Search)
         .on_paste(AppMessage::Search)
         .on_clear(AppMessage::Search("".into()));
@@ -155,7 +156,7 @@ fn entry(entry: &Data, is_focused: bool, more_action_expanded: bool) -> Element<
     if more_action_expanded {
         let overlay = Column::new()
             .push(
-                button("Delete")
+                button(text(fl!("delete_entry")))
                     .on_press(AppMessage::Delete(entry.clone()))
                     .width(Length::Fill)
                     .style(Button::Destructive),
