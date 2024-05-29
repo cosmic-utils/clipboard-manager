@@ -250,6 +250,13 @@ impl cosmic::Application for Window {
                     error!("{e}");
                     self.state.clipboard_state = ClipboardState::Error(e);
                 }
+                clipboard::ClipboardMessage::EmptyKeyboard => {
+                    if let Some(data) = self.state.db.get(0) {
+                        if let Err(e) = clipboard::copy(data.to_owned()) {
+                            error!("can't copy: {e}");
+                        }
+                    }
+                }
             },
             AppMessage::Copy(data) => {
                 if let Err(e) = clipboard::copy(data) {
