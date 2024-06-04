@@ -723,6 +723,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "clipboard-manager"
+version = "0.1.0"
+dependencies = [
+ "aho-corasick",
+ "bincode",
+ "derivative",
+ "directories",
+ "env_logger",
+ "futures",
+ "i18n-embed",
+ "i18n-embed-fl",
+ "indexmap",
+ "libcosmic",
+ "log",
+ "once_cell",
+ "os_pipe",
+ "paste",
+ "rayon",
+ "rust-embed",
+ "serde",
+ "sled",
+ "thiserror",
+ "time",
+ "tokio",
+ "unicode-normalization",
+ "wl-clipboard-rs",
+]
+
+[[package]]
 name = "clipboard-win"
 version = "5.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -921,35 +950,6 @@ dependencies = [
  "libc",
  "smithay-client-toolkit",
  "wayland-client",
-]
-
-[[package]]
-name = "cosmic-clipboard-manager"
-version = "0.1.0"
-dependencies = [
- "aho-corasick",
- "bincode",
- "derivative",
- "directories",
- "env_logger",
- "futures",
- "i18n-embed",
- "i18n-embed-fl",
- "indexmap",
- "libcosmic",
- "log",
- "once_cell",
- "os_pipe",
- "paste",
- "rayon",
- "rust-embed",
- "serde",
- "sled",
- "thiserror",
- "time",
- "tokio",
- "unicode-normalization",
- "wl-clipboard-rs",
 ]
 
 [[package]]

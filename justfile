@@ -1,12 +1,10 @@
-name := 'cosmic-clipboard-manager'
-export APPID := 'io.github.wiiznokes.cosmic-clipboard-manager'
-
 rootdir := ''
 prefix := '/usr'
 
-base-dir := absolute_path(clean(rootdir / prefix))
+name := 'clipboard-manager'
+export APPID := 'io.github.wiiznokes.clipboard-manager'
 
-export INSTALL_DIR := base-dir / 'share'
+base-dir := absolute_path(clean(rootdir / prefix))
 
 bin-src := 'target' / 'release' / name
 bin-dst := base-dir / 'bin' / name

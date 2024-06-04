@@ -29,9 +29,9 @@ use std::sync::atomic::{self, AtomicBool};
 // todo: converge this 4 strings
 pub static QUALIFIER: &str = "com";
 pub static ORG: &str = "wiiznokes";
-pub static APP: &str = "cosmic-clipboard-manager";
+pub static APP: &str = "clipboard-manager";
 
-pub const APP_ID: &str = "com.wiiznokes.cosmic-clipboard-manager";
+pub const APP_ID: &str = "com.wiiznokes.clipboard-manager";
 
 pub struct Window {
     core: Core,
@@ -311,7 +311,7 @@ impl cosmic::Application for Window {
         let icon = self
             .core
             .applet
-            .icon_button("io.github.wiiznokes.cosmic-clipboard-manager")
+            .icon_button("io.github.wiiznokes.clipboard-manager")
             .on_press(AppMessage::TogglePopup);
 
         MouseArea::new(icon)

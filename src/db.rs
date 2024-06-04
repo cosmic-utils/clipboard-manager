@@ -22,10 +22,10 @@ use crate::{
 // todo: enforce that only this app can read/write this file.
 
 #[cfg(debug_assertions)]
-const DB_FILE: &str = "cosmic-clipboard-manager-db-debug";
+const DB_FILE: &str = "clipboard-manager-db-debug";
 
 #[cfg(not(debug_assertions))]
-const DB_FILE: &str = "cosmic-clipboard-manager-db";
+const DB_FILE: &str = "clipboard-manager-db";
 
 #[derive(Derivative)]
 #[derivative(PartialEq, Hash)]

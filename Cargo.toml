@@ -1,13 +1,13 @@
 
 
 [package]
-name = "cosmic-clipboard-manager"
+name = "clipboard-manager"
 version = "0.1.0"
 authors = ["wiiznokes <wiiznokes2@gmail.com>"]
 edition = "2021"
 license = "MIT"
-homepage = "https://github.com/wiiznokes/cosmic-clipboard-manager/"
-repository = "https://github.com/wiiznokes/cosmic-clipboard-manager.git"
+homepage = "https://github.com/wiiznokes/clipboard-manager/"
+repository = "https://github.com/wiiznokes/clipboard-manager.git"
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
