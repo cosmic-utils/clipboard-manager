@@ -1,4 +1,4 @@
-# Clipboard manager for cosmic
+# Clipboard manager for COSMIC™
 
 ![screenshot of the applet](https://media.githubusercontent.com/media/wiiznokes/cosmic-clipboard-manager/master/res/screenshots/main_popup.png)
 
