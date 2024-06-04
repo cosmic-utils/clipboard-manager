@@ -1,6 +1,6 @@
 # Clipboard manager for COSMIC™
 
-![screenshot of the applet](https://media.githubusercontent.com/media/wiiznokes/cosmic-clipboard-manager/master/res/screenshots/main_popup.png)
+![screenshot of the applet](https://media.githubusercontent.com/media/wiiznokes/clipboard-manager/master/res/screenshots/main_popup.png)
 
 The goal is to make a simple yet fast clipboard history, with a focus on UX, rapidity and security.
 
@@ -14,14 +14,14 @@ You can use this [copr](https://copr.fedorainfracloud.org/coprs/wiiznokes/cosmic
 
 ```sh
 dnf copr enable wiiznokes/cosmic-applets-unofficial
-dnf install cosmic-clipboard-manager
+dnf install clipboard-manager
 ```
 
 ### Other distros
 
 ```sh
-git clone https://github.com/wiiznokes/cosmic-clipboard-manager.git
-cd cosmic-clipboard-manager
+git clone https://github.com/wiiznokes/clipboard-manager.git
+cd clipboard-manager
 just build-release
 just install
 ```
@@ -41,7 +41,7 @@ Finally, you will need to set up the applet in cosmic-settings.
 ## Logs
 
 ```
-journalctl -p 3 -xb --user _EXE=/usr/bin/cosmic-panel | grep com.wiiznokes.CosmicClipboardManager | less
+journalctl -p 3 -xb --user _EXE=/usr/bin/cosmic-panel | grep com.wiiznokes.ClipboardManager | less
 ```
 
 -p 3 means priority error
