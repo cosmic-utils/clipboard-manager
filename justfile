@@ -1,12 +1,14 @@
 rootdir := ''
 prefix := '/usr'
+debug := '0'
+
 
 name := 'clipboard-manager'
 export APPID := 'io.github.wiiznokes.clipboard-manager'
 
 base-dir := absolute_path(clean(rootdir / prefix))
 
-bin-src := 'target' / 'release' / name
+bin-src := if debug == '1' { 'target/debug' / name } else { 'target/release' / name }
 bin-dst := base-dir / 'bin' / name
 
 desktop-src := 'res' / 'desktop_entry.desktop'

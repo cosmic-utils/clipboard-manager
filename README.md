@@ -28,7 +28,7 @@ just install
 
 You curently need to activate a setting of the compositor:
 
-```
+```sh
 sudo nano /etc/cosmic-comp/config.ron
 ```
 
@@ -40,14 +40,20 @@ Finally, you will need to set up the applet in cosmic-settings.
 
 ## Logs
 
-```
+```sh
 journalctl -p 3 -xb --user _EXE=/usr/bin/cosmic-panel | grep com.wiiznokes.ClipboardManager | less
 ```
 
--p 3 means priority error
--x add information
-b means since last boot
+- `-p` 3 means priority error
+- `-x` add information
+- `b` means since last boot
 
 ## Contributing
 
 Contributions are welcome
+
+To build and install the debug build
+
+```sh
+just build-debug && sudo just debug=1 install
+```
