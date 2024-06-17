@@ -173,6 +173,22 @@ impl Db {
                     content: row.get(2)?,
                 };
 
+                if let Some(max_duration) = &remove_old_entries {
+                    let delta = Utc::now().timestamp_millis() - data.creation;
+                    let delta: u64 = delta.try_into().unwrap_or(u64::MAX);
+
+                    if Duration::from_millis(delta) > *max_duration {
+                        let query = r#"
+                            DELETE FROM data
+                            WHERE creation = ?1;
+                        "#;
+
+                        conn.execute(&query, [data.creation])?;
+
+                        continue;
+                    }
+                }
+
                 hashs.insert(data.get_hash(), data.creation);
                 state.insert(data.creation, data);
             }
