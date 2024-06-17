@@ -2,6 +2,7 @@ use std::cmp::min;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{borrow::Cow, time::Duration};
 
+use chrono::Utc;
 use cosmic::{app::Message, iced::Padding, iced_runtime::command::Action, Command};
 
 pub fn formated_value(value: &str, max_lines: usize, max_chars: usize) -> Cow<str> {
@@ -85,9 +86,6 @@ pub fn command_message<M: Send + 'static>(message: M) -> Command<Message<M>> {
     })))
 }
 
-pub fn now_millis() -> u128 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards")
-        .as_millis()
+pub fn now_millis() -> i64 {
+    Utc::now().timestamp_millis()
 }

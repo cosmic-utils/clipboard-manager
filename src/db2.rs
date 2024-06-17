@@ -1,3 +1,4 @@
+use cosmic::iced_sctk::util;
 use derivative::Derivative;
 use std::{
     collections::{BTreeMap, HashMap},
@@ -5,7 +6,7 @@ use std::{
     fs::{self, DirBuilder, File},
     hash::{DefaultHasher, Hash, Hasher},
     io::{Read, Write},
-    path::Path,
+    path::{Path, PathBuf},
     thread::sleep,
     time::Duration,
 };
@@ -15,12 +16,25 @@ use anyhow::{anyhow, bail, Result};
 
 use chrono::Utc;
 use mime::Mime;
-use rusqlite::{named_params, Connection, OpenFlags, OptionalExtension};
+use rusqlite::{named_params, params, Connection, OpenFlags, OptionalExtension};
 use unicode_normalization::UnicodeNormalization;
 
-use crate::app::{APP, ORG, QUALIFIER};
+use crate::{
+    app::{APP, ORG, QUALIFIER},
+    utils,
+};
 
-const DB_FILE: &str = "clipboard-manager-db-1.sqlite";
+fn db_path() -> Result<PathBuf> {
+    if cfg!(test) {
+        Ok(PathBuf::from("clipboard-manager-db-test.sqlite"))
+    } else {
+        let directories = directories::ProjectDirs::from(QUALIFIER, ORG, APP).unwrap();
+        std::fs::create_dir_all(directories.cache_dir())?;
+        Ok(directories
+            .cache_dir()
+            .join("clipboard-manager-db-1.sqlite"))
+    }
+}
 
 type TimeId = i64; // maybe add some randomness at the end
 
@@ -104,7 +118,7 @@ impl Db {
 
         std::fs::create_dir_all(directories.cache_dir())?;
 
-        let db_path = directories.cache_dir().join(DB_FILE);
+        let db_path = db_path()?;
 
         if !db_path.exists() {
             let conn = Connection::open_with_flags(
@@ -155,7 +169,7 @@ impl Db {
                 };
 
                 if let Some(max_duration) = &remove_old_entries {
-                    let delta = Utc::now().timestamp_millis() - data.creation;
+                    let delta = utils::now_millis() - data.creation;
                     let delta: u64 = delta.try_into().unwrap_or(u64::MAX);
 
                     if Duration::from_millis(delta) > *max_duration {
@@ -187,8 +201,8 @@ impl Db {
         Ok(db)
     }
 
-    fn db_get_first(&mut self) -> Result<Option<Data>> {
-        let query = r#"
+    fn get_last_row(&mut self) -> Result<Option<Data>> {
+        let query_get_last_row = r#"
             SELECT creation, mime, content
             FROM data
             ORDER BY creation DESC
@@ -197,7 +211,7 @@ impl Db {
 
         let data = self
             .conn
-            .query_row(query, (), |row| {
+            .query_row(query_get_last_row, (), |row| {
                 Ok(Data {
                     creation: row.get(0)?,
                     mime: row.get(1)?,
@@ -208,55 +222,70 @@ impl Db {
 
         Ok(data)
     }
+    // get the last_row
+    // if last_row id is very recent
+    //      do nothing
+    // if not exist or old
+    // insert the data
 
-
+    // get the last_row
+    // use the new_id to insert the data in the memomy
     pub fn insert(&mut self, mut data: Data) -> Result<()> {
-
-        let mut already_in_db = false;
-
-        if let Some(first) = self.db_get_first()? {
-            if first == data && first.creation - data.creation < 1000 {
-                already_in_db = true;
-                data.creation = first.creation;
-            }
-        }
-
-
-        if let Some(id) = self.hashs.remove(&data.get_hash()) {
-       
-
-            self.state.remove(&id);
-
-            let query = r#"
-                DELETE FROM data
-                WHERE creation = ?1;
-            "#;
-
-            self.conn.execute(query, [id])?;
-        }
-
-        let query = r#"
+        let query_insert_if_not_exist = r#"
+            WITH last_row AS (
+                SELECT creation
+                FROM data
+                ORDER BY creation DESC
+                LIMIT 1
+            )
             INSERT INTO data (creation, mime, content)
-            VALUES(?1, ?2, ?3);
+            SELECT :new_id, :new_mime, :new_content
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM last_row
+                WHERE (:now - creation) <= 200
+            );
         "#;
 
-        match self
-            .conn
-            .execute(query, (&data.creation, &data.mime, &data.content))
-        {
-            Ok(_) => {}
-            Err(rusqlite::Error::SqliteFailure(e, m)) => {
-                if e.code == rusqlite::ErrorCode::ConstraintViolation {
-                    // in case another process have already inserted
-                } else {
-                    return Err(rusqlite::Error::SqliteFailure(e, m).into());
-                }
-            }
+        self.conn.execute(
+            query_insert_if_not_exist,
+            named_params! {
+                ":new_id": data.creation,
+                ":new_mime": data.mime,
+                ":new_content": data.content,
+                ":now": utils::now_millis(),
+            },
+        )?;
 
-            Err(e) => {
-                return Err(e.into());
+        let last_row = self.get_last_row()?.unwrap();
+
+        let query_get_last_id = r#"
+            SELECT creation
+            FROM data
+            ORDER BY creation DESC
+            LIMIT 1
+        "#;
+
+        let new_id: i64 = self
+            .conn
+            .query_row(query_get_last_id, (), |row| Ok(row.get(0)?))?;
+
+        if let Some(old_id) = self.hashs.remove(&data.get_hash()) {
+            self.state.remove(&old_id);
+
+            // in case 2 data were inserted in a short period
+            // we don't want to remove the old
+            if new_id != old_id {
+                let query_delete_old_id = r#"
+                    DELETE FROM data
+                    WHERE creation = ?1;
+                "#;
+
+                self.conn.execute(query_delete_old_id, [old_id])?;
             }
         }
+
+        data.creation = new_id;
 
         self.hashs.insert(data.get_hash(), data.creation);
         self.state.insert(data.creation, data);
@@ -281,6 +310,7 @@ impl Db {
     }
 
     pub fn clear(&mut self) -> Result<()> {
+        // todo: must recreate table after!
         let query = r#"
             DROP TABLE data
         "#;
@@ -379,18 +409,34 @@ impl Db {
 #[cfg(test)]
 mod test {
     use std::{
-        fs::File,
+        fs::{self, File},
         io::{Read, Write},
     };
 
-    use super::{Data, Db};
+    use anyhow::Result;
+
+    use super::{db_path, Data, Db};
 
     #[test]
-    fn t() {
+    fn test() -> Result<()> {
+        let _ = fs::remove_file(db_path()?);
 
-        let mut db = Db::new(&None).unwrap();
+        let mut db = Db::new(&None)?;
 
-        db.clear();
+        assert!(db.len() == 0);
 
+        let data = Data::new("text/plain".into(), "content".as_bytes().into());
+
+        db.insert(data).unwrap();
+
+        assert!(db.len() == 1);
+
+        let data = Data::new("text/plain".into(), "content2".as_bytes().into());
+
+        db.insert(data).unwrap();
+
+        assert!(db.len() == 2);
+
+        Ok(())
     }
 }
