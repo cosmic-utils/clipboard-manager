@@ -18,6 +18,7 @@ mod my_widgets;
 mod navigation;
 mod utils;
 mod view;
+mod db2;
 
 #[allow(unused_imports)]
 #[macro_use]
