@@ -20,15 +20,7 @@ use unicode_normalization::UnicodeNormalization;
 
 use crate::app::{APP, ORG, QUALIFIER};
 
-const DB_VERSION: u32 = 1;
-
-const DB_VERSION_FILE: &str = "db-version";
-
-#[cfg(debug_assertions)]
-const DB_FILE: &str = "clipboard-manager-db-debug.sqlite";
-
-#[cfg(not(debug_assertions))]
-const DB_FILE: &str = "clipboard-manager-db.sqlite";
+const DB_FILE: &str = "clipboard-manager-db-1.sqlite";
 
 type TimeId = i64; // maybe add some randomness at the end
 
@@ -76,7 +68,7 @@ impl Debug for Content<'_> {
 }
 
 impl Data {
-    pub fn get_content<'a>(&'a self) -> Result<Content<'a>> {
+    pub fn get_content(&self) -> Result<Content<'_>> {
         let mime = self.mime.parse::<Mime>()?;
 
         let content = match mime.type_() {
@@ -90,7 +82,7 @@ impl Data {
         Ok(content)
     }
 
-    pub fn get_text<'a>(&'a self) -> Option<&'a str> {
+    pub fn get_text(&self) -> Option<&str> {
         self.get_content().ok().map(|c| match c {
             Content::Text(txt) => txt,
         })
@@ -110,26 +102,8 @@ impl Db {
     pub fn new(remove_old_entries: &Option<Duration>) -> Result<Self> {
         let directories = directories::ProjectDirs::from(QUALIFIER, ORG, APP).unwrap();
         let db_path = directories.cache_dir().join(DB_FILE);
-        let db_version_path = directories.cache_dir().join(DB_VERSION_FILE);
 
-        fn get_db_version(path: &Path) -> Result<u32> {
-            let mut file = File::open(path)?;
-            let mut buf = String::new();
-            file.read_to_string(&mut buf)?;
-            let v = buf.parse::<u32>()?;
-            Ok(v)
-        }
-
-        let current_version = get_db_version(&db_version_path).unwrap_or(0);
-
-        if current_version != DB_VERSION {
-            info!(
-                "new version detected: old:{}, new:{}",
-                current_version, DB_VERSION
-            );
-
-            let _ = fs::remove_file(&db_path);
-
+        if !db_path.exists() {
             let conn = Connection::open_with_flags(
                 db_path,
                 OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE,
@@ -143,11 +117,7 @@ impl Db {
                 )
             "#;
 
-            conn.execute(&query, ())?;
-
-            if let Ok(mut file) = File::create(db_version_path) {
-                let _ = file.write(&DB_VERSION.to_ne_bytes());
-            }
+            conn.execute(query, ())?;
 
             return Ok(Db {
                 conn,
@@ -191,7 +161,7 @@ impl Db {
                             WHERE creation = ?1;
                         "#;
 
-                        conn.execute(&query, [data.creation])?;
+                        conn.execute(query, [data.creation])?;
 
                         continue;
                     }
@@ -223,7 +193,7 @@ impl Db {
         "#;
 
         self.conn
-            .execute(&query, (&data.creation, &data.mime, &data.content))?;
+            .execute(query, (&data.creation, &data.mime, &data.content))?;
 
         self.hashs.insert(data.get_hash(), data.creation);
         self.state.insert(data.creation, data);
@@ -238,7 +208,7 @@ impl Db {
             WHERE creation = ?1;
         "#;
 
-        self.conn.execute(&query, [data.creation])?;
+        self.conn.execute(query, [data.creation])?;
 
         self.hashs.remove(&data.get_hash());
         self.state.remove(&data.creation);
@@ -265,28 +235,26 @@ impl Db {
 
         if self.query.is_empty() {
             self.filtered.clear();
-        } else {
-            if let Some(search_engine) = &self.search_engine {
-                // https://www.reddit.com/r/rust/comments/1boo2fb/comment/kwqahjv/?context=3
-                self.filtered = self
-                    .state
-                    .par_iter()
-                    .filter_map(|(id, data)| {
-                        data.get_text().and_then(|text| {
-                            let normalized = Self::normalize_text(text);
-                            let mut iter = search_engine.find_iter(&normalized);
-                            iter.next().map(|_| id.clone())
-                        })
+        } else if let Some(search_engine) = &self.search_engine {
+            // https://www.reddit.com/r/rust/comments/1boo2fb/comment/kwqahjv/?context=3
+            self.filtered = self
+                .state
+                .par_iter()
+                .filter_map(|(id, data)| {
+                    data.get_text().and_then(|text| {
+                        let normalized = Self::normalize_text(text);
+                        let mut iter = search_engine.find_iter(&normalized);
+                        iter.next().map(|_| *id)
                     })
-                    .collect::<Vec<_>>()
-                    .into_iter()
-                    // we can't call rev on par_iter and par_bridge
-                    // doesn't preserve order + it's slower
-                    // maybe droping completelly rayon could be better
-                    // https://github.com/rayon-rs/rayon/issues/551
-                    .rev()
-                    .collect();
-            }
+                })
+                .collect::<Vec<_>>()
+                .into_iter()
+                // we can't call rev on par_iter and par_bridge
+                // doesn't preserve order + it's slower
+                // maybe droping completelly rayon could be better
+                // https://github.com/rayon-rs/rayon/issues/551
+                .rev()
+                .collect();
         }
     }
 
@@ -352,24 +320,6 @@ mod test {
         io::{Read, Write},
     };
 
-    use super::DB_VERSION;
-
     #[test]
-    fn t() {
-
-        let mut file = File::open("test.txt").unwrap();
-        let mut buf = [0; 4];
-        file.read_exact(&mut buf).expect("can't read");
-        let version = u32::from_ne_bytes(buf);
-        assert!(version == DB_VERSION);
-        
-        if let Ok(mut file) = File::create("test.txt") {
-            let written = file.write(&DB_VERSION.to_ne_bytes()).unwrap();
-            assert!(written == 4);
-            let mut buf = [0; 4];
-            file.read_exact(&mut buf).expect("can't read");
-            let version = u32::from_ne_bytes(buf);
-            assert!(version == DB_VERSION);
-        }
-    }
+    fn t() {}
 }

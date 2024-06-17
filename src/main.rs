@@ -23,8 +23,6 @@ mod navigation;
 mod utils;
 mod view;
 
-
-
 #[allow(unused_imports)]
 #[macro_use]
 extern crate log;
