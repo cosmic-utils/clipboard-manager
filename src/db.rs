@@ -41,7 +41,7 @@ type TimeId = i64; // maybe add some randomness at the end
 // warning: if you change somethings in here, change the number in the db path
 #[derive(Derivative)]
 #[derivative(PartialEq, Hash)]
-#[derive(Debug, Clone, Eq)]
+#[derive(Clone, Eq)]
 pub struct Data {
     #[derivative(PartialEq = "ignore")]
     #[derivative(Hash = "ignore")]
@@ -68,6 +68,16 @@ impl Data {
             mime,
             content,
         }
+    }
+}
+
+impl Debug for Data {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Data")
+            .field("creation", &self.creation)
+            .field("mime", &self.mime)
+            .field("content", &self.get_content())
+            .finish()
     }
 }
 
@@ -228,6 +238,8 @@ impl Db {
     // the <= 200 condition, is to unsure we reuse the same timestamp
     // of the first process that inserted the data.
     pub fn insert(&mut self, mut data: Data) -> Result<()> {
+        log::warn!("{:?}", data);
+
         // insert a new data, only if the last row is not the same AND was not created recently
         let query_insert_if_not_exist = r#"
             WITH last_row AS (
