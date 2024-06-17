@@ -2,7 +2,7 @@ use derivative::Derivative;
 use std::{
     collections::{BTreeMap, HashMap},
     fmt::{Debug, Display},
-    fs::{self, File},
+    fs::{self, DirBuilder, File},
     hash::{DefaultHasher, Hash, Hasher},
     io::{Read, Write},
     path::Path,
@@ -101,6 +101,9 @@ pub struct Db {
 impl Db {
     pub fn new(remove_old_entries: &Option<Duration>) -> Result<Self> {
         let directories = directories::ProjectDirs::from(QUALIFIER, ORG, APP).unwrap();
+
+        std::fs::create_dir_all(directories.cache_dir())?;
+
         let db_path = directories.cache_dir().join(DB_FILE);
 
         if !db_path.exists() {
@@ -185,7 +188,15 @@ impl Db {
     }
 
     pub fn insert(&mut self, data: Data) -> Result<()> {
-        self.delete(&data)?;
+        if let Some(id) = self.hashs.remove(&data.get_hash()) {
+            self.state.remove(&id);
+            let query = r#"
+                DELETE FROM data
+                WHERE creation = ?1;
+            "#;
+
+            self.conn.execute(query, [id])?;
+        }
 
         let query = r#"
             INSERT INTO data (creation, mime, content)
@@ -320,6 +331,16 @@ mod test {
         io::{Read, Write},
     };
 
+    use super::Data;
+
     #[test]
-    fn t() {}
+    fn t() {
+        // 9754003402134539932
+
+        let data = Data::new("mime".into(), "hello".as_bytes().into());
+
+        let hash = data.get_hash();
+
+        println!("{}", hash);
+    }
 }
