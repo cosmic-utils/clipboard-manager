@@ -15,7 +15,7 @@ use anyhow::{anyhow, bail, Result};
 
 use chrono::Utc;
 use mime::Mime;
-use rusqlite::{named_params, Connection, OpenFlags};
+use rusqlite::{named_params, Connection, OpenFlags, OptionalExtension};
 use unicode_normalization::UnicodeNormalization;
 
 use crate::app::{APP, ORG, QUALIFIER};
@@ -187,9 +187,46 @@ impl Db {
         Ok(db)
     }
 
-    pub fn insert(&mut self, data: Data) -> Result<()> {
+    fn db_get_first(&mut self) -> Result<Option<Data>> {
+        let query = r#"
+            SELECT creation, mime, content
+            FROM data
+            ORDER BY creation DESC
+            LIMIT 1
+        "#;
+
+        let data = self
+            .conn
+            .query_row(query, (), |row| {
+                Ok(Data {
+                    creation: row.get(0)?,
+                    mime: row.get(1)?,
+                    content: row.get(2)?,
+                })
+            })
+            .optional()?;
+
+        Ok(data)
+    }
+
+
+    pub fn insert(&mut self, mut data: Data) -> Result<()> {
+
+        let mut already_in_db = false;
+
+        if let Some(first) = self.db_get_first()? {
+            if first == data && first.creation - data.creation < 1000 {
+                already_in_db = true;
+                data.creation = first.creation;
+            }
+        }
+
+
         if let Some(id) = self.hashs.remove(&data.get_hash()) {
+       
+
             self.state.remove(&id);
+
             let query = r#"
                 DELETE FROM data
                 WHERE creation = ?1;
@@ -203,8 +240,23 @@ impl Db {
             VALUES(?1, ?2, ?3);
         "#;
 
-        self.conn
-            .execute(query, (&data.creation, &data.mime, &data.content))?;
+        match self
+            .conn
+            .execute(query, (&data.creation, &data.mime, &data.content))
+        {
+            Ok(_) => {}
+            Err(rusqlite::Error::SqliteFailure(e, m)) => {
+                if e.code == rusqlite::ErrorCode::ConstraintViolation {
+                    // in case another process have already inserted
+                } else {
+                    return Err(rusqlite::Error::SqliteFailure(e, m).into());
+                }
+            }
+
+            Err(e) => {
+                return Err(e.into());
+            }
+        }
 
         self.hashs.insert(data.get_hash(), data.creation);
         self.state.insert(data.creation, data);
@@ -331,16 +383,14 @@ mod test {
         io::{Read, Write},
     };
 
-    use super::Data;
+    use super::{Data, Db};
 
     #[test]
     fn t() {
-        // 9754003402134539932
 
-        let data = Data::new("mime".into(), "hello".as_bytes().into());
+        let mut db = Db::new(&None).unwrap();
 
-        let hash = data.get_hash();
+        db.clear();
 
-        println!("{}", hash);
     }
 }
