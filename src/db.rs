@@ -38,6 +38,7 @@ fn db_path() -> Result<PathBuf> {
 
 type TimeId = i64; // maybe add some randomness at the end
 
+// warning: if you change somethings in here, change the number in the db path
 #[derive(Derivative)]
 #[derivative(PartialEq, Hash)]
 #[derive(Debug, Clone, Eq)]
