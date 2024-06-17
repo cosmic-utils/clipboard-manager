@@ -7,11 +7,12 @@ use config::{Config, CONFIG_VERSION};
 use cosmic::cosmic_config;
 use cosmic::cosmic_config::CosmicConfigEntry;
 use log::LevelFilter;
+use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
-mod db;
 mod app;
 mod clipboard;
 mod config;
+mod db;
 mod localize;
 mod message;
 mod my_widgets;
@@ -24,22 +25,23 @@ mod view;
 extern crate log;
 
 fn setup_logs() {
-    let mut builder = env_logger::builder();
+    let fmt_layer = fmt::layer().with_target(false);
+    let filter_layer = EnvFilter::try_from_default_env()
+        .or_else(|_| EnvFilter::try_new("warn"))
+        .unwrap();
 
-    fn filter_workspace_crates(
-        builder: &mut env_logger::Builder,
-        level_filter: LevelFilter,
-    ) -> &mut env_logger::Builder {
-        // allow other crate to show warn level of error
-        builder.filter_level(LevelFilter::Warn);
-        builder.filter_module("wl_clipboard_rs", level_filter);
-        builder.filter_module(env!("CARGO_CRATE_NAME"), level_filter);
-        builder
+    if let Ok(journal_layer) = tracing_journald::layer() {
+        tracing_subscriber::registry()
+            .with(filter_layer)
+            .with(fmt_layer)
+            .with(journal_layer)
+            .init();
+    } else {
+        tracing_subscriber::registry()
+            .with(filter_layer)
+            .with(fmt_layer)
+            .init();
     }
-
-    filter_workspace_crates(&mut builder, LevelFilter::Debug);
-
-    builder.init();
 }
 
 fn main() -> cosmic::iced::Result {
