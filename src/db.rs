@@ -296,11 +296,13 @@ impl AsRef<[u8]> for KeyDb {
 }
 
 // todo: re enable tests when they pass locally
-/*
-#[cfg(test)]
-mod test {
-    use super::{Data, Db};
+/*let more_action = if let Some(d) = &state.more_action {
+                d == data
+            } else {
+                false
+            };
 
+            entry(data, index == state.focused, more_action)
 
     #[test]
     fn clear() {

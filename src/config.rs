@@ -1,4 +1,4 @@
-use std::sync::atomic::AtomicBool;
+use std::{sync::atomic::AtomicBool, time::Duration};
 
 use cosmic::{
     cosmic_config::{self, cosmic_config_derive::CosmicConfigEntry, CosmicConfigEntry},
@@ -6,7 +6,6 @@ use cosmic::{
 };
 
 use serde::{Deserialize, Serialize};
-use time::Duration;
 
 use crate::{app::APP_ID, message::AppMessage, utils};
 
@@ -22,7 +21,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             private_mode: false,
-            remove_old_entries: Some(time::Duration::days(30)),
+            remove_old_entries: Some(Duration::from_secs(30 * 24 * 60 * 60)), // 30 days
         }
     }
 }

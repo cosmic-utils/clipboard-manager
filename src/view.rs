@@ -15,7 +15,7 @@ use cosmic::{
 use crate::{
     app::{AppState, ClipboardState},
     config::Config,
-    db::Data,
+    db::{Data, Content},
     fl,
     message::AppMessage,
     my_widgets,
@@ -78,15 +78,29 @@ fn entries(state: &AppState) -> Element<'_, AppMessage> {
         .db
         .iter()
         .enumerate()
-        .filter(|(_, data)| !data.value.is_empty())
-        .map(|(index, data)| {
-            let more_action = if let Some(d) = &state.more_action {
-                d == data
-            } else {
-                false
-            };
+        .filter_map(|(pos, data)|{
+            match data.get_content() {
+                Ok(c) => {
+                    match c {
+                        Content::Text(text) => {
+                            if text.is_empty() {
+                                None
+                            } else {
 
-            entry(data, index == state.focused, more_action)
+                                let more_action = if let Some(d) = &state.more_action {
+                                    d == data
+                                } else {
+                                    false
+                                };
+                    
+                                let e = entry(data, pos == state.focused, more_action, text);
+                                Some(e)
+                            }
+                        }
+                    }
+                },
+                Err(_) => None,
+            }
         });
 
     let mut padding = horizontal_padding(10f32);
@@ -102,8 +116,8 @@ fn entries(state: &AppState) -> Element<'_, AppMessage> {
         .into()
 }
 
-fn entry(entry: &Data, is_focused: bool, more_action_expanded: bool) -> Element<'_, AppMessage> {
-    let content = text(formated_value(&entry.value, 5, 200));
+fn entry<'a>(entry: &'a Data, is_focused: bool, more_action_expanded: bool, content: &'a str) -> Element<'a, AppMessage> {
+    let content = text(formated_value(&content, 5, 200));
 
     let btn = mouse_area(
         cosmic::widget::button(content)

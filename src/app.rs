@@ -93,7 +93,7 @@ impl Window {
     fn close_popup(&mut self) -> Command<cosmic::app::Message<AppMessage>> {
         self.state.focused = 0;
         self.state.more_action.take();
-        self.state.db.search("".into());
+        self.state.db.set_query_and_search("".into());
 
         if let Some(popup) = self.popup.take() {
             //info!("destroy {:?}", popup.id);
@@ -235,7 +235,7 @@ impl cosmic::Application for Window {
             }
             AppMessage::ClosePopup => return self.close_popup(),
             AppMessage::Search(query) => {
-                self.state.db.search(query);
+                self.state.db.set_query_and_search(query);
             }
             AppMessage::ClipboardEvent(message) => match message {
                 clipboard::ClipboardMessage::Connected => {
@@ -266,7 +266,7 @@ impl cosmic::Application for Window {
             }
             AppMessage::Delete(data) => {
                 if let Err(e) = self.state.db.delete(&data) {
-                    error!("can't delete {data}: {e}");
+                    error!("can't delete {:?}: {}", data.get_content(), e);
                 }
             }
             AppMessage::Clear => {

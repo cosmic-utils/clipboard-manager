@@ -8,17 +8,22 @@ use cosmic::cosmic_config;
 use cosmic::cosmic_config::CosmicConfigEntry;
 use log::LevelFilter;
 
+mod db2;
+
+use db2 as db;
+
 mod app;
 mod clipboard;
 mod config;
-mod db;
+// mod db;
 mod localize;
 mod message;
 mod my_widgets;
 mod navigation;
 mod utils;
 mod view;
-mod db2;
+
+
 
 #[allow(unused_imports)]
 #[macro_use]

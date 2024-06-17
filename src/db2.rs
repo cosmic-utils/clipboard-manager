@@ -1,3 +1,4 @@
+use derivative::Derivative;
 use std::{
     collections::{BTreeMap, HashMap},
     fmt::{Debug, Display},
@@ -31,17 +32,19 @@ const DB_FILE: &str = "clipboard-manager-db";
 
 type TimeId = i64; // maybe add some randomness at the end
 
-#[derive(Debug, Clone)]
+#[derive(Derivative)]
+#[derivative(PartialEq, Hash)]
+#[derive(Debug, Clone, Eq)]
 pub struct Data {
+    #[derivative(PartialEq = "ignore")]
+    #[derivative(Hash = "ignore")]
     pub creation: TimeId,
-    pub mime: String,
-    content: Vec<u8>,
-}
 
-impl Hash for Data {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.content.hash(state);
-    }
+    #[derivative(PartialEq = "ignore")]
+    #[derivative(Hash = "ignore")]
+    pub mime: String,
+
+    pub content: Vec<u8>,
 }
 
 impl Data {
