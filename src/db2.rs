@@ -25,10 +25,10 @@ const DB_VERSION: u32 = 1;
 const DB_VERSION_FILE: &str = "db-version";
 
 #[cfg(debug_assertions)]
-const DB_FILE: &str = "clipboard-manager-db-debug";
+const DB_FILE: &str = "clipboard-manager-db-debug.sqlite";
 
 #[cfg(not(debug_assertions))]
-const DB_FILE: &str = "clipboard-manager-db";
+const DB_FILE: &str = "clipboard-manager-db.sqlite";
 
 type TimeId = i64; // maybe add some randomness at the end
 
@@ -123,6 +123,11 @@ impl Db {
         let current_version = get_db_version(&db_version_path).unwrap_or(0);
 
         if current_version != DB_VERSION {
+            info!(
+                "new version detected: old:{}, new:{}",
+                current_version, DB_VERSION
+            );
+
             let _ = fs::remove_file(&db_path);
 
             let conn = Connection::open_with_flags(
@@ -140,7 +145,7 @@ impl Db {
 
             conn.execute(&query, ())?;
 
-            if let Ok(mut file) = File::open(db_version_path) {
+            if let Ok(mut file) = File::create(db_version_path) {
                 let _ = file.write(&DB_VERSION.to_ne_bytes());
             }
 
@@ -336,6 +341,35 @@ impl Db {
             self.state.len()
         } else {
             self.filtered.len()
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::{
+        fs::File,
+        io::{Read, Write},
+    };
+
+    use super::DB_VERSION;
+
+    #[test]
+    fn t() {
+
+        let mut file = File::open("test.txt").unwrap();
+        let mut buf = [0; 4];
+        file.read_exact(&mut buf).expect("can't read");
+        let version = u32::from_ne_bytes(buf);
+        assert!(version == DB_VERSION);
+        
+        if let Ok(mut file) = File::create("test.txt") {
+            let written = file.write(&DB_VERSION.to_ne_bytes()).unwrap();
+            assert!(written == 4);
+            let mut buf = [0; 4];
+            file.read_exact(&mut buf).expect("can't read");
+            let version = u32::from_ne_bytes(buf);
+            assert!(version == DB_VERSION);
         }
     }
 }
