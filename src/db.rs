@@ -1,17 +1,22 @@
+use cosmic::iced_sctk::util;
+use derivative::Derivative;
 use std::{
-    fmt::Display,
-    io,
-    ptr::NonNull,
-    time::{SystemTime, UNIX_EPOCH},
+    collections::{BTreeMap, HashMap},
+    fmt::{Debug, Display},
+    fs::{self, DirBuilder, File},
+    hash::{DefaultHasher, Hash, Hasher},
+    io::{Read, Write},
+    path::{Path, PathBuf},
+    thread::sleep,
+    time::Duration,
 };
 
 use aho_corasick::AhoCorasick;
-use bincode::de;
-use indexmap::IndexSet;
-use serde::{Deserialize, Serialize};
+use anyhow::{anyhow, bail, Result};
 
-use derivative::Derivative;
-use time::Duration;
+use chrono::Utc;
+use mime::Mime;
+use rusqlite::{named_params, params, Connection, OpenFlags, OptionalExtension};
 use unicode_normalization::UnicodeNormalization;
 
 use crate::{
@@ -19,208 +24,334 @@ use crate::{
     utils,
 };
 
-// todo: enforce that only this app can read/write this file.
+fn db_path() -> Result<PathBuf> {
+    if cfg!(test) {
+        Ok(PathBuf::from("clipboard-manager-db-test.sqlite"))
+    } else {
+        let directories = directories::ProjectDirs::from(QUALIFIER, ORG, APP).unwrap();
+        std::fs::create_dir_all(directories.cache_dir())?;
+        Ok(directories
+            .cache_dir()
+            .join("clipboard-manager-db-1.sqlite"))
+    }
+}
 
-#[cfg(debug_assertions)]
-const DB_FILE: &str = "clipboard-manager-db-debug";
-
-#[cfg(not(debug_assertions))]
-const DB_FILE: &str = "clipboard-manager-db";
+type TimeId = i64; // maybe add some randomness at the end
 
 #[derive(Derivative)]
 #[derivative(PartialEq, Hash)]
-#[derive(Eq, Clone, Debug)]
+#[derive(Debug, Clone, Eq)]
 pub struct Data {
     #[derivative(PartialEq = "ignore")]
     #[derivative(Hash = "ignore")]
-    pub creation: u128,
+    pub creation: TimeId,
 
     #[derivative(PartialEq = "ignore")]
     #[derivative(Hash = "ignore")]
     pub mime: String,
 
-    pub value: String,
+    // todo: lazelly load image in memory, since we can't search them anyways
+    pub content: Vec<u8>,
 }
 
-impl Display for Data {
+impl Data {
+    fn get_hash(&self) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        self.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    pub fn new(mime: String, content: Vec<u8>) -> Self {
+        Self {
+            creation: Utc::now().timestamp_millis(),
+            mime,
+            content,
+        }
+    }
+}
+
+pub enum Content<'a> {
+    Text(&'a str),
+}
+
+impl Debug for Content<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.value)
+        match self {
+            Self::Text(arg0) => f.debug_tuple("Text").field(arg0).finish(),
+        }
     }
 }
 
 impl Data {
-    pub fn new(mime: String, value: String) -> Self {
-        Self {
-            creation: utils::now_millis(),
-            mime,
-            value,
-        }
+    pub fn get_content(&self) -> Result<Content<'_>> {
+        let mime = self.mime.parse::<Mime>()?;
+
+        let content = match mime.type_() {
+            mime::TEXT => {
+                let text = unsafe { core::str::from_utf8_unchecked(&self.content) };
+                Content::Text(text)
+            }
+            _ => bail!("unsuported mime type"),
+        };
+
+        Ok(content)
+    }
+
+    pub fn get_text(&self) -> Option<&str> {
+        self.get_content().ok().map(|c| match c {
+            Content::Text(txt) => txt,
+        })
     }
 }
 
-struct NonNullButSend<T>(NonNull<T>);
-unsafe impl<T> Send for NonNullButSend<T> {}
-
 pub struct Db {
-    handle: sled::Db,
-    // this field probably need to be Pin
-    state: IndexSet<Data>,
-    filtered: Vec<NonNullButSend<Data>>,
+    conn: Connection,
+    hashs: HashMap<u64, TimeId>,
+    state: BTreeMap<TimeId, Data>,
+    filtered: Vec<TimeId>,
     query: String,
     search_engine: Option<AhoCorasick>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-struct KeyDb(u128);
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-struct DataDb {
-    mime: String,
-    value: String,
-}
-
 impl Db {
-    pub fn new(remove_old_entries: &Option<Duration>) -> Result<Self, sled::Error> {
+    pub fn new(remove_old_entries: Option<Duration>) -> Result<Self> {
         let directories = directories::ProjectDirs::from(QUALIFIER, ORG, APP).unwrap();
-        let db_path = directories.cache_dir().join(DB_FILE);
 
-        let db_handle = sled::open(db_path)?;
+        std::fs::create_dir_all(directories.cache_dir())?;
 
-        let mut state = IndexSet::new();
+        let db_path = db_path()?;
 
-        let mut should_remove = false;
+        if !db_path.exists() {
+            let conn = Connection::open_with_flags(
+                db_path,
+                OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE,
+            )?;
 
-        for e in db_handle.iter() {
-            match e {
-                Ok((key, value)) => {
-                    if should_remove {
-                        if let Err(e) = db_handle.remove(&key) {
-                            error!("can't remove old entry: {e}");
-                        }
-                    } else {
-                        let key = bincode::deserialize::<KeyDb>(&key).expect("key");
+            let query_create_table = r#"
+                CREATE TABLE data (
+                    creation INTEGER PRIMARY KEY,
+                    mime TEXT NOT NULL,
+                    content BLOB NOT NULL
+                )
+            "#;
 
-                        if let Some(max_duration) = &remove_old_entries {
-                            let delta = utils::now_millis() - key.0;
-                            let delta: i64 = delta.try_into().unwrap_or(-1);
+            conn.execute(query_create_table, ())?;
 
-                            if delta < 0 || &Duration::milliseconds(delta) > max_duration {
-                                should_remove = true;
-                                if let Err(e) = db_handle.remove(&key) {
-                                    error!("can't remove old entry: {e}");
-                                }
-                                continue;
-                            }
-                        }
+            return Ok(Db {
+                conn,
+                hashs: HashMap::default(),
+                state: BTreeMap::default(),
+                filtered: Vec::default(),
+                query: String::default(),
+                search_engine: None,
+            });
+        }
 
-                        let value = bincode::deserialize::<DataDb>(&value).expect("value");
+        let conn = Connection::open_with_flags(db_path, OpenFlags::SQLITE_OPEN_READ_WRITE)?;
 
-                        let value = Data {
-                            mime: value.mime,
-                            value: value.value,
-                            creation: key.0,
-                        };
+        let mut hashs = HashMap::default();
+        let mut state = BTreeMap::default();
 
-                        if !state.insert(value) {
-                            panic!("already exist");
-                        }
+        let query = r#"
+            SELECT creation, mime, content
+            FROM data
+        "#;
+
+        {
+            let mut stmt = conn.prepare(query)?;
+
+            let mut rows = stmt.query(())?;
+
+            while let Some(row) = rows.next()? {
+                let data = Data {
+                    creation: row.get(0)?,
+                    mime: row.get(1)?,
+                    content: row.get(2)?,
+                };
+
+                if let Some(max_duration) = &remove_old_entries {
+                    let delta = utils::now_millis() - data.creation;
+                    let delta: u64 = delta.try_into().unwrap_or(u64::MAX);
+
+                    if Duration::from_millis(delta) > *max_duration {
+                        let query = r#"
+                            DELETE FROM data
+                            WHERE creation = ?1;
+                        "#;
+
+                        conn.execute(query, [data.creation])?;
+
+                        continue;
                     }
                 }
-                Err(e) => {
-                    log::error!("{e}");
-                }
+
+                hashs.insert(data.get_hash(), data.creation);
+                state.insert(data.creation, data);
             }
         }
 
         let db = Db {
-            handle: db_handle,
+            conn,
+            hashs,
             state,
-            filtered: Vec::new(),
-            query: String::new(),
+            filtered: Vec::default(),
+            query: String::default(),
             search_engine: None,
         };
 
         Ok(db)
     }
 
-    pub fn clear(&mut self) -> Result<(), sled::Error> {
-        self.handle.clear()?;
+    fn get_last_row(&mut self) -> Result<Option<Data>> {
+        let query_get_last_row = r#"
+            SELECT creation, mime, content
+            FROM data
+            ORDER BY creation DESC
+            LIMIT 1
+        "#;
+
+        let data = self
+            .conn
+            .query_row(query_get_last_row, (), |row| {
+                Ok(Data {
+                    creation: row.get(0)?,
+                    mime: row.get(1)?,
+                    content: row.get(2)?,
+                })
+            })
+            .optional()?;
+
+        Ok(data)
+    }
+
+    // the <= 200 condition, is to unsure we reuse the same timestamp
+    // of the first process that inserted the data.
+    pub fn insert(&mut self, mut data: Data) -> Result<()> {
+        // insert a new data, only if the last row is not the same AND was not created recently
+        let query_insert_if_not_exist = r#"
+            WITH last_row AS (
+                SELECT creation, mime, content
+                FROM data
+                ORDER BY creation DESC
+                LIMIT 1
+            )
+            INSERT INTO data (creation, mime, content)
+            SELECT :new_id, :new_mime, :new_content
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM last_row
+                WHERE content = :content & (:now - creation) <= 200
+            );
+        "#;
+
+        self.conn.execute(
+            query_insert_if_not_exist,
+            named_params! {
+                ":new_id": data.creation,
+                ":new_mime": data.mime,
+                ":new_content": data.content,
+                ":now": utils::now_millis(),
+            },
+        )?;
+
+        // safe to unwrap since we insert before
+        let last_row = self.get_last_row()?.unwrap();
+
+        if let Some(old_id) = self.hashs.remove(&data.get_hash()) {
+            self.state.remove(&old_id);
+
+            // in case 2 same data were inserted in a short period
+            // we don't want to remove the old_id
+            if last_row.creation != old_id {
+                let query_delete_old_id = r#"
+                    DELETE FROM data
+                    WHERE creation = ?1;
+                "#;
+
+                self.conn.execute(query_delete_old_id, [old_id])?;
+            }
+        }
+
+        data.creation = last_row.creation;
+
+        self.hashs.insert(data.get_hash(), data.creation);
+        self.state.insert(data.creation, data);
+
+        self.search();
+        Ok(())
+    }
+
+    pub fn delete(&mut self, data: &Data) -> Result<()> {
+        let query = r#"
+            DELETE FROM data
+            WHERE creation = ?1;
+        "#;
+
+        self.conn.execute(query, [data.creation])?;
+
+        self.hashs.remove(&data.get_hash());
+        self.state.remove(&data.creation);
+
+        self.search();
+        Ok(())
+    }
+
+    pub fn clear(&mut self) -> Result<()> {
+        let query_delete = r#"
+            DELETE FROM data
+        "#;
+        self.conn.execute(query_delete, [])?;
+
         self.state.clear();
-        self.handle.flush()?;
-        self.do_search();
+        self.filtered.clear();
+        self.hashs.clear();
+
         Ok(())
     }
 
-    pub fn insert(&mut self, data: Data) -> Result<(), sled::Error> {
-        if let Some(prev_data) = self.state.get(&data) {
-            debug!("already present");
-
-            let prev_key = KeyDb(prev_data.creation);
-
-            if !self.state.shift_remove(&data) {
-                panic!("");
-            }
-
-            if self.handle.remove(prev_key)?.is_none() {
-                log::warn!("there was no entry found in the database");
-                panic!();
-            }
-        }
-
-        if !self.state.insert(data.clone()) {
-            panic!();
-        }
-
-        let key = KeyDb(data.creation);
-
-        let data_db = DataDb {
-            mime: data.mime,
-            value: data.value,
-        };
-        let mut data_db_bin = Vec::new();
-
-        bincode::serialize_into(&mut data_db_bin, &data_db).unwrap();
-
-        self.handle.insert(key, data_db_bin)?;
-
-        self.handle.flush()?;
-
-        self.do_search();
-        Ok(())
-    }
-
-    pub fn delete(&mut self, data: &Data) -> Result<(), sled::Error> {
-        if !self.state.shift_remove(data) {
-            log::warn!("delete: no entry to remove in state for {data}");
-            panic!();
-        }
-
-        if (self.handle.remove(KeyDb(data.creation))?).is_none() {
-            log::warn!("delete: no entry to remove in db for {data}");
-            panic!();
-        }
-
-        self.handle.flush()?;
-
-        self.do_search();
-        Ok(())
-    }
-
-    pub fn search(&mut self, query: String) {
-        self.query = query;
+    pub fn search(&mut self) {
+        use rayon::prelude::*;
 
         if self.query.is_empty() {
             self.filtered.clear();
+        } else if let Some(search_engine) = &self.search_engine {
+            // https://www.reddit.com/r/rust/comments/1boo2fb/comment/kwqahjv/?context=3
+            self.filtered = self
+                .state
+                .par_iter()
+                .filter_map(|(id, data)| {
+                    data.get_text().and_then(|text| {
+                        let normalized = Self::normalize_text(text);
+                        let mut iter = search_engine.find_iter(&normalized);
+                        iter.next().map(|_| *id)
+                    })
+                })
+                .collect::<Vec<_>>()
+                .into_iter()
+                // we can't call rev on par_iter and par_bridge
+                // doesn't preserve order + it's slower
+                // maybe droping completelly rayon could be better
+                // https://github.com/rayon-rs/rayon/issues/551
+                .rev()
+                .collect();
+        }
+    }
+
+    pub fn set_query_and_search(&mut self, query: String) {
+        if query.is_empty() {
             self.search_engine.take();
         } else {
             let search_engine = AhoCorasick::builder()
                 .ascii_case_insensitive(true)
-                .build(vec![Self::normalize_text(&self.query)])
+                .build(vec![Self::normalize_text(&query)])
                 .unwrap();
 
             self.search_engine.replace(search_engine);
-            self.do_search();
         }
+
+        self.query = query;
+
+        self.search();
     }
 
     pub fn query(&self) -> &str {
@@ -235,45 +366,20 @@ impl Db {
         value.nfkd().collect()
     }
 
-    fn do_search(&mut self) {
-        use rayon::prelude::*;
-
-        if let Some(search_engine) = &self.search_engine {
-            // https://www.reddit.com/r/rust/comments/1boo2fb/comment/kwqahjv/?context=3
-            self.filtered = self
-                .state
-                .par_iter()
-                .filter(|s| {
-                    let normalized = Self::normalize_text(&s.value);
-                    let mut iter = search_engine.find_iter(&normalized);
-                    iter.next().is_some()
-                })
-                .map(|e| NonNullButSend(NonNull::from(e)))
-                .collect::<Vec<_>>()
-                .into_iter()
-                // we can't call rev on par_iter and par_bridge
-                // doesn't preserve order + it's slower
-                // maybe droping completelly rayon could be better
-                // https://github.com/rayon-rs/rayon/issues/551
-                .rev()
-                .collect();
-        }
-    }
-
     pub fn get(&self, index: usize) -> Option<&Data> {
         if self.query.is_empty() {
             // because we expose the tree in reverse
-            self.state.get_index(self.len() - 1 - index)
+            self.state.iter().rev().nth(index).map(|e| e.1)
         } else {
-            self.filtered.get(index).map(|e| unsafe { e.0.as_ref() })
+            self.filtered.get(index).map(|id| &self.state[id])
         }
     }
 
-    pub fn iter(&self) -> Box<dyn Iterator<Item = &Data> + '_> {
+    pub fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = &'a Data> + 'a> {
         if self.query.is_empty() {
-            Box::new(self.state.iter().rev())
+            Box::new(self.state.values().rev())
         } else {
-            Box::new(self.filtered.iter().map(|e| unsafe { e.0.as_ref() }))
+            Box::new(self.filtered.iter().map(|id| &self.state[id]))
         }
     }
 
@@ -286,69 +392,82 @@ impl Db {
     }
 }
 
-impl AsRef<[u8]> for KeyDb {
-    fn as_ref(&self) -> &[u8] {
-        let size = std::mem::size_of::<KeyDb>();
-        // We can use `std::slice::from_raw_parts` to create a slice from the u128 value
-        // This is done by casting the reference to a pointer and then creating a slice from it
-        unsafe { std::slice::from_raw_parts(self as *const Self as *const u8, size) }
-    }
-}
+#[cfg(test)]
+mod test {
+    use std::{
+        fs::{self, File},
+        io::{Read, Write},
+        time::Duration,
+    };
 
-// todo: re enable tests when they pass locally
-/*let more_action = if let Some(d) = &state.more_action {
-                d == data
-            } else {
-                false
-            };
+    use anyhow::Result;
 
-            entry(data, index == state.focused, more_action)
+    use super::{db_path, Data, Db};
 
     #[test]
-    fn clear() {
-        let mut db = Db::new().unwrap();
+    fn test() -> Result<()> {
+        let _ = fs::remove_file(db_path()?);
 
-        db.clear().unwrap();
+        let mut db = Db::new(None)?;
+
+        test_db(&mut db).unwrap();
+
+        db.clear()?;
+
+        test_db(&mut db).unwrap();
+
+        Ok(())
+    }
+
+    fn test_db(db: &mut Db) -> Result<()> {
+        assert!(db.len() == 0);
+
+        let data = Data::new("text/plain".into(), "content".as_bytes().into());
+
+        db.insert(data).unwrap();
+
+        assert!(db.len() == 1);
+
+        let data = Data::new("text/plain".into(), "content".as_bytes().into());
+
+        db.insert(data).unwrap();
+
+        assert!(db.len() == 1);
+
+        let data = Data::new("text/plain".into(), "content2".as_bytes().into());
+
+        db.insert(data.clone()).unwrap();
+
+        assert!(db.len() == 2);
+
+        let next = db.iter().next().unwrap();
+
+        assert!(next.creation == data.creation);
+        assert!(next.content == data.content);
+
+        Ok(())
     }
 
     #[test]
-    fn test() {
-        env_logger::Builder::new()
-            .filter_level(log::LevelFilter::Info)
-            .init();
-        let mut db = Db::new().unwrap();
+    fn test_delete_old_one() {
+        let _ = fs::remove_file(db_path().unwrap());
 
-        db.clear().unwrap();
+        let mut db = Db::new(None).unwrap();
 
-        let data1 = Data::new("text".into(), "value1".into());
+        let data = Data::new("text/plain".into(), "content".as_bytes().into());
+        db.insert(data).unwrap();
 
-        db.insert(data1.clone()).unwrap();
+        let data = Data::new("text/plain".into(), "content2".as_bytes().into());
+        db.insert(data).unwrap();
 
-        db.insert(data1.clone()).unwrap();
+        assert!(db.len() == 2);
 
-        assert!(db.state.len() == 1);
+        let db = Db::new(Some(Duration::from_secs(10))).unwrap();
 
-        let data2 = Data::new("text".into(), "value2".into());
+        assert!(db.len() == 2);
 
-        db.insert(data2.clone()).unwrap();
+        let db = Db::new(Some(Duration::from_secs(0))).unwrap();
 
-        assert!(db.state.len() == 2);
-
-        let mut iter = db.state.iter().rev();
-
-        assert!(iter.next().unwrap() == &data2);
-        assert!(iter.next().unwrap() == &data1);
-
-        let new_data1 = Data::new("text".into(), "value1".into());
-
-        db.insert(new_data1.clone()).unwrap();
-
-        assert!(db.state.len() == 2);
-
-        let mut iter = db.state.iter().rev();
-
-        assert!(iter.next().unwrap() == &new_data1);
-        assert!(iter.next().unwrap() == &data2);
+        assert!(db.len() == 0);
     }
 }
- */

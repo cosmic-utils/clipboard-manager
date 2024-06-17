@@ -8,14 +8,10 @@ use cosmic::cosmic_config;
 use cosmic::cosmic_config::CosmicConfigEntry;
 use log::LevelFilter;
 
-mod db2;
-
-use db2 as db;
-
+mod db;
 mod app;
 mod clipboard;
 mod config;
-// mod db;
 mod localize;
 mod message;
 mod my_widgets;
