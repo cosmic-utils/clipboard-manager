@@ -222,18 +222,14 @@ impl Db {
 
         Ok(data)
     }
-    // get the last_row
-    // if last_row id is very recent
-    //      do nothing
-    // if not exist or old
-    // insert the data
 
-    // get the last_row
-    // use the new_id to insert the data in the memomy
+    // the <= 200 condition, is to unsure we reuse the same timestamp
+    // of the first process that inserted the data.
     pub fn insert(&mut self, mut data: Data) -> Result<()> {
+        // insert a new data, only if the last row is not the same AND was not created recently
         let query_insert_if_not_exist = r#"
             WITH last_row AS (
-                SELECT creation
+                SELECT creation, mime, content
                 FROM data
                 ORDER BY creation DESC
                 LIMIT 1
@@ -243,7 +239,7 @@ impl Db {
             WHERE NOT EXISTS (
                 SELECT 1
                 FROM last_row
-                WHERE (:now - creation) <= 200
+                WHERE content = :content & (:now - creation) <= 200
             );
         "#;
 
@@ -257,25 +253,15 @@ impl Db {
             },
         )?;
 
+        // safe to unwrap since we insert before
         let last_row = self.get_last_row()?.unwrap();
-
-        let query_get_last_id = r#"
-            SELECT creation
-            FROM data
-            ORDER BY creation DESC
-            LIMIT 1
-        "#;
-
-        let new_id: i64 = self
-            .conn
-            .query_row(query_get_last_id, (), |row| Ok(row.get(0)?))?;
 
         if let Some(old_id) = self.hashs.remove(&data.get_hash()) {
             self.state.remove(&old_id);
 
-            // in case 2 data were inserted in a short period
-            // we don't want to remove the old
-            if new_id != old_id {
+            // in case 2 same data were inserted in a short period
+            // we don't want to remove the old_id
+            if last_row.creation != old_id {
                 let query_delete_old_id = r#"
                     DELETE FROM data
                     WHERE creation = ?1;
@@ -285,7 +271,7 @@ impl Db {
             }
         }
 
-        data.creation = new_id;
+        data.creation = last_row.creation;
 
         self.hashs.insert(data.get_hash(), data.creation);
         self.state.insert(data.creation, data);
@@ -423,7 +409,23 @@ mod test {
 
         let mut db = Db::new(&None)?;
 
+        test_db(&mut db).unwrap();
+
+        db.clear()?;
+
+        test_db(&mut db).unwrap();
+
+        Ok(())
+    }
+
+    fn test_db(db: &mut Db) -> Result<()> {
         assert!(db.len() == 0);
+
+        let data = Data::new("text/plain".into(), "content".as_bytes().into());
+
+        db.insert(data).unwrap();
+
+        assert!(db.len() == 1);
 
         let data = Data::new("text/plain".into(), "content".as_bytes().into());
 
@@ -433,9 +435,14 @@ mod test {
 
         let data = Data::new("text/plain".into(), "content2".as_bytes().into());
 
-        db.insert(data).unwrap();
+        db.insert(data.clone()).unwrap();
 
         assert!(db.len() == 2);
+
+        let next = db.iter().next().unwrap();
+
+        assert!(next.creation == data.creation);
+        assert!(next.content == data.content);
 
         Ok(())
     }
