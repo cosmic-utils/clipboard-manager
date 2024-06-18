@@ -238,8 +238,6 @@ impl Db {
     // the <= 200 condition, is to unsure we reuse the same timestamp
     // of the first process that inserted the data.
     pub fn insert(&mut self, mut data: Data) -> Result<()> {
-        log::warn!("{:?}", data);
-
         // insert a new data, only if the last row is not the same AND was not created recently
         let query_insert_if_not_exist = r#"
             WITH last_row AS (
@@ -252,8 +250,8 @@ impl Db {
             SELECT :new_id, :new_mime, :new_content
             WHERE NOT EXISTS (
                 SELECT 1
-                FROM last_row
-                WHERE content = :content & (:now - creation) <= 200
+                FROM last_row AS lr
+                WHERE lr.content = :new_content AND (:now - lr.creation) <= 1000
             );
         "#;
 
@@ -413,11 +411,17 @@ mod test {
         time::Duration,
     };
 
+    use serial_test::serial;
+
     use anyhow::Result;
+    use cosmic::iced_sctk::util;
+
+    use crate::utils;
 
     use super::{db_path, Data, Db};
 
     #[test]
+    #[serial]
     fn test() -> Result<()> {
         let _ = fs::remove_file(db_path()?);
 
@@ -462,6 +466,7 @@ mod test {
     }
 
     #[test]
+    #[serial]
     fn test_delete_old_one() {
         let _ = fs::remove_file(db_path().unwrap());
 
@@ -482,5 +487,32 @@ mod test {
         let db = Db::new(Some(Duration::from_secs(0))).unwrap();
 
         assert!(db.len() == 0);
+    }
+
+    #[test]
+    #[serial]
+    fn same() {
+        let _ = fs::remove_file(db_path().unwrap());
+
+        let mut db = Db::new(None).unwrap();
+
+        let now = utils::now_millis();
+
+        let data = Data {
+            creation: now,
+            mime: "text/plain".into(),
+            content: "content".as_bytes().into(),
+        };
+
+        db.insert(data).unwrap();
+
+        let data = Data {
+            creation: now,
+            mime: "text/plain".into(),
+            content: "content".as_bytes().into(),
+        };
+
+        db.insert(data).unwrap();
+        assert!(db.len() == 1);
     }
 }
