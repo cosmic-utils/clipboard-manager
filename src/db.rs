@@ -99,8 +99,14 @@ impl Data {
 
         let content = match mime.type_() {
             mime::TEXT => {
-                // XXX: use core::str::from_utf8 when the widget list exist
-                let text = unsafe { core::str::from_utf8_unchecked(&self.content) };
+                let text = unsafe {
+                    match core::str::from_utf8(&self.content) {
+                        Ok(txt) => txt,
+                        Err(e) => core::str::from_utf8_unchecked(
+                            &self.content.split_at(e.valid_up_to()).0,
+                        ),
+                    }
+                };
                 Content::Text(text)
             }
             _ => bail!("unsuported mime type"),
