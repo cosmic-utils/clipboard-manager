@@ -160,16 +160,31 @@ impl Db {
 
         let conn = Connection::open_with_flags(db_path, OpenFlags::SQLITE_OPEN_READ_WRITE)?;
 
+        if let Some(max_duration) = &remove_old_entries {
+            let query_delete_old_one = r#"
+                DELETE FROM data
+                WHERE (:now - creation) >= :max;
+            "#;
+
+            conn.execute(
+                &query_delete_old_one,
+                named_params! {
+                    ":now": utils::now_millis(),
+                    ":max": max_duration.as_millis().try_into().unwrap_or(u64::MAX),
+                },
+            )?;
+        }
+
         let mut hashs = HashMap::default();
         let mut state = BTreeMap::default();
 
-        let query = r#"
+        let query_load_table = r#"
             SELECT creation, mime, content
             FROM data
         "#;
 
         {
-            let mut stmt = conn.prepare(query)?;
+            let mut stmt = conn.prepare(query_load_table)?;
 
             let mut rows = stmt.query(())?;
 
@@ -179,22 +194,6 @@ impl Db {
                     mime: row.get(1)?,
                     content: row.get(2)?,
                 };
-
-                if let Some(max_duration) = &remove_old_entries {
-                    let delta = utils::now_millis() - data.creation;
-                    let delta: u64 = delta.try_into().unwrap_or(u64::MAX);
-
-                    if Duration::from_millis(delta) > *max_duration {
-                        let query = r#"
-                            DELETE FROM data
-                            WHERE creation = ?1;
-                        "#;
-
-                        conn.execute(query, [data.creation])?;
-
-                        continue;
-                    }
-                }
 
                 hashs.insert(data.get_hash(), data.creation);
                 state.insert(data.creation, data);
@@ -492,7 +491,7 @@ mod test {
 
         assert!(db.len() == 2);
 
-        let db = Db::inner_new(Some(Duration::from_secs(0)), &db_path).unwrap();
+        let db = Db::inner_new(Some(Duration::ZERO), &db_path).unwrap();
 
         assert!(db.len() == 0);
     }
