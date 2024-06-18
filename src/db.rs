@@ -24,7 +24,7 @@ use crate::{
     utils,
 };
 
-type TimeId = i64; // maybe add some randomness at the end
+type TimeId = i64; // maybe add some randomness at the end https://github.com/dylanhart/ulid-rs
 
 const DB_PATH: &str = "clipboard-manager-db-1.sqlite";
 
@@ -409,6 +409,7 @@ mod test {
         fs::{self, File},
         io::{Read, Write},
         path::PathBuf,
+        thread::sleep,
         time::Duration,
     };
 
@@ -446,11 +447,15 @@ mod test {
 
         assert!(db.len() == 1);
 
+        sleep(Duration::from_millis(1000));
+
         let data = Data::new("text/plain".into(), "content".as_bytes().into());
 
         db.insert(data).unwrap();
 
         assert!(db.len() == 1);
+
+        sleep(Duration::from_millis(1000));
 
         let data = Data::new("text/plain".into(), "content2".as_bytes().into());
 
@@ -475,6 +480,8 @@ mod test {
 
         let data = Data::new("text/plain".into(), "content".as_bytes().into());
         db.insert(data).unwrap();
+
+        sleep(Duration::from_millis(100));
 
         let data = Data::new("text/plain".into(), "content2".as_bytes().into());
         db.insert(data).unwrap();
@@ -515,5 +522,34 @@ mod test {
 
         db.insert(data).unwrap();
         assert!(db.len() == 1);
+    }
+
+    // activate if we add randomness on the id.
+    // see https://github.com/dylanhart/ulid-rs
+    // #[test]
+    fn different_content_same_time() {
+        let db_path = PathBuf::from("tests/different_content_same_time");
+        let _ = fs::remove_file(&db_path);
+
+        let mut db = Db::inner_new(None, &db_path).unwrap();
+
+        let now = utils::now_millis();
+
+        let data = Data {
+            creation: now,
+            mime: "text/plain".into(),
+            content: "content".as_bytes().into(),
+        };
+
+        db.insert(data).unwrap();
+
+        let data = Data {
+            creation: now,
+            mime: "text/plain".into(),
+            content: "content2".as_bytes().into(),
+        };
+
+        db.insert(data).unwrap();
+        assert!(db.len() == 2);
     }
 }
