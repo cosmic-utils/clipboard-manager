@@ -24,19 +24,9 @@ use crate::{
     utils,
 };
 
-fn db_path() -> Result<PathBuf> {
-    if cfg!(test) {
-        Ok(PathBuf::from("clipboard-manager-db-test.sqlite"))
-    } else {
-        let directories = directories::ProjectDirs::from(QUALIFIER, ORG, APP).unwrap();
-        std::fs::create_dir_all(directories.cache_dir())?;
-        Ok(directories
-            .cache_dir()
-            .join("clipboard-manager-db-1.sqlite"))
-    }
-}
-
 type TimeId = i64; // maybe add some randomness at the end
+
+const DB_PATH: &str = "clipboard-manager-db-1.sqlite";
 
 // warning: if you change somethings in here, change the number in the db path
 #[derive(Derivative)]
@@ -102,9 +92,9 @@ impl Data {
                 let text = unsafe {
                     match core::str::from_utf8(&self.content) {
                         Ok(txt) => txt,
-                        Err(e) => core::str::from_utf8_unchecked(
-                            &self.content.split_at(e.valid_up_to()).0,
-                        ),
+                        Err(e) => {
+                            core::str::from_utf8_unchecked(self.content.split_at(e.valid_up_to()).0)
+                        }
                     }
                 };
                 Content::Text(text)
@@ -133,11 +123,14 @@ pub struct Db {
 
 impl Db {
     pub fn new(remove_old_entries: Option<Duration>) -> Result<Self> {
+        let db_path = PathBuf::from(DB_PATH);
+        Self::inner_new(remove_old_entries, &db_path)
+    }
+
+    fn inner_new(remove_old_entries: Option<Duration>, db_path: &Path) -> Result<Self> {
         let directories = directories::ProjectDirs::from(QUALIFIER, ORG, APP).unwrap();
 
         std::fs::create_dir_all(directories.cache_dir())?;
-
-        let db_path = db_path()?;
 
         if !db_path.exists() {
             let conn = Connection::open_with_flags(
@@ -415,24 +408,25 @@ mod test {
     use std::{
         fs::{self, File},
         io::{Read, Write},
+        path::PathBuf,
         time::Duration,
     };
 
     use serial_test::serial;
 
     use anyhow::Result;
-    use cosmic::iced_sctk::util;
+    use cosmic::{iced_sctk::util, widget::canvas::Path};
 
     use crate::utils;
 
-    use super::{db_path, Data, Db};
+    use super::{Data, Db};
 
     #[test]
-    #[serial]
     fn test() -> Result<()> {
-        let _ = fs::remove_file(db_path()?);
+        let db_path = PathBuf::from("tests/test");
+        let _ = fs::remove_file(&db_path);
 
-        let mut db = Db::new(None)?;
+        let mut db = Db::inner_new(None, &db_path)?;
 
         test_db(&mut db).unwrap();
 
@@ -473,11 +467,11 @@ mod test {
     }
 
     #[test]
-    #[serial]
     fn test_delete_old_one() {
-        let _ = fs::remove_file(db_path().unwrap());
+        let db_path = PathBuf::from("tests/test_delete_old_one");
+        let _ = fs::remove_file(&db_path);
 
-        let mut db = Db::new(None).unwrap();
+        let mut db = Db::inner_new(None, &db_path).unwrap();
 
         let data = Data::new("text/plain".into(), "content".as_bytes().into());
         db.insert(data).unwrap();
@@ -487,21 +481,21 @@ mod test {
 
         assert!(db.len() == 2);
 
-        let db = Db::new(Some(Duration::from_secs(10))).unwrap();
+        let db = Db::inner_new(Some(Duration::from_secs(10)), &db_path).unwrap();
 
         assert!(db.len() == 2);
 
-        let db = Db::new(Some(Duration::from_secs(0))).unwrap();
+        let db = Db::inner_new(Some(Duration::from_secs(0)), &db_path).unwrap();
 
         assert!(db.len() == 0);
     }
 
     #[test]
-    #[serial]
     fn same() {
-        let _ = fs::remove_file(db_path().unwrap());
+        let db_path = PathBuf::from("tests/same");
+        let _ = fs::remove_file(&db_path);
 
-        let mut db = Db::new(None).unwrap();
+        let mut db = Db::inner_new(None, &db_path).unwrap();
 
         let now = utils::now_millis();
 
