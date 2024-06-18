@@ -195,7 +195,7 @@ impl cosmic::Application for Window {
     }
 
     fn on_close_requested(&self, id: window::Id) -> Option<AppMessage> {
-        println!("on_close_requested");
+        info!("on_close_requested");
 
         if let Some(popup) = &self.popup {
             if popup.id == id {
@@ -213,7 +213,7 @@ impl cosmic::Application for Window {
                 match paste::paste! { self.config.[<set_ $name>](&self.config_handler, $value) } {
                     Ok(_) => {}
                     Err(err) => {
-                        eprintln!("failed to save config {:?}: {}", stringify!($name), err);
+                        error!("failed to save config {:?}: {}", stringify!($name), err);
                     }
                 }
             };
