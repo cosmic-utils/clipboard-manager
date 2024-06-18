@@ -406,10 +406,7 @@ impl Db {
 #[cfg(test)]
 mod test {
     use std::{
-        fs::{self, File},
-        io::{Read, Write},
-        path::PathBuf,
-        time::Duration,
+        fs::{self, File}, io::{Read, Write}, path::PathBuf, thread::sleep, time::Duration
     };
 
     use serial_test::serial;
@@ -475,6 +472,8 @@ mod test {
 
         let data = Data::new("text/plain".into(), "content".as_bytes().into());
         db.insert(data).unwrap();
+
+        sleep(Duration::from_millis(100));
 
         let data = Data::new("text/plain".into(), "content2".as_bytes().into());
         db.insert(data).unwrap();
