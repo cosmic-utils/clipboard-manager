@@ -16,7 +16,7 @@ use anyhow::{anyhow, bail, Result};
 
 use chrono::Utc;
 use mime::Mime;
-use rusqlite::{named_params, params, Connection, OpenFlags, OptionalExtension};
+use rusqlite::{named_params, params, Connection, ErrorCode, OpenFlags, OptionalExtension};
 use unicode_normalization::UnicodeNormalization;
 
 use crate::{
@@ -24,7 +24,7 @@ use crate::{
     utils,
 };
 
-type TimeId = i64; // maybe add some randomness at the end https://github.com/dylanhart/ulid-rs
+type TimeId = i64;
 
 const DB_PATH: &str = "clipboard-manager-db-1.sqlite";
 
@@ -167,7 +167,7 @@ impl Db {
             "#;
 
             conn.execute(
-                &query_delete_old_one,
+                query_delete_old_one,
                 named_params! {
                     ":now": utils::now_millis(),
                     ":max": max_duration.as_millis().try_into().unwrap_or(u64::MAX),
@@ -254,7 +254,7 @@ impl Db {
             );
         "#;
 
-        self.conn.execute(
+        if let Err(e) = self.conn.execute(
             query_insert_if_not_exist,
             named_params! {
                 ":new_id": data.creation,
@@ -262,7 +262,16 @@ impl Db {
                 ":new_content": data.content,
                 ":now": utils::now_millis(),
             },
-        )?;
+        ) {
+            if let rusqlite::Error::SqliteFailure(rusqlite::ffi::Error { code, .. }, ..) = e {
+                if code == ErrorCode::ConstraintViolation {
+                    warn!("a different value with the same id was already inserted");
+                    data.creation += 1;
+                    return self.insert(data);
+                }
+            }
+            return Err(e.into());
+        }
 
         // safe to unwrap since we insert before
         let last_row = self.get_last_row()?.unwrap();
@@ -523,9 +532,7 @@ mod test {
         assert!(db.len() == 1);
     }
 
-    // activate if we add randomness on the id.
-    // see https://github.com/dylanhart/ulid-rs
-    // #[test]
+    #[test]
     fn different_content_same_time() {
         let db_path = PathBuf::from("tests/different_content_same_time");
         let _ = fs::remove_file(&db_path);

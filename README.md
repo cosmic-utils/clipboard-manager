@@ -41,7 +41,7 @@ Finally, you will need to set up the applet in cosmic-settings.
 ## Logs
 
 ```sh
-journalctl -p 3 -xb --user _EXE=/usr/bin/cosmic-panel | grep com.wiiznokes.ClipboardManager | less
+journalctl -p 3 -xb --user _EXE=/usr/bin/clipboard-manager | less
 ```
 
 - `-p` 3 means priority error
