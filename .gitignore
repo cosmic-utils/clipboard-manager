@@ -1,3 +1,5 @@
 /target
 /vendor
 /clipboard-manager-0.1.0-vendor.tar.xz
+clipboard-manager-db-test.sqlite
+test

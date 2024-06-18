@@ -66,8 +66,8 @@ pub fn sub() -> Subscription<ClipboardMessage> {
                         loop {
                             match rx.recv().await {
                                 Some(Some((mut pipe, mime_type))) => {
-                                    let mut contents = String::new();
-                                    pipe.read_to_string(&mut contents).unwrap();
+                                    let mut contents = Vec::new();
+                                    pipe.read_to_end(&mut contents).unwrap();
 
                                     let data = Data::new(mime_type, contents);
                                     //info!("sending data to database: {:?}", data);
@@ -106,7 +106,7 @@ pub fn sub() -> Subscription<ClipboardMessage> {
 pub fn copy(data: Data) -> Result<(), copy::Error> {
     //dbg!("copy", &data);
     let options = copy::Options::default();
-    let bytes = data.value.into_bytes().into_boxed_slice();
+    let bytes = data.content.into_boxed_slice();
 
     let source = copy::Source::Bytes(bytes);
 
