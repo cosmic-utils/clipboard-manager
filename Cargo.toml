@@ -61,10 +61,10 @@ git = "https://github.com/wiiznokes/wl-clipboard-rs.git"
 branch = "watch"
 # path = "../wl-clipboard-rs"
 
-#[patch."https://github.com/pop-os/libcosmic".libcosmic]
+# [patch."https://github.com/pop-os/libcosmic".libcosmic]
 #git = "https://github.com/wiiznokes/libcosmic"
 #branch = "icon-applet"
-#path = "../libcosmic"
+# path = "../libcosmic"
 
 
 [dev-dependencies]

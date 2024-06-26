@@ -5,9 +5,9 @@ use cosmic::{
     iced_widget::{column, graphics::image::image_rs::flat::View, Row, Scrollable},
     theme::{self, Button},
     widget::{
-        self, button, container,
+        self, button, container, context_menu,
         icon::{self, Handle},
-        mouse_area, text, text_input, toggler, Column, Container, Icon, MouseArea, Space,
+        menu, mouse_area, text, text_input, toggler, Column, Container, Icon, MouseArea, Space,
     },
     Element,
 };
@@ -180,6 +180,19 @@ fn entry<'a>(
             .padding(7);
 
         let overlay = container(overlay).style(theme::Container::Dropdown);
+
+        // todo: use it when the offset issue is resolved
+        // https://github.com/pop-os/libcosmic/issues/516
+        // context_menu(
+        //     btn,
+        //     Some(vec![menu::Tree::new(
+        //         button(text(fl!("delete_entry")))
+        //             .on_press(AppMessage::Delete(entry.clone()))
+        //             .width(Length::Fill)
+        //             .style(Button::Destructive),
+        //     )]),
+        // )
+        // .into()
 
         // todo: change it by a context menu instead
         my_widgets::drop_down::DropDown::new(btn, overlay, true)
