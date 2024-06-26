@@ -124,14 +124,15 @@ pub struct Db {
 impl Db {
     pub fn new(remove_old_entries: Option<Duration>) -> Result<Self> {
         let db_path = PathBuf::from(DB_PATH);
-        Self::inner_new(remove_old_entries, &db_path)
-    }
 
-    fn inner_new(remove_old_entries: Option<Duration>, db_path: &Path) -> Result<Self> {
         let directories = directories::ProjectDirs::from(QUALIFIER, ORG, APP).unwrap();
 
         std::fs::create_dir_all(directories.cache_dir())?;
 
+        Self::inner_new(remove_old_entries, &directories.cache_dir().join(db_path))
+    }
+
+    fn inner_new(remove_old_entries: Option<Duration>, db_path: &Path) -> Result<Self> {
         if !db_path.exists() {
             let conn = Connection::open_with_flags(
                 db_path,
