@@ -3,13 +3,13 @@ prefix := '/usr'
 debug := '0'
 
 
-name := 'clipboard-manager'
-export APPID := 'io.github.wiiznokes.clipboard-manager'
+export NAME := 'cosmic-ext-applet-clipboard-manager'
+export APPID := 'io.github.wiiznokes.' + NAME 
 
 base-dir := absolute_path(clean(rootdir / prefix))
 
-bin-src := if debug == '1' { 'target/debug' / name } else { 'target/release' / name }
-bin-dst := base-dir / 'bin' / name
+bin-src := if debug == '1' { 'target/debug' / NAME } else { 'target/release' / NAME }
+bin-dst := base-dir / 'bin' / NAME
 
 desktop-src := 'res' / 'desktop_entry.desktop'
 desktop-dst := clean(rootdir / prefix) / 'share' / 'applications' / APPID + '.desktop'
@@ -35,13 +35,13 @@ build-release *args:
 install:
   install -Dm0755 {{bin-src}} {{bin-dst}}
   install -Dm0644 {{desktop-src}} {{desktop-dst}}
-  install -Dm0644 {{res-src}}/app_icon.svg {{res-dst}}/icons/hicolor/scalable/apps/{{APPID}}.svg
+  install -Dm0644 {{res-src}}/app_icon.svg {{res-dst}}/icons/hicolor/scalable/apps/{{APPID}}-symbolic.svg
 
 # Uninstalls installed files
 uninstall:
   rm {{bin-dst}}
   rm {{desktop-dst}}
-  rm {{res-dst}}/icons/hicolor/scalable/apps/{{APPID}}.svg
+  rm {{res-dst}}/icons/hicolor/scalable/apps/{{APPID}}-symbolic.svg
 
 
 clean:

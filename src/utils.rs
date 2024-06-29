@@ -1,6 +1,8 @@
 use std::cmp::min;
+use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{borrow::Cow, time::Duration};
+use std::{fs, io};
 
 use chrono::Utc;
 use cosmic::{app::Message, iced::Padding, iced_runtime::command::Action, Command};
@@ -88,4 +90,21 @@ pub fn command_message<M: Send + 'static>(message: M) -> Command<Message<M>> {
 
 pub fn now_millis() -> i64 {
     Utc::now().timestamp_millis()
+}
+
+pub fn remove_dir_contents(dir: &Path) {
+    pub fn inner(dir: &Path) -> Result<(), io::Error> {
+        for entry in fs::read_dir(dir)?.flatten() {
+            let path = entry.path();
+
+            if path.is_dir() {
+                let _ = fs::remove_dir_all(&path);
+            } else {
+                let _ = fs::remove_file(&path);
+            }
+        }
+        Ok(())
+    }
+
+    let _ = inner(dir);
 }

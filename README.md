@@ -14,7 +14,7 @@ You can use this [copr](https://copr.fedorainfracloud.org/coprs/wiiznokes/cosmic
 
 ```sh
 sudo dnf copr enable wiiznokes/cosmic-applets-unofficial
-sudo dnf install clipboard-manager
+sudo dnf install cosmic-ext-applet-clipboard-manager
 ```
 
 ### Other distros
@@ -43,7 +43,7 @@ Finally, you will need to set up the applet in cosmic-settings.
 ## Logs
 
 ```sh
-journalctl -p 3 -xb --user _EXE=/usr/bin/clipboard-manager | less
+journalctl -p 3 -xb --user _EXE=/usr/bin/cosmic-ext-applet-clipboard-manager | less
 ```
 
 - `-p` 3 means priority error
