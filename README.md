@@ -13,8 +13,8 @@ There is a quick settings popup when you right click the icon.
 You can use this [copr](https://copr.fedorainfracloud.org/coprs/wiiznokes/cosmic-applets-unofficial/).
 
 ```sh
-dnf copr enable wiiznokes/cosmic-applets-unofficial
-dnf install clipboard-manager
+sudo dnf copr enable wiiznokes/cosmic-applets-unofficial
+sudo dnf install clipboard-manager
 ```
 
 ### Other distros
@@ -22,8 +22,10 @@ dnf install clipboard-manager
 ```sh
 git clone https://github.com/wiiznokes/clipboard-manager.git
 cd clipboard-manager
+sudo apt install libsqlite3-dev # build deps
 just build-release
-just install
+sudo apt install sqlite3 # runtime deps
+sudo just install
 ```
 
 You curently need to activate a setting of the compositor:
