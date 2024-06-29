@@ -7,7 +7,7 @@ use cosmic::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::{app::APP_ID, message::AppMessage, utils};
+use crate::{app::APPID, message::AppMessage, utils};
 
 pub const CONFIG_VERSION: u64 = 1;
 
@@ -33,7 +33,7 @@ pub fn sub() -> Subscription<AppMessage> {
 
     cosmic_config::config_subscription(
         std::any::TypeId::of::<ConfigSubscription>(),
-        APP_ID.into(),
+        APPID.into(),
         CONFIG_VERSION,
     )
     .map(|update| {

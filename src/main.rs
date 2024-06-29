@@ -49,7 +49,7 @@ fn main() -> cosmic::iced::Result {
 
     setup_logs();
 
-    let (config_handler, config) = match cosmic_config::Config::new(app::APP_ID, CONFIG_VERSION) {
+    let (config_handler, config) = match cosmic_config::Config::new(app::APPID, CONFIG_VERSION) {
         Ok(config_handler) => {
             let config = match Config::get_entry(&config_handler) {
                 Ok(ok) => ok,

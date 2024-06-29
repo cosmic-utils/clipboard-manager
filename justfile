@@ -35,13 +35,13 @@ build-release *args:
 install:
   install -Dm0755 {{bin-src}} {{bin-dst}}
   install -Dm0644 {{desktop-src}} {{desktop-dst}}
-  install -Dm0644 {{res-src}}/app_icon.svg {{res-dst}}/icons/hicolor/scalable/apps/{{APPID}}.svg
+  install -Dm0644 {{res-src}}/app_icon.svg {{res-dst}}/icons/hicolor/scalable/apps/{{APPID}}-symbolic.svg
 
 # Uninstalls installed files
 uninstall:
   rm {{bin-dst}}
   rm {{desktop-dst}}
-  rm {{res-dst}}/icons/hicolor/scalable/apps/{{APPID}}.svg
+  rm {{res-dst}}/icons/hicolor/scalable/apps/{{APPID}}-symbolic.svg
 
 
 clean:

@@ -26,12 +26,10 @@ use crate::{clipboard, config, navigation};
 use cosmic::cosmic_config;
 use std::sync::atomic::{self, AtomicBool};
 
-// todo: converge this 4 strings
-pub static QUALIFIER: &str = "com";
-pub static ORG: &str = "wiiznokes";
-pub static APP: &str = "clipboard-manager";
-
-pub const APP_ID: &str = "com.wiiznokes.clipboard-manager";
+pub const QUALIFIER: &str = "io.github";
+pub const ORG: &str = "wiiznokes";
+pub const APP: &str = "clipboard-manager";
+pub const APPID: &str = constcat::concat!(QUALIFIER, ".", ORG, ".", APP);
 
 pub struct Window {
     core: Core,
@@ -154,7 +152,7 @@ impl cosmic::Application for Window {
     type Executor = cosmic::executor::Default;
     type Flags = Flags;
     type Message = AppMessage;
-    const APP_ID: &'static str = APP_ID;
+    const APP_ID: &'static str = APPID;
 
     fn core(&self) -> &Core {
         &self.core
@@ -311,7 +309,7 @@ impl cosmic::Application for Window {
         let icon = self
             .core
             .applet
-            .icon_button("io.github.wiiznokes.clipboard-manager")
+            .icon_button(constcat::concat!(APPID, "-symbolic"))
             .on_press(AppMessage::TogglePopup);
 
         MouseArea::new(icon)
