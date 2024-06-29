@@ -1,7 +1,7 @@
 
 
 [package]
-name = "clipboard-manager"
+name = "cosmic-ext-applet-clipboard-manager"
 version = "0.1.0"
 authors = ["wiiznokes <wiiznokes2@gmail.com>"]
 edition = "2021"

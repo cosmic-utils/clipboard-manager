@@ -28,7 +28,7 @@ use std::sync::atomic::{self, AtomicBool};
 
 pub const QUALIFIER: &str = "io.github";
 pub const ORG: &str = "wiiznokes";
-pub const APP: &str = "clipboard-manager";
+pub const APP: &str = "cosmic-ext-applet-clipboard-manager";
 pub const APPID: &str = constcat::concat!(QUALIFIER, ".", ORG, ".", APP);
 
 pub struct Window {

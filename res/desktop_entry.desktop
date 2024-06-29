@@ -4,10 +4,10 @@ Comment=A wayland clipboard manager
 Keywords=Cosmic;Iced;history;
 
 # translators: do not translate this part
-Icon=io.github.wiiznokes.clipboard-manager-symbolic
+Icon=io.github.wiiznokes.cosmic-ext-applet-clipboard-manager-symbolic
 Categories=Cosmic;Iced;
 Type=Application
-Exec=clipboard-manager
+Exec=cosmic-ext-applet-clipboard-manager
 Terminal=false
 StartupNotify=true
 NoDisplay=true

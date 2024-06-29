@@ -651,39 +651,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "clipboard-manager"
-version = "0.1.0"
-dependencies = [
- "aho-corasick",
- "anyhow",
- "chrono",
- "constcat",
- "derivative",
- "directories",
- "futures",
- "i18n-embed",
- "i18n-embed-fl",
- "libcosmic",
- "log",
- "mime 0.3.17",
- "once_cell",
- "os_pipe",
- "paste",
- "rayon",
- "rusqlite",
- "rust-embed",
- "serde",
- "serial_test",
- "thiserror",
- "tokio",
- "tracing",
- "tracing-journald",
- "tracing-subscriber",
- "unicode-normalization",
- "wl-clipboard-rs",
-]
-
-[[package]]
 name = "clipboard-win"
 version = "5.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -910,6 +877,39 @@ source = "git+https://github.com/pop-os/libcosmic#61760f8e4e33744a451e8e8fe09d58
 dependencies = [
  "quote",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "cosmic-ext-applet-clipboard-manager"
+version = "0.1.0"
+dependencies = [
+ "aho-corasick",
+ "anyhow",
+ "chrono",
+ "constcat",
+ "derivative",
+ "directories",
+ "futures",
+ "i18n-embed",
+ "i18n-embed-fl",
+ "libcosmic",
+ "log",
+ "mime 0.3.17",
+ "once_cell",
+ "os_pipe",
+ "paste",
+ "rayon",
+ "rusqlite",
+ "rust-embed",
+ "serde",
+ "serial_test",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-journald",
+ "tracing-subscriber",
+ "unicode-normalization",
+ "wl-clipboard-rs",
 ]
 
 [[package]]

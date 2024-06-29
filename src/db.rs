@@ -20,15 +20,16 @@ use rusqlite::{named_params, params, Connection, ErrorCode, OpenFlags, OptionalE
 use unicode_normalization::UnicodeNormalization;
 
 use crate::{
-    app::{APP, ORG, QUALIFIER},
+    app::{APP, APPID, ORG, QUALIFIER},
     utils,
 };
 
 type TimeId = i64;
 
-const DB_PATH: &str = "clipboard-manager-db-1.sqlite";
+const DB_VERSION: &str = "1";
+const DB_PATH: &str = constcat::concat!(APPID, "-db-", DB_VERSION, ".sqlite");
 
-// warning: if you change somethings in here, change the number in the db path
+// warning: if you change somethings in here, change the db version
 #[derive(Derivative)]
 #[derivative(PartialEq, Hash)]
 #[derive(Clone, Eq)]
@@ -134,6 +135,18 @@ impl Db {
 
     fn inner_new(remove_old_entries: Option<Duration>, db_path: &Path) -> Result<Self> {
         if !db_path.exists() {
+
+            for entry in fs::read_dir(dir)? {
+                let entry = entry?;
+                let path = entry.path();
+        
+                if path.is_dir() {
+                    fs::remove_dir_all(&path)?;
+                } else {
+                    fs::remove_file(&path)?;
+                }
+            }
+
             let conn = Connection::open_with_flags(
                 db_path,
                 OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE,
