@@ -5,7 +5,7 @@ use std::{
     fmt::{Debug, Display},
     fs::{self, DirBuilder, File},
     hash::{DefaultHasher, Hash, Hasher},
-    io::{Read, Write},
+    io::{self, Read, Write},
     path::{Path, PathBuf},
     thread::sleep,
     time::Duration,
@@ -21,7 +21,7 @@ use unicode_normalization::UnicodeNormalization;
 
 use crate::{
     app::{APP, APPID, ORG, QUALIFIER},
-    utils,
+    utils::{self, remove_dir_contents},
 };
 
 type TimeId = i64;
@@ -124,28 +124,18 @@ pub struct Db {
 
 impl Db {
     pub fn new(remove_old_entries: Option<Duration>) -> Result<Self> {
-        let db_path = PathBuf::from(DB_PATH);
-
         let directories = directories::ProjectDirs::from(QUALIFIER, ORG, APP).unwrap();
 
         std::fs::create_dir_all(directories.cache_dir())?;
 
-        Self::inner_new(remove_old_entries, &directories.cache_dir().join(db_path))
+        Self::inner_new(remove_old_entries, directories.cache_dir())
     }
 
-    fn inner_new(remove_old_entries: Option<Duration>, db_path: &Path) -> Result<Self> {
-        if !db_path.exists() {
+    fn inner_new(remove_old_entries: Option<Duration>, db_dir: &Path) -> Result<Self> {
+        let db_path = db_dir.join(DB_PATH);
 
-            for entry in fs::read_dir(dir)? {
-                let entry = entry?;
-                let path = entry.path();
-        
-                if path.is_dir() {
-                    fs::remove_dir_all(&path)?;
-                } else {
-                    fs::remove_file(&path)?;
-                }
-            }
+        if !db_path.exists() {
+            remove_dir_contents(db_dir);
 
             let conn = Connection::open_with_flags(
                 db_path,
@@ -440,16 +430,23 @@ mod test {
     use anyhow::Result;
     use cosmic::{iced_sctk::util, widget::canvas::Path};
 
-    use crate::utils;
+    use crate::utils::{self, remove_dir_contents};
 
     use super::{Data, Db};
 
-    #[test]
-    fn test() -> Result<()> {
-        let db_path = PathBuf::from("tests/test");
-        let _ = fs::remove_file(&db_path);
+    fn prepare_db_dir() -> PathBuf {
+        let db_dir = PathBuf::from("tests");
+        let _ = std::fs::create_dir_all(&db_dir);
+        remove_dir_contents(&db_dir);
+        db_dir
+    }
 
-        let mut db = Db::inner_new(None, &db_path)?;
+    #[test]
+    #[serial]
+    fn test() -> Result<()> {
+        let db_dir = prepare_db_dir();
+
+        let mut db = Db::inner_new(None, &db_dir)?;
 
         test_db(&mut db).unwrap();
 
@@ -494,9 +491,9 @@ mod test {
     }
 
     #[test]
+    #[serial]
     fn test_delete_old_one() {
-        let db_path = PathBuf::from("tests/test_delete_old_one");
-        let _ = fs::remove_file(&db_path);
+        let db_path = prepare_db_dir();
 
         let mut db = Db::inner_new(None, &db_path).unwrap();
 
@@ -520,9 +517,9 @@ mod test {
     }
 
     #[test]
+    #[serial]
     fn same() {
-        let db_path = PathBuf::from("tests/same");
-        let _ = fs::remove_file(&db_path);
+        let db_path = prepare_db_dir();
 
         let mut db = Db::inner_new(None, &db_path).unwrap();
 
@@ -547,9 +544,9 @@ mod test {
     }
 
     #[test]
+    #[serial]
     fn different_content_same_time() {
-        let db_path = PathBuf::from("tests/different_content_same_time");
-        let _ = fs::remove_file(&db_path);
+        let db_path = prepare_db_dir();
 
         let mut db = Db::inner_new(None, &db_path).unwrap();
 
