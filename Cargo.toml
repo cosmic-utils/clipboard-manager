@@ -70,3 +70,7 @@ branch = "watch"
 
 [dev-dependencies]
 serial_test = "3.1.1"
+
+
+[profile.release]
+lto = "fat"
