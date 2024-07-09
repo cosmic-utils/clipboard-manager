@@ -10,11 +10,12 @@ bin-src := if debug == '1' { 'target/debug' / NAME } else { 'target/release' / N
 
 base-dir := absolute_path(clean(rootdir / prefix))
 share-dst := base-dir / 'share'
+etc-dir := absolute_path(clean(rootdir / 'etc'))
 
 bin-dst := base-dir / 'bin' / NAME
 desktop-dst := share-dst / 'applications' / APPID + '.desktop'
 icon-dst := share-dst / 'icons/hicolor/scalable/apps' / APPID + '-symbolic.svg'
-env-dst := '/etc/environment.d' / NAME + '.conf'
+env-dst := etc-dir / 'environment.d' / NAME + '.conf'
 
 
 default: build-release
