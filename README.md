@@ -27,7 +27,7 @@ just build-release
 sudo just install
 ```
 
-You will probably need to reboot or re login for the `COSMIC DATA_CONTROL ENABLED=1` environment variable to take effect.
+You will probably need to reboot or re login for the `COSMIC_DATA_CONTROL_ENABLED=1` environment variable to take effect.
 
 ## Logs
 
