@@ -22,23 +22,12 @@ sudo dnf install cosmic-ext-applet-clipboard-manager
 ```sh
 git clone https://github.com/wiiznokes/clipboard-manager.git
 cd clipboard-manager
-sudo apt install libsqlite3-dev # build deps
+sudo apt install libsqlite3-dev sqlite3
 just build-release
-sudo apt install sqlite3 # runtime deps
 sudo just install
 ```
 
-You curently need to activate a setting of the compositor:
-
-```sh
-sudo nano /etc/cosmic-comp/config.ron
-```
-
-And change `data_control_enabled: false` to `true` at the end of the file.
-
-Obiously, a better integration is planned, maybe with a portal that ask the user if they want to activate this protocol (which is insecure since its let an app access the clipboard without receiving an event for it (like ctrl-c) or being focused).
-
-Finally, you will need to set up the applet in cosmic-settings.
+You will probably need to reboot or re login for the `COSMIC DATA_CONTROL ENABLED=1` environment variable to take effect.
 
 ## Logs
 

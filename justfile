@@ -6,43 +6,37 @@ debug := '0'
 export NAME := 'cosmic-ext-applet-clipboard-manager'
 export APPID := 'io.github.wiiznokes.' + NAME 
 
-base-dir := absolute_path(clean(rootdir / prefix))
-
 bin-src := if debug == '1' { 'target/debug' / NAME } else { 'target/release' / NAME }
+
+base-dir := absolute_path(clean(rootdir / prefix))
+share-dst := base-dir / 'share'
+
 bin-dst := base-dir / 'bin' / NAME
+desktop-dst := share-dst / 'applications' / APPID + '.desktop'
+icon-dst := share-dst / 'icons/hicolor/scalable/apps' / APPID + '-symbolic.svg'
+env-dst := '/etc/environment.d' / NAME + '.conf'
 
-desktop-src := 'res' / 'desktop_entry.desktop'
-desktop-dst := clean(rootdir / prefix) / 'share' / 'applications' / APPID + '.desktop'
 
-metainfo-src := 'res' / 'metainfo.xml'
-metainfo-dst := clean(rootdir / prefix) / 'share' / 'metainfo' / APPID + '.metainfo.xml'
-
-res-src := 'res'
-res-dst := clean(rootdir / prefix) / 'share'
-
-# Default recipe which runs `just build-release`
 default: build-release
 
 
-# Compiles with debug profile
 build-debug *args:
   cargo build {{args}}
 
-# Compiles with release profile
 build-release *args:
   cargo build --release {{args}}
 
 install:
   install -Dm0755 {{bin-src}} {{bin-dst}}
-  install -Dm0644 {{desktop-src}} {{desktop-dst}}
-  install -Dm0644 {{res-src}}/app_icon.svg {{res-dst}}/icons/hicolor/scalable/apps/{{APPID}}-symbolic.svg
+  install -Dm0644 res/desktop_entry.desktop {{desktop-dst}}
+  install -Dm0644 res/app_icon.svg {{icon-dst}}
+  install -Dm0644 res/env.conf {{env-dst}}
 
-# Uninstalls installed files
 uninstall:
   rm {{bin-dst}}
   rm {{desktop-dst}}
-  rm {{res-dst}}/icons/hicolor/scalable/apps/{{APPID}}-symbolic.svg
-
+  rm {{icon-dst}}
+  rm {{env-dst}}
 
 clean:
   cargo clean
