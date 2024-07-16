@@ -11,13 +11,15 @@ use std::{
     time::Duration,
 };
 
-use aho_corasick::AhoCorasick;
 use anyhow::{anyhow, bail, Result};
+use nucleo::{
+    pattern::{Atom, AtomKind, CaseMatching, Normalization},
+    Config, Matcher, Utf32Str,
+};
 
 use chrono::Utc;
 use mime::Mime;
 use rusqlite::{named_params, params, Connection, ErrorCode, OpenFlags, OptionalExtension};
-use unicode_normalization::UnicodeNormalization;
 
 use crate::{
     app::{APP, APPID, ORG, QUALIFIER},
@@ -117,9 +119,10 @@ pub struct Db {
     conn: Connection,
     hashs: HashMap<u64, TimeId>,
     state: BTreeMap<TimeId, Data>,
-    filtered: Vec<TimeId>,
+    filtered: Vec<(TimeId, Vec<u32>)>,
     query: String,
-    search_engine: Option<AhoCorasick>,
+    needle: Option<Atom>,
+    matcher: Matcher,
 }
 
 impl Db {
@@ -158,7 +161,8 @@ impl Db {
                 state: BTreeMap::default(),
                 filtered: Vec::default(),
                 query: String::default(),
-                search_engine: None,
+                needle: None,
+                matcher: Matcher::new(Config::DEFAULT),
             });
         }
 
@@ -210,7 +214,8 @@ impl Db {
             state,
             filtered: Vec::default(),
             query: String::default(),
-            search_engine: None,
+            needle: None,
+            matcher: Matcher::new(Config::DEFAULT),
         };
 
         Ok(db)
@@ -333,43 +338,48 @@ impl Db {
     }
 
     pub fn search(&mut self) {
-        use rayon::prelude::*;
 
         if self.query.is_empty() {
             self.filtered.clear();
-        } else if let Some(search_engine) = &self.search_engine {
-            // https://www.reddit.com/r/rust/comments/1boo2fb/comment/kwqahjv/?context=3
+        } else if let Some(atom) = &self.needle {
             self.filtered = self
                 .state
-                .par_iter()
+                .iter()
+                .rev()
                 .filter_map(|(id, data)| {
                     data.get_text().and_then(|text| {
-                        let normalized = Self::normalize_text(text);
-                        let mut iter = search_engine.find_iter(&normalized);
-                        iter.next().map(|_| *id)
+                        let mut buf = Vec::new();
+
+                        let haystack = Utf32Str::new(text, &mut buf);
+
+                        let mut indices = Vec::new();
+
+                        let _res = atom.indices(haystack, &mut self.matcher, &mut indices);
+
+                        if !indices.is_empty() {
+                            Some((*id, indices))
+                        } else {
+                            None
+                        }
                     })
                 })
-                .collect::<Vec<_>>()
-                .into_iter()
-                // we can't call rev on par_iter and par_bridge
-                // doesn't preserve order + it's slower
-                // maybe droping completelly rayon could be better
-                // https://github.com/rayon-rs/rayon/issues/551
-                .rev()
-                .collect();
+                .collect::<Vec<_>>();
         }
     }
 
     pub fn set_query_and_search(&mut self, query: String) {
         if query.is_empty() {
-            self.search_engine.take();
+            self.needle.take();
         } else {
-            let search_engine = AhoCorasick::builder()
-                .ascii_case_insensitive(true)
-                .build(vec![Self::normalize_text(&query)])
-                .unwrap();
+            let atom = Atom::new(
+                &query,
+                CaseMatching::Smart,
+                Normalization::Smart,
+                AtomKind::Substring,
+                true,
+            );
 
-            self.search_engine.replace(search_engine);
+            self.needle.replace(atom);
         }
 
         self.query = query;
@@ -381,20 +391,14 @@ impl Db {
         &self.query
     }
 
-    fn normalize_text(value: &str) -> String {
-        // collect<Cow<str>> always have the type Owned("...")
-        // in my test, and it don't seems to be an acceptable
-        // format for other api
-        // https://github.com/unicode-rs/unicode-normalization/issues/99
-        value.nfkd().collect()
-    }
-
     pub fn get(&self, index: usize) -> Option<&Data> {
         if self.query.is_empty() {
             // because we expose the tree in reverse
             self.state.iter().rev().nth(index).map(|e| e.1)
         } else {
-            self.filtered.get(index).map(|id| &self.state[id])
+            self.filtered
+                .get(index)
+                .map(|(id, _indices)| &self.state[id])
         }
     }
 
@@ -402,7 +406,7 @@ impl Db {
         if self.query.is_empty() {
             Box::new(self.state.values().rev())
         } else {
-            Box::new(self.filtered.iter().map(|id| &self.state[id]))
+            Box::new(self.filtered.iter().map(|(id, _indices)| &self.state[id]))
         }
     }
 

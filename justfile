@@ -1,6 +1,6 @@
 rootdir := ''
 prefix := '/usr'
-debug := '0'
+debug := '1'
 
 
 export NAME := 'cosmic-ext-applet-clipboard-manager'
