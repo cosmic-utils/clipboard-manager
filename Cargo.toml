@@ -25,12 +25,8 @@ rust-embed = "8.3"
 
 derivative = "2.2"
 os_pipe = "1.1"
-rayon = "1.10"
-futures = "0.3"
 thiserror = "1.0"
-aho-corasick = { version = "1.1", features = ["perf-literal"] }
 paste = "1.0.14"
-unicode-normalization = "0.1"
 directories = "5.0"
 anyhow = "1.0.86"
 chrono = { version = "0.4.38", default-features = false, features = ["now"] }
@@ -44,6 +40,7 @@ tracing-subscriber = { version = "0.3.16", features = [
 ] }
 tracing-journald = "0.3.0"
 constcat = "0.5.0"
+nucleo = "0.5.0"
 
 [dependencies.libcosmic]
 git = "https://github.com/pop-os/libcosmic"

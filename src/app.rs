@@ -204,8 +204,6 @@ impl cosmic::Application for Window {
     }
 
     fn update(&mut self, message: Self::Message) -> Command<cosmic::app::Message<Self::Message>> {
-        //dbg!(&message);
-
         macro_rules! config_set {
             ($name: ident, $value: expr) => {
                 match paste::paste! { self.config.[<set_ $name>](&self.config_handler, $value) } {
