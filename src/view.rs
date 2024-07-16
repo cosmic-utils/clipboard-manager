@@ -18,7 +18,6 @@ use crate::{
     db::{Content, Data},
     fl,
     message::AppMessage,
-    my_widgets,
     utils::{formated_value, horizontal_padding},
 };
 

@@ -15,7 +15,6 @@ mod config;
 mod db;
 mod localize;
 mod message;
-mod my_widgets;
 mod navigation;
 mod utils;
 mod view;
