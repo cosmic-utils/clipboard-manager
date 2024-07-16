@@ -5,7 +5,9 @@ use cosmic::{
     iced_widget::{graphics::image::image_rs::flat::View, Row, Scrollable},
     theme::{self, Button},
     widget::{
-        self, button, column, container, context_menu,
+        self,
+        button::{self, button},
+        column, container, context_menu,
         icon::{self, Handle},
         menu, mouse_area, text, text_input, toggler, Column, Container, Icon, MouseArea, Space,
         Text, TextEditor,
@@ -131,13 +133,17 @@ fn entries(state: &AppState) -> Element<'_, AppMessage> {
         .into()
 }
 
+fn image_entry(_entry: &Entry, _is_focused: bool) -> Element<'_, AppMessage> {
+    todo!()
+}
+
 fn text_entry_with_indices<'a>(
     entry: &'a Entry,
     is_focused: bool,
     content: &'a str,
-    _indices: &'a Vec<u32>,
+    _indices: &'a [u32],
 ) -> Element<'a, AppMessage> {
-    text_entry(entry, is_focused, &content)
+    text_entry(entry, is_focused, content)
 }
 
 fn text_entry<'a>(entry: &'a Entry, is_focused: bool, content: &'a str) -> Element<'a, AppMessage> {

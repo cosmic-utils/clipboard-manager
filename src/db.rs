@@ -415,12 +415,12 @@ impl Db {
         }
     }
 
-    pub fn iter<'a>(&'a self) -> impl Iterator<Item = &'a Entry> + 'a {
+    pub fn iter(&self) -> impl Iterator<Item = &'_ Entry> {
         debug_assert!(self.query.is_empty());
         self.state.values().rev()
     }
 
-    pub fn search_iter<'a>(&'a self) -> impl Iterator<Item = (&'a Entry, &'a Vec<u32>)> + 'a {
+    pub fn search_iter(&self) -> impl Iterator<Item = (&'_ Entry, &'_ Vec<u32>)> {
         debug_assert!(!self.query.is_empty());
 
         self.filtered
