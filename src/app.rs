@@ -316,8 +316,6 @@ impl cosmic::Application for Window {
     }
 
     fn view_window(&self, _id: Id) -> Element<Self::Message> {
-        //dbg!(&_id, &self.popup);
-
         let Some(popup) = &self.popup else {
             return self
                 .core

@@ -16,11 +16,15 @@ pub fn sub() -> Subscription<NavigationMessage> {
             event::Status::Ignored => {
                 match event {
                     event::Event::Keyboard(event) => match event {
-                        cosmic::iced::keyboard::Event::KeyReleased { key, .. } => {
+                        cosmic::iced::keyboard::Event::KeyPressed { key, .. } => {
                             match key {
                                 cosmic::iced::keyboard::Key::Named(named) => match named {
                                     cosmic::iced::keyboard::key::Named::Enter => {
                                         Some(NavigationMessage::Enter)
+                                    }
+
+                                    cosmic::iced::keyboard::key::Named::Escape => {
+                                        Some(NavigationMessage::Quit)
                                     }
 
                                     cosmic::iced::keyboard::key::Named::ArrowDown => {
@@ -28,9 +32,6 @@ pub fn sub() -> Subscription<NavigationMessage> {
                                     }
                                     cosmic::iced::keyboard::key::Named::ArrowUp => {
                                         Some(NavigationMessage::Previous)
-                                    }
-                                    cosmic::iced::keyboard::key::Named::Escape => {
-                                        Some(NavigationMessage::Quit)
                                     }
 
                                     /*
