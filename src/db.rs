@@ -338,7 +338,6 @@ impl Db {
     }
 
     pub fn search(&mut self) {
-
         if self.query.is_empty() {
             self.filtered.clear();
         } else if let Some(atom) = &self.needle {
