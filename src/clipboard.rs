@@ -14,13 +14,13 @@ use tokio::sync::mpsc;
 use wl_clipboard_rs::{copy, paste_watch};
 
 use crate::config::PRIVATE_MODE;
-use crate::db::Data;
+use crate::db::Entry;
 use os_pipe::PipeReader;
 
 #[derive(Debug, Clone)]
 pub enum ClipboardMessage {
     Connected,
-    Data(Data),
+    Data(Entry),
     /// Means that the source was closed, or the compurer just started
     /// This means the clipboard manager must become the source, by providing the last entry
     EmptyKeyboard,
@@ -69,7 +69,7 @@ pub fn sub() -> Subscription<ClipboardMessage> {
                                     let mut contents = Vec::new();
                                     pipe.read_to_end(&mut contents).unwrap();
 
-                                    let data = Data::new(mime_type, contents);
+                                    let data = Entry::new_now(mime_type, contents);
                                     //info!("sending data to database: {:?}", data);
                                     output.send(ClipboardMessage::Data(data)).await.unwrap();
                                 }
@@ -103,7 +103,7 @@ pub fn sub() -> Subscription<ClipboardMessage> {
     )
 }
 
-pub fn copy(data: Data) -> Result<(), copy::Error> {
+pub fn copy(data: Entry) -> Result<(), copy::Error> {
     //dbg!("copy", &data);
     let options = copy::Options::default();
     let bytes = data.content.into_boxed_slice();

@@ -3,7 +3,7 @@ use cosmic::iced::window::Id;
 use crate::{
     clipboard::{self, ClipboardMessage},
     config::Config,
-    db::Data,
+    db::Entry,
     navigation::NavigationMessage,
 };
 
@@ -16,8 +16,8 @@ pub enum AppMessage {
     Search(String),
     ClipboardEvent(ClipboardMessage),
     RetryConnectingClipboard,
-    Copy(Data),
-    Delete(Data),
+    Copy(Entry),
+    Delete(Entry),
     PrivateMode(bool),
     Clear,
     Navigation(NavigationMessage),

@@ -1,6 +1,7 @@
 use cosmic::iced_sctk::util;
 use derivative::Derivative;
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, HashMap},
     fmt::{Debug, Display},
     fs::{self, DirBuilder, File},
@@ -36,7 +37,7 @@ const DB_PATH: &str = constcat::concat!(APPID, "-db-", DB_VERSION, ".sqlite");
 #[derive(Derivative)]
 #[derivative(PartialEq, Hash)]
 #[derive(Clone, Eq)]
-pub struct Data {
+pub struct Entry {
     #[derivative(PartialEq = "ignore")]
     #[derivative(Hash = "ignore")]
     pub creation: TimeId,
@@ -49,23 +50,27 @@ pub struct Data {
     pub content: Vec<u8>,
 }
 
-impl Data {
+impl Entry {
     fn get_hash(&self) -> u64 {
         let mut hasher = DefaultHasher::new();
         self.hash(&mut hasher);
         hasher.finish()
     }
 
-    pub fn new(mime: String, content: Vec<u8>) -> Self {
+    pub fn new(creation: i64, mime: String, content: Vec<u8>) -> Self {
         Self {
-            creation: Utc::now().timestamp_millis(),
+            creation,
             mime,
             content,
         }
     }
+
+    pub fn new_now(mime: String, content: Vec<u8>) -> Self {
+        Self::new(Utc::now().timestamp_millis(), mime, content)
+    }
 }
 
-impl Debug for Data {
+impl Debug for Entry {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Data")
             .field("creation", &self.creation)
@@ -87,7 +92,7 @@ impl Debug for Content<'_> {
     }
 }
 
-impl Data {
+impl Entry {
     pub fn get_content(&self) -> Result<Content<'_>> {
         let mime = self.mime.parse::<Mime>()?;
 
@@ -119,7 +124,7 @@ impl Data {
 pub struct Db {
     conn: Connection,
     hashs: HashMap<u64, TimeId>,
-    state: BTreeMap<TimeId, Data>,
+    state: BTreeMap<TimeId, Entry>,
     filtered: Vec<(TimeId, Vec<u32>)>,
     query: String,
     needle: Option<Atom>,
@@ -215,12 +220,7 @@ impl Db {
             let mut rows = stmt.query(())?;
 
             while let Some(row) = rows.next()? {
-                let data = Data {
-                    creation: row.get(0)?,
-                    mime: row.get(1)?,
-                    content: row.get(2)?,
-                };
-
+                let data = Entry::new(row.get(0)?, row.get(1)?, row.get(2)?);
                 hashs.insert(data.get_hash(), data.creation);
                 state.insert(data.creation, data);
             }
@@ -239,7 +239,7 @@ impl Db {
         Ok(db)
     }
 
-    fn get_last_row(&mut self) -> Result<Option<Data>> {
+    fn get_last_row(&mut self) -> Result<Option<Entry>> {
         let query_get_last_row = r#"
             SELECT creation, mime, content
             FROM data
@@ -250,11 +250,7 @@ impl Db {
         let data = self
             .conn
             .query_row(query_get_last_row, (), |row| {
-                Ok(Data {
-                    creation: row.get(0)?,
-                    mime: row.get(1)?,
-                    content: row.get(2)?,
-                })
+                Ok(Entry::new(row.get(0)?, row.get(1)?, row.get(2)?))
             })
             .optional()?;
 
@@ -263,7 +259,7 @@ impl Db {
 
     // the <= 200 condition, is to unsure we reuse the same timestamp
     // of the first process that inserted the data.
-    pub fn insert(&mut self, mut data: Data) -> Result<()> {
+    pub fn insert(&mut self, mut data: Entry) -> Result<()> {
         // insert a new data, only if the last row is not the same AND was not created recently
         let query_insert_if_not_exist = r#"
             WITH last_row AS (
@@ -327,7 +323,7 @@ impl Db {
         Ok(())
     }
 
-    pub fn delete(&mut self, data: &Data) -> Result<()> {
+    pub fn delete(&mut self, data: &Entry) -> Result<()> {
         let query = r#"
             DELETE FROM data
             WHERE creation = ?1;
@@ -408,7 +404,7 @@ impl Db {
         &self.query
     }
 
-    pub fn get(&self, index: usize) -> Option<&Data> {
+    pub fn get(&self, index: usize) -> Option<&Entry> {
         if self.query.is_empty() {
             // because we expose the tree in reverse
             self.state.iter().rev().nth(index).map(|e| e.1)
@@ -419,12 +415,17 @@ impl Db {
         }
     }
 
-    pub fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = &'a Data> + 'a> {
-        if self.query.is_empty() {
-            Box::new(self.state.values().rev())
-        } else {
-            Box::new(self.filtered.iter().map(|(id, _indices)| &self.state[id]))
-        }
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = &'a Entry> + 'a {
+        debug_assert!(self.query.is_empty());
+        self.state.values().rev()
+    }
+
+    pub fn search_iter<'a>(&'a self) -> impl Iterator<Item = (&'a Entry, &'a Vec<u32>)> + 'a {
+        debug_assert!(!self.query.is_empty());
+
+        self.filtered
+            .iter()
+            .map(|(id, indices)| (&self.state[id], indices))
     }
 
     pub fn len(&self) -> usize {
@@ -456,7 +457,7 @@ mod test {
         utils::{self, remove_dir_contents},
     };
 
-    use super::{Data, Db};
+    use super::{Db, Entry};
 
     fn prepare_db_dir() -> PathBuf {
         let db_dir = PathBuf::from("tests");
@@ -484,7 +485,7 @@ mod test {
     fn test_db(db: &mut Db) -> Result<()> {
         assert!(db.len() == 0);
 
-        let data = Data::new("text/plain".into(), "content".as_bytes().into());
+        let data = Entry::new_now("text/plain".into(), "content".as_bytes().into());
 
         db.insert(data).unwrap();
 
@@ -492,7 +493,7 @@ mod test {
 
         sleep(Duration::from_millis(1000));
 
-        let data = Data::new("text/plain".into(), "content".as_bytes().into());
+        let data = Entry::new_now("text/plain".into(), "content".as_bytes().into());
 
         db.insert(data).unwrap();
 
@@ -500,7 +501,7 @@ mod test {
 
         sleep(Duration::from_millis(1000));
 
-        let data = Data::new("text/plain".into(), "content2".as_bytes().into());
+        let data = Entry::new_now("text/plain".into(), "content2".as_bytes().into());
 
         db.insert(data.clone()).unwrap();
 
@@ -521,12 +522,12 @@ mod test {
 
         let mut db = Db::inner_new(&Config::default(), &db_path).unwrap();
 
-        let data = Data::new("text/plain".into(), "content".as_bytes().into());
+        let data = Entry::new_now("text/plain".into(), "content".as_bytes().into());
         db.insert(data).unwrap();
 
         sleep(Duration::from_millis(100));
 
-        let data = Data::new("text/plain".into(), "content2".as_bytes().into());
+        let data = Entry::new_now("text/plain".into(), "content2".as_bytes().into());
         db.insert(data).unwrap();
 
         assert!(db.len() == 2);
@@ -553,7 +554,7 @@ mod test {
 
         let now = utils::now_millis();
 
-        let data = Data {
+        let data = Entry {
             creation: now,
             mime: "text/plain".into(),
             content: "content".as_bytes().into(),
@@ -561,7 +562,7 @@ mod test {
 
         db.insert(data).unwrap();
 
-        let data = Data {
+        let data = Entry {
             creation: now,
             mime: "text/plain".into(),
             content: "content".as_bytes().into(),
@@ -580,7 +581,7 @@ mod test {
 
         let now = utils::now_millis();
 
-        let data = Data {
+        let data = Entry {
             creation: now,
             mime: "text/plain".into(),
             content: "content".as_bytes().into(),
@@ -588,7 +589,7 @@ mod test {
 
         db.insert(data).unwrap();
 
-        let data = Data {
+        let data = Entry {
             creation: now,
             mime: "text/plain".into(),
             content: "content2".as_bytes().into(),

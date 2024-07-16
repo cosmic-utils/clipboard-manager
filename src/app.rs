@@ -17,7 +17,7 @@ use cosmic::widget::{button, icon, text, text_input, MouseArea};
 use cosmic::{Element, Theme};
 
 use crate::config::{Config, CONFIG_VERSION, PRIVATE_MODE};
-use crate::db::{self, Data, Db};
+use crate::db::{self, Db, Entry};
 use crate::message::AppMessage;
 use crate::utils::command_message;
 use crate::view::{popup_view, quick_settings_view};
