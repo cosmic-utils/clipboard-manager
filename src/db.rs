@@ -14,7 +14,7 @@ use std::{
 use anyhow::{anyhow, bail, Result};
 use nucleo::{
     pattern::{Atom, AtomKind, CaseMatching, Normalization},
-    Config, Matcher, Utf32Str,
+    Matcher, Utf32Str,
 };
 
 use chrono::Utc;
@@ -23,6 +23,7 @@ use rusqlite::{named_params, params, Connection, ErrorCode, OpenFlags, OptionalE
 
 use crate::{
     app::{APP, APPID, ORG, QUALIFIER},
+    config::Config,
     utils::{self, remove_dir_contents},
 };
 
@@ -126,15 +127,15 @@ pub struct Db {
 }
 
 impl Db {
-    pub fn new(remove_old_entries: Option<Duration>) -> Result<Self> {
+    pub fn new(config: &Config) -> Result<Self> {
         let directories = directories::ProjectDirs::from(QUALIFIER, ORG, APP).unwrap();
 
         std::fs::create_dir_all(directories.cache_dir())?;
 
-        Self::inner_new(remove_old_entries, directories.cache_dir())
+        Self::inner_new(config, directories.cache_dir())
     }
 
-    fn inner_new(remove_old_entries: Option<Duration>, db_dir: &Path) -> Result<Self> {
+    fn inner_new(config: &Config, db_dir: &Path) -> Result<Self> {
         let db_path = db_dir.join(DB_PATH);
 
         if !db_path.exists() {
@@ -162,13 +163,13 @@ impl Db {
                 filtered: Vec::default(),
                 query: String::default(),
                 needle: None,
-                matcher: Matcher::new(Config::DEFAULT),
+                matcher: Matcher::new(nucleo::Config::DEFAULT),
             });
         }
 
         let conn = Connection::open_with_flags(db_path, OpenFlags::SQLITE_OPEN_READ_WRITE)?;
 
-        if let Some(max_duration) = &remove_old_entries {
+        if let Some(max_duration) = &config.maximum_entries_lifetime {
             let query_delete_old_one = r#"
                 DELETE FROM data
                 WHERE (:now - creation) >= :max;
@@ -179,6 +180,23 @@ impl Db {
                 named_params! {
                     ":now": utils::now_millis(),
                     ":max": max_duration.as_millis().try_into().unwrap_or(u64::MAX),
+                },
+            )?;
+        }
+
+        if let Some(max_number_of_entries) = &config.maximum_entries_number {
+            let query_delete_old_one = r#"
+                DELETE FROM data 
+                WHERE creation NOT IN
+                    (SELECT creation FROM data
+                    ORDER BY creation DESC
+                    LIMIT :max_number_of_entries);
+            "#;
+
+            conn.execute(
+                query_delete_old_one,
+                named_params! {
+                    ":max_number_of_entries": max_number_of_entries,
                 },
             )?;
         }
@@ -215,7 +233,7 @@ impl Db {
             filtered: Vec::default(),
             query: String::default(),
             needle: None,
-            matcher: Matcher::new(Config::DEFAULT),
+            matcher: Matcher::new(nucleo::Config::DEFAULT),
         };
 
         Ok(db)
@@ -433,7 +451,10 @@ mod test {
     use anyhow::Result;
     use cosmic::{iced_sctk::util, widget::canvas::Path};
 
-    use crate::utils::{self, remove_dir_contents};
+    use crate::{
+        config::Config,
+        utils::{self, remove_dir_contents},
+    };
 
     use super::{Data, Db};
 
@@ -449,7 +470,7 @@ mod test {
     fn test() -> Result<()> {
         let db_dir = prepare_db_dir();
 
-        let mut db = Db::inner_new(None, &db_dir)?;
+        let mut db = Db::inner_new(&Config::default(), &db_dir)?;
 
         test_db(&mut db).unwrap();
 
@@ -498,7 +519,7 @@ mod test {
     fn test_delete_old_one() {
         let db_path = prepare_db_dir();
 
-        let mut db = Db::inner_new(None, &db_path).unwrap();
+        let mut db = Db::inner_new(&Config::default(), &db_path).unwrap();
 
         let data = Data::new("text/plain".into(), "content".as_bytes().into());
         db.insert(data).unwrap();
@@ -510,11 +531,15 @@ mod test {
 
         assert!(db.len() == 2);
 
-        let db = Db::inner_new(Some(Duration::from_secs(10)), &db_path).unwrap();
+        let db = Db::inner_new(&Config::default(), &db_path).unwrap();
 
         assert!(db.len() == 2);
 
-        let db = Db::inner_new(Some(Duration::ZERO), &db_path).unwrap();
+        let config = Config {
+            maximum_entries_lifetime: Some(Duration::ZERO),
+            ..Default::default()
+        };
+        let db = Db::inner_new(&config, &db_path).unwrap();
 
         assert!(db.len() == 0);
     }
@@ -524,7 +549,7 @@ mod test {
     fn same() {
         let db_path = prepare_db_dir();
 
-        let mut db = Db::inner_new(None, &db_path).unwrap();
+        let mut db = Db::inner_new(&Config::default(), &db_path).unwrap();
 
         let now = utils::now_millis();
 
@@ -551,7 +576,7 @@ mod test {
     fn different_content_same_time() {
         let db_path = prepare_db_dir();
 
-        let mut db = Db::inner_new(None, &db_path).unwrap();
+        let mut db = Db::inner_new(&Config::default(), &db_path).unwrap();
 
         let now = utils::now_millis();
 

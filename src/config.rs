@@ -9,19 +9,21 @@ use serde::{Deserialize, Serialize};
 
 use crate::{app::APPID, message::AppMessage, utils};
 
-pub const CONFIG_VERSION: u64 = 1;
+pub const CONFIG_VERSION: u64 = 2;
 
 #[derive(CosmicConfigEntry, Debug, Clone, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Config {
     pub private_mode: bool,
-    pub remove_old_entries: Option<Duration>,
+    pub maximum_entries_lifetime: Option<Duration>,
+    pub maximum_entries_number: Option<u32>,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
             private_mode: false,
-            remove_old_entries: Some(Duration::from_secs(30 * 24 * 60 * 60)), // 30 days
+            maximum_entries_lifetime: Some(Duration::from_secs(30 * 24 * 60 * 60)), // 30 days,
+            maximum_entries_number: Some(500),
         }
     }
 }
