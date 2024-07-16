@@ -43,7 +43,6 @@ pub struct AppState {
     pub db: Db,
     pub clipboard_state: ClipboardState,
     pub focused: usize,
-    pub more_action: Option<Data>,
 }
 
 impl AppState {
@@ -90,7 +89,6 @@ enum PopupKind {
 impl Window {
     fn close_popup(&mut self) -> Command<cosmic::app::Message<AppMessage>> {
         self.state.focused = 0;
-        self.state.more_action.take();
         self.state.db.set_query_and_search("".into());
 
         if let Some(popup) = self.popup.take() {
@@ -176,7 +174,6 @@ impl cosmic::Application for Window {
                 db: db::Db::new(&config).unwrap(),
                 clipboard_state: ClipboardState::Init,
                 focused: 0,
-                more_action: None,
             },
             config,
         };
@@ -295,9 +292,6 @@ impl cosmic::Application for Window {
             AppMessage::PrivateMode(private_mode) => {
                 config_set!(private_mode, private_mode);
                 PRIVATE_MODE.store(private_mode, atomic::Ordering::Relaxed);
-            }
-            AppMessage::MoreAction(data) => {
-                self.state.more_action = data;
             }
         }
         Command::none()

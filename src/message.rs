@@ -21,5 +21,4 @@ pub enum AppMessage {
     PrivateMode(bool),
     Clear,
     Navigation(NavigationMessage),
-    MoreAction(Option<Data>),
 }
