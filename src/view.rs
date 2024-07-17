@@ -142,7 +142,7 @@ fn image_entry<'a>(
 ) -> Element<'a, AppMessage> {
     let handle = image::Handle::from_memory(image_data.to_owned());
 
-    base_entry(entry, is_focused, image(handle).width(Length::Fill).into()).into()
+    base_entry(entry, is_focused, image(handle).width(Length::Fill))
 }
 
 fn text_entry_with_indices<'a>(
@@ -155,68 +155,14 @@ fn text_entry_with_indices<'a>(
 }
 
 fn text_entry<'a>(entry: &'a Entry, is_focused: bool, content: &'a str) -> Element<'a, AppMessage> {
-    let content = text(formated_value(content, 5, 200));
-
-    let btn = cosmic::widget::button(content)
-        .width(Length::Fill)
-        .on_press(AppMessage::Copy(entry.clone()))
-        .padding([8, 16])
-        .style(Button::Custom {
-            active: Box::new(move |focused, theme| {
-                let rad_s = theme.cosmic().corner_radii.radius_s;
-                let focused = is_focused || focused;
-
-                let a = if focused {
-                    button::StyleSheet::hovered(theme, focused, focused, &Button::Text)
-                } else {
-                    button::StyleSheet::active(theme, focused, focused, &Button::Standard)
-                };
-                button::Appearance {
-                    border_radius: rad_s.into(),
-                    outline_width: 0.0,
-                    ..a
-                }
-            }),
-            hovered: Box::new(move |focused, theme| {
-                let focused = is_focused || focused;
-                let rad_s = theme.cosmic().corner_radii.radius_s;
-
-                let text = button::StyleSheet::hovered(theme, focused, focused, &Button::Text);
-                button::Appearance {
-                    border_radius: rad_s.into(),
-                    outline_width: 0.0,
-                    ..text
-                }
-            }),
-            disabled: Box::new(|theme| button::StyleSheet::disabled(theme, &Button::Text)),
-            pressed: Box::new(move |focused, theme| {
-                let focused = is_focused || focused;
-                let rad_s = theme.cosmic().corner_radii.radius_s;
-
-                let text = button::StyleSheet::pressed(theme, focused, focused, &Button::Text);
-                button::Appearance {
-                    border_radius: rad_s.into(),
-                    outline_width: 0.0,
-                    ..text
-                }
-            }),
-        });
-
-    context_menu(
-        btn,
-        Some(vec![menu::Tree::new(
-            button(text(fl!("delete_entry")))
-                .on_press(AppMessage::Delete(entry.clone()))
-                .width(Length::Fill)
-                .style(Button::Destructive),
-        )]),
-    )
-    .into()
+    base_entry(entry, is_focused, text(formated_value(content, 5, 200)))
 }
 
-
-fn base_entry<'a>(entry: &'a Entry, is_focused: bool, content: Element<'a, AppMessage>) -> Element<'a, AppMessage> {
-
+fn base_entry<'a>(
+    entry: &'a Entry,
+    is_focused: bool,
+    content: impl Into<Element<'a, AppMessage>>,
+) -> Element<'a, AppMessage> {
     let btn = cosmic::widget::button(content)
         .width(Length::Fill)
         .on_press(AppMessage::Copy(entry.clone()))
