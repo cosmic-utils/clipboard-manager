@@ -20,7 +20,7 @@ use nucleo::{
 
 use chrono::Utc;
 use mime::Mime;
-use rusqlite::{named_params, params, Connection, ErrorCode, OpenFlags, OptionalExtension};
+use rusqlite::{named_params, params, Connection, ErrorCode, OpenFlags, OptionalExtension, Row};
 
 use crate::{
     app::{APP, APPID, ORG, QUALIFIER},
@@ -48,6 +48,8 @@ pub struct Entry {
 
     // todo: lazelly load image in memory, since we can't search them anyways
     pub content: Vec<u8>,
+
+    pub metadata: Option<String>,
 }
 
 impl Entry {
@@ -57,16 +59,17 @@ impl Entry {
         hasher.finish()
     }
 
-    pub fn new(creation: i64, mime: String, content: Vec<u8>) -> Self {
+    pub fn new(creation: i64, mime: String, content: Vec<u8>, metadata: Option<String>) -> Self {
         Self {
             creation,
             mime,
             content,
+            metadata,
         }
     }
 
-    pub fn new_now(mime: String, content: Vec<u8>) -> Self {
-        Self::new(Utc::now().timestamp_millis(), mime, content)
+    pub fn new_now(mime: String, content: Vec<u8>, metadata: Option<String>) -> Self {
+        Self::new(Utc::now().timestamp_millis(), mime, content, metadata)
     }
 }
 
@@ -162,6 +165,7 @@ impl Db {
                     creation INTEGER PRIMARY KEY,
                     mime TEXT NOT NULL,
                     content BLOB NOT NULL
+                    metadata TEXT
                 )
             "#;
 
@@ -216,7 +220,7 @@ impl Db {
         let mut state = BTreeMap::default();
 
         let query_load_table = r#"
-            SELECT creation, mime, content
+            SELECT creation, mime, content, metadata
             FROM data
         "#;
 
@@ -226,7 +230,7 @@ impl Db {
             let mut rows = stmt.query(())?;
 
             while let Some(row) = rows.next()? {
-                let data = Entry::new(row.get(0)?, row.get(1)?, row.get(2)?);
+                let data = Entry::new(row.get(0)?, row.get(1)?, row.get(2)?, row.get(3).ok());
                 hashs.insert(data.get_hash(), data.creation);
                 state.insert(data.creation, data);
             }
@@ -247,7 +251,7 @@ impl Db {
 
     fn get_last_row(&mut self) -> Result<Option<Entry>> {
         let query_get_last_row = r#"
-            SELECT creation, mime, content
+            SELECT creation, mime, content, metadata
             FROM data
             ORDER BY creation DESC
             LIMIT 1
@@ -256,7 +260,12 @@ impl Db {
         let data = self
             .conn
             .query_row(query_get_last_row, (), |row| {
-                Ok(Entry::new(row.get(0)?, row.get(1)?, row.get(2)?))
+                Ok(Entry::new(
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3).ok(),
+                ))
             })
             .optional()?;
 
@@ -269,13 +278,13 @@ impl Db {
         // insert a new data, only if the last row is not the same AND was not created recently
         let query_insert_if_not_exist = r#"
             WITH last_row AS (
-                SELECT creation, mime, content
+                SELECT creation, mime, content, metadata
                 FROM data
                 ORDER BY creation DESC
                 LIMIT 1
             )
-            INSERT INTO data (creation, mime, content)
-            SELECT :new_id, :new_mime, :new_content
+            INSERT INTO data (creation, mime, content, metadata)
+            SELECT :new_id, :new_mime, :new_content, :new_metadata
             WHERE NOT EXISTS (
                 SELECT 1
                 FROM last_row AS lr
@@ -289,6 +298,7 @@ impl Db {
                 ":new_id": data.creation,
                 ":new_mime": data.mime,
                 ":new_content": data.content,
+                ":new_metadata": data.metadata,
                 ":now": utils::now_millis(),
             },
         ) {
@@ -491,7 +501,7 @@ mod test {
     fn test_db(db: &mut Db) -> Result<()> {
         assert!(db.len() == 0);
 
-        let data = Entry::new_now("text/plain".into(), "content".as_bytes().into());
+        let data = Entry::new_now("text/plain".into(), "content".as_bytes().into(), None);
 
         db.insert(data).unwrap();
 
@@ -499,7 +509,7 @@ mod test {
 
         sleep(Duration::from_millis(1000));
 
-        let data = Entry::new_now("text/plain".into(), "content".as_bytes().into());
+        let data = Entry::new_now("text/plain".into(), "content".as_bytes().into(), None);
 
         db.insert(data).unwrap();
 
@@ -507,7 +517,7 @@ mod test {
 
         sleep(Duration::from_millis(1000));
 
-        let data = Entry::new_now("text/plain".into(), "content2".as_bytes().into());
+        let data = Entry::new_now("text/plain".into(), "content2".as_bytes().into(), None);
 
         db.insert(data.clone()).unwrap();
 
@@ -528,12 +538,12 @@ mod test {
 
         let mut db = Db::inner_new(&Config::default(), &db_path).unwrap();
 
-        let data = Entry::new_now("text/plain".into(), "content".as_bytes().into());
+        let data = Entry::new_now("text/plain".into(), "content".as_bytes().into(), None);
         db.insert(data).unwrap();
 
         sleep(Duration::from_millis(100));
 
-        let data = Entry::new_now("text/plain".into(), "content2".as_bytes().into());
+        let data = Entry::new_now("text/plain".into(), "content2".as_bytes().into(), None);
         db.insert(data).unwrap();
 
         assert!(db.len() == 2);
@@ -560,19 +570,11 @@ mod test {
 
         let now = utils::now_millis();
 
-        let data = Entry {
-            creation: now,
-            mime: "text/plain".into(),
-            content: "content".as_bytes().into(),
-        };
+        let data = Entry::new(now, "text/plain".into(), "content".as_bytes().into(), None);
 
         db.insert(data).unwrap();
 
-        let data = Entry {
-            creation: now,
-            mime: "text/plain".into(),
-            content: "content".as_bytes().into(),
-        };
+        let data = Entry::new(now, "text/plain".into(), "content".as_bytes().into(), None);
 
         db.insert(data).unwrap();
         assert!(db.len() == 1);
@@ -587,19 +589,11 @@ mod test {
 
         let now = utils::now_millis();
 
-        let data = Entry {
-            creation: now,
-            mime: "text/plain".into(),
-            content: "content".as_bytes().into(),
-        };
+        let data = Entry::new(now, "text/plain".into(), "content".as_bytes().into(), None);
 
         db.insert(data).unwrap();
 
-        let data = Entry {
-            creation: now,
-            mime: "text/plain".into(),
-            content: "content2".as_bytes().into(),
-        };
+        let data = Entry::new(now, "text/plain".into(), "content2".as_bytes().into(), None);
 
         db.insert(data).unwrap();
         assert!(db.len() == 2);
