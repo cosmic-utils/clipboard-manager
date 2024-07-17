@@ -165,7 +165,7 @@ impl Db {
                 CREATE TABLE data (
                     creation INTEGER PRIMARY KEY,
                     mime TEXT NOT NULL,
-                    content BLOB NOT NULL
+                    content BLOB NOT NULL,
                     metadata TEXT
                 )
             "#;

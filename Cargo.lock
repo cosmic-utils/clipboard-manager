@@ -906,7 +906,6 @@ dependencies = [
  "tracing",
  "tracing-journald",
  "tracing-subscriber",
- "url",
  "wl-clipboard-rs",
 ]
 

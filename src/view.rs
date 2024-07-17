@@ -1,4 +1,4 @@
-use std::{borrow::Cow, path::PathBuf};
+use std::{borrow::Cow, cmp::min, path::PathBuf};
 
 use cosmic::{
     iced::{Alignment, Length, Padding},
@@ -14,7 +14,6 @@ use cosmic::{
     },
     Element,
 };
-use url::Url;
 
 use anyhow::{anyhow, bail, Result};
 
@@ -144,29 +143,26 @@ fn uris_entry<'a>(
     is_focused: bool,
     uris: &[&'a str],
 ) -> Option<Element<'a, AppMessage>> {
-    let mut images = Vec::with_capacity(uris.len());
-
-    for uri in uris {
-        fn get_file_path(uri: &str) -> Result<PathBuf> {
-            Url::parse(uri)?.to_file_path().map_err(|_| anyhow!(""))
-        }
-
-        if let Ok(path) = get_file_path(uri) {
-            let handle = image::Handle::from_path(path);
-
-            images.push(image(handle).into());
-        }
-    }
-
-    if images.is_empty() {
+    if uris.is_empty() {
         return None;
     }
 
-    // todo: make the row works
+    let max = 4;
+
+    let mut lines = Vec::with_capacity(min(uris.len(), max + 1));
+
+    for uri in uris.iter().take(max) {
+        lines.push(text(*uri).into());
+    }
+
+    if uris.len() > max {
+        lines.push(text("...").into());
+    }
+
     Some(base_entry(
         entry,
         is_focused,
-        row::with_children(images).width(Length::Fill),
+        column::with_children(lines).width(Length::Fill),
     ))
 }
 
