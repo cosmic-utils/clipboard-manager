@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, path::PathBuf};
 
 use cosmic::{
     iced::{Alignment, Length, Padding},
@@ -7,14 +7,16 @@ use cosmic::{
     widget::{
         self,
         button::{self, button},
-        column, container, context_menu,
+        column, container, context_menu, flex_row, grid,
         icon::{self, Handle},
-        image, menu, mouse_area, text, text_input, toggler, Column, Container, Icon, MouseArea,
-        Space, Text, TextEditor,
+        image, menu, mouse_area, row, text, text_input, toggler, Column, Container, Icon,
+        MouseArea, Space, Text, TextEditor,
     },
     Element,
 };
 use url::Url;
+
+use anyhow::{anyhow, bail, Result};
 
 use crate::{
     app::{AppState, ClipboardState},
@@ -142,18 +144,29 @@ fn uris_entry<'a>(
     is_focused: bool,
     uris: &[&'a str],
 ) -> Option<Element<'a, AppMessage>> {
-    if uris.is_empty() {
+    let mut images = Vec::with_capacity(uris.len());
+
+    for uri in uris {
+        fn get_file_path(uri: &str) -> Result<PathBuf> {
+            Url::parse(uri)?.to_file_path().map_err(|_| anyhow!(""))
+        }
+
+        if let Ok(path) = get_file_path(uri) {
+            let handle = image::Handle::from_path(path);
+
+            images.push(image(handle).into());
+        }
+    }
+
+    if images.is_empty() {
         return None;
     }
 
-    let url = Url::parse(uris[0]).unwrap();
-
-    let handle = image::Handle::from_path(url.to_file_path().unwrap());
-
+    // todo: make the row works
     Some(base_entry(
         entry,
         is_focused,
-        image(handle).width(Length::Fill),
+        row::with_children(images).width(Length::Fill),
     ))
 }
 
