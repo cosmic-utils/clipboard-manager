@@ -82,41 +82,35 @@ impl Debug for Entry {
 
 pub enum Content<'a> {
     Text(&'a str),
+    Image(&'a Vec<u8>),
 }
 
 impl Debug for Content<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Text(arg0) => f.debug_tuple("Text").field(arg0).finish(),
+            _ => Ok(()),
         }
     }
 }
 
 impl Entry {
     pub fn get_content(&self) -> Result<Content<'_>> {
-        let mime = self.mime.parse::<Mime>()?;
+        if self.mime.starts_with("text/") {
+            return Ok(Content::Text(core::str::from_utf8(&self.content)?));
+        }
 
-        let content = match mime.type_() {
-            mime::TEXT => {
-                let text = unsafe {
-                    match core::str::from_utf8(&self.content) {
-                        Ok(txt) => txt,
-                        Err(e) => {
-                            core::str::from_utf8_unchecked(self.content.split_at(e.valid_up_to()).0)
-                        }
-                    }
-                };
-                Content::Text(text)
-            }
-            _ => bail!("unsuported mime type"),
-        };
+        if self.mime.starts_with("image/") {
+            return Ok(Content::Image(&self.content));
+        }
 
-        Ok(content)
+        bail!("unsupported mime type {}", self.mime)
     }
 
     pub fn get_text(&self) -> Option<&str> {
-        self.get_content().ok().map(|c| match c {
-            Content::Text(txt) => txt,
+        self.get_content().ok().and_then(|c| match c {
+            Content::Text(txt) => Some(txt),
+            _ => None,
         })
     }
 }

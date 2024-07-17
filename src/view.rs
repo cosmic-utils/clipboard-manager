@@ -9,8 +9,8 @@ use cosmic::{
         button::{self, button},
         column, container, context_menu,
         icon::{self, Handle},
-        menu, mouse_area, text, text_input, toggler, Column, Container, Icon, MouseArea, Space,
-        Text, TextEditor,
+        image, menu, mouse_area, text, text_input, toggler, Column, Container, Icon, MouseArea,
+        Space, Text, TextEditor,
     },
     Element,
 };
@@ -91,6 +91,7 @@ fn entries(state: &AppState) -> Element<'_, AppMessage> {
                             Some(text_entry(data, pos == state.focused, text))
                         }
                     }
+                    Content::Image(image) => Some(image_entry(data, pos == state.focused, image)),
                 },
                 Err(_) => None,
             })
@@ -114,6 +115,7 @@ fn entries(state: &AppState) -> Element<'_, AppMessage> {
                             ))
                         }
                     }
+                    Content::Image(image) => Some(image_entry(data, pos == state.focused, image)),
                 },
                 Err(_) => None,
             })
@@ -133,8 +135,14 @@ fn entries(state: &AppState) -> Element<'_, AppMessage> {
         .into()
 }
 
-fn image_entry(_entry: &Entry, _is_focused: bool) -> Element<'_, AppMessage> {
-    todo!()
+fn image_entry<'a>(
+    entry: &'a Entry,
+    is_focused: bool,
+    image_data: &'a [u8],
+) -> Element<'a, AppMessage> {
+    let handle = image::Handle::from_memory(image_data.to_owned());
+
+    base_entry(entry, is_focused, image(handle).width(Length::Fill).into()).into()
 }
 
 fn text_entry_with_indices<'a>(
@@ -148,6 +156,66 @@ fn text_entry_with_indices<'a>(
 
 fn text_entry<'a>(entry: &'a Entry, is_focused: bool, content: &'a str) -> Element<'a, AppMessage> {
     let content = text(formated_value(content, 5, 200));
+
+    let btn = cosmic::widget::button(content)
+        .width(Length::Fill)
+        .on_press(AppMessage::Copy(entry.clone()))
+        .padding([8, 16])
+        .style(Button::Custom {
+            active: Box::new(move |focused, theme| {
+                let rad_s = theme.cosmic().corner_radii.radius_s;
+                let focused = is_focused || focused;
+
+                let a = if focused {
+                    button::StyleSheet::hovered(theme, focused, focused, &Button::Text)
+                } else {
+                    button::StyleSheet::active(theme, focused, focused, &Button::Standard)
+                };
+                button::Appearance {
+                    border_radius: rad_s.into(),
+                    outline_width: 0.0,
+                    ..a
+                }
+            }),
+            hovered: Box::new(move |focused, theme| {
+                let focused = is_focused || focused;
+                let rad_s = theme.cosmic().corner_radii.radius_s;
+
+                let text = button::StyleSheet::hovered(theme, focused, focused, &Button::Text);
+                button::Appearance {
+                    border_radius: rad_s.into(),
+                    outline_width: 0.0,
+                    ..text
+                }
+            }),
+            disabled: Box::new(|theme| button::StyleSheet::disabled(theme, &Button::Text)),
+            pressed: Box::new(move |focused, theme| {
+                let focused = is_focused || focused;
+                let rad_s = theme.cosmic().corner_radii.radius_s;
+
+                let text = button::StyleSheet::pressed(theme, focused, focused, &Button::Text);
+                button::Appearance {
+                    border_radius: rad_s.into(),
+                    outline_width: 0.0,
+                    ..text
+                }
+            }),
+        });
+
+    context_menu(
+        btn,
+        Some(vec![menu::Tree::new(
+            button(text(fl!("delete_entry")))
+                .on_press(AppMessage::Delete(entry.clone()))
+                .width(Length::Fill)
+                .style(Button::Destructive),
+        )]),
+    )
+    .into()
+}
+
+
+fn base_entry<'a>(entry: &'a Entry, is_focused: bool, content: Element<'a, AppMessage>) -> Element<'a, AppMessage> {
 
     let btn = cosmic::widget::button(content)
         .width(Length::Fill)

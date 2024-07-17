@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     future::Future,
     io::Read,
     sync::{
@@ -16,6 +17,14 @@ use wl_clipboard_rs::{copy, paste_watch};
 use crate::config::PRIVATE_MODE;
 use crate::db::Entry;
 use os_pipe::PipeReader;
+
+// prefer popular formats
+// orderer by priority
+const IMAGE_MIME_TYPES: [&str; 3] = ["image/png", "image/jpeg", "image/ico"];
+
+// prefer popular formats
+// orderer by priority
+const TEXT_MIME_TYPES: [&str; 2] = ["text/plain;charset=utf-8", "UTF8_STRING"];
 
 #[derive(Debug, Clone)]
 pub enum ClipboardMessage {
@@ -37,13 +46,59 @@ pub fn sub() -> Subscription<ClipboardMessage> {
             async move {
                 match paste_watch::Watcher::init(paste_watch::ClipboardType::Regular) {
                     Ok(mut clipboard_watcher) => {
-                        let (tx, mut rx) = mpsc::channel::<Option<(PipeReader, String)>>(100);
+                        let (tx, mut rx) = mpsc::channel::<Option<Vec<(PipeReader, String)>>>(5);
 
                         tokio::task::spawn_blocking(move || loop {
-                            match clipboard_watcher.start_watching(
-                                paste_watch::Seat::Unspecified,
-                                paste_watch::MimeType::Any,
-                            ) {
+                            let mime_type_filter = |mut mime_types: HashSet<String>| {
+                                let mut request = Vec::new();
+
+                                if let Some(mime) = mime_types.take("text/uri-list") {
+                                    request.push(mime);
+
+                                    return request;
+                                }
+
+                                if mime_types.iter().any(|m| m.starts_with("image/")) {
+                                    for prefered_image_format in IMAGE_MIME_TYPES {
+                                        if let Some(mime) = mime_types.take(prefered_image_format) {
+                                            request.push(mime);
+                                            break;
+                                        }
+                                    }
+
+                                    if request.is_empty() {
+                                        return request;
+                                    }
+
+                                    // can be useful for metadata (alt)
+                                    if let Some(mime) = mime_types.take("text/html") {
+                                        request.push(mime);
+                                    }
+                                    return request;
+                                }
+
+                                if mime_types.iter().any(|m| m.starts_with("text/")) {
+                                    for prefered_text_format in IMAGE_MIME_TYPES {
+                                        if let Some(mime) = mime_types.take(prefered_text_format) {
+                                            request.push(mime);
+                                            return request;
+                                        }
+                                    }
+
+                                    for mime in mime_types {
+                                        if mime.starts_with("text/") {
+                                            request.push(mime);
+                                            return request;
+                                        }
+                                    }
+                                }
+
+                                request
+                            };
+
+                            match clipboard_watcher
+                                .start_watching(paste_watch::Seat::Unspecified, mime_type_filter)
+                            {
                                 Ok(res) => {
                                     if !PRIVATE_MODE.load(atomic::Ordering::Relaxed) {
                                         tx.blocking_send(Some(res)).expect("can't send");
@@ -65,12 +120,16 @@ pub fn sub() -> Subscription<ClipboardMessage> {
 
                         loop {
                             match rx.recv().await {
-                                Some(Some((mut pipe, mime_type))) => {
+                                Some(Some(mut res)) => {
+                                    // todo: add complexity here. It is safe for now to index
+                                    let (mut pipe, mime_type) = res.swap_remove(0);
+
                                     let mut contents = Vec::new();
                                     pipe.read_to_end(&mut contents).unwrap();
 
                                     let data = Entry::new_now(mime_type, contents);
-                                    //info!("sending data to database: {:?}", data);
+
+                                    info!("sending data to database: {:?}", data);
                                     output.send(ClipboardMessage::Data(data)).await.unwrap();
                                 }
 
