@@ -49,30 +49,17 @@ pub fn sub() -> Subscription<ClipboardMessage> {
                         let (tx, mut rx) = mpsc::channel::<Option<Vec<(PipeReader, String)>>>(5);
 
                         tokio::task::spawn_blocking(move || loop {
+                            // return a vec of maximum 2 mimetypes
+                            // 1.the main one
+                            // optional 2. metadata
                             let mime_type_filter = |mut mime_types: HashSet<String>| {
                                 debug!("mime type {:?}", mime_types);
 
                                 let mut request = Vec::new();
 
-                                // for uri-list, we want to also request the text if avaiable
                                 if let Some(mime) = mime_types.take("text/uri-list") {
                                     request.push(mime);
-                                }
-
-                                if mime_types.iter().any(|m| m.starts_with("text/")) {
-                                    for prefered_text_format in IMAGE_MIME_TYPES {
-                                        if let Some(mime) = mime_types.take(prefered_text_format) {
-                                            request.push(mime);
-                                            return request;
-                                        }
-                                    }
-
-                                    for mime in &mime_types {
-                                        if mime.starts_with("text/") {
-                                            request.push(mime.clone());
-                                            return request;
-                                        }
-                                    }
+                                    return request;
                                 }
 
                                 if mime_types.iter().any(|m| m.starts_with("image/")) {
@@ -94,6 +81,22 @@ pub fn sub() -> Subscription<ClipboardMessage> {
                                     return request;
                                 }
 
+                                if mime_types.iter().any(|m| m.starts_with("text/")) {
+                                    for prefered_text_format in IMAGE_MIME_TYPES {
+                                        if let Some(mime) = mime_types.take(prefered_text_format) {
+                                            request.push(mime);
+                                            return request;
+                                        }
+                                    }
+
+                                    for mime in mime_types {
+                                        if mime.starts_with("text/") {
+                                            request.push(mime);
+                                            return request;
+                                        }
+                                    }
+                                }
+
                                 request
                             };
 
@@ -101,6 +104,8 @@ pub fn sub() -> Subscription<ClipboardMessage> {
                                 .start_watching(paste_watch::Seat::Unspecified, mime_type_filter)
                             {
                                 Ok(res) => {
+                                    debug_assert!(res.len() == 1 || res.len() == 2);
+
                                     if !PRIVATE_MODE.load(atomic::Ordering::Relaxed) {
                                         tx.blocking_send(Some(res)).expect("can't send");
                                     } else {
@@ -122,13 +127,26 @@ pub fn sub() -> Subscription<ClipboardMessage> {
                         loop {
                             match rx.recv().await {
                                 Some(Some(mut res)) => {
-                                    // todo: add complexity here. It is safe for now to index
-                                    let (mut pipe, mime_type) = res.swap_remove(0);
+                                    let metadata = if res.len() == 2 {
+                                        let (mut pipe, _mimitype) = res.remove(1);
+
+                                        let mut contents = String::new();
+                                        pipe.read_to_string(&mut contents).unwrap();
+
+                                        // todo: use the mimetype to know if its html
+                                        // parse accordinely
+
+                                        Some(contents)
+                                    } else {
+                                        None
+                                    };
+
+                                    let (mut pipe, mime_type) = res.remove(0);
 
                                     let mut contents = Vec::new();
                                     pipe.read_to_end(&mut contents).unwrap();
 
-                                    let data = Entry::new_now(mime_type, contents, None);
+                                    let data = Entry::new_now(mime_type, contents, metadata);
 
                                     info!("sending data to database: {:?}", data);
                                     output.send(ClipboardMessage::Data(data)).await.unwrap();

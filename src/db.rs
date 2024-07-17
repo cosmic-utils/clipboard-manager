@@ -123,10 +123,11 @@ impl Entry {
     }
 
     pub fn get_text(&self) -> Option<&str> {
-        self.get_content().ok().and_then(|c| match c {
-            Content::Text(txt) => Some(txt),
-            _ => None,
-        })
+        if self.mime.starts_with("text/") {
+            return core::str::from_utf8(&self.content).ok();
+        }
+
+        return self.metadata.as_deref();
     }
 }
 
