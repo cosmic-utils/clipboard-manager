@@ -47,7 +47,8 @@ pub fn sub() -> Subscription<ClipboardMessage> {
             async move {
                 match paste_watch::Watcher::init(paste_watch::ClipboardType::Regular) {
                     Ok(mut clipboard_watcher) => {
-                        let (tx, mut rx) = mpsc::channel::<Option<Vec<(PipeReader, String)>>>(5);
+                        let (tx, mut rx) =
+                            mpsc::channel::<Option<std::vec::IntoIter<(PipeReader, String)>>>(5);
 
                         tokio::task::spawn_blocking(move || loop {
                             // return a vec of maximum 2 mimetypes
@@ -128,14 +129,12 @@ pub fn sub() -> Subscription<ClipboardMessage> {
                         loop {
                             match rx.recv().await {
                                 Some(Some(mut res)) => {
-                                    let (mut pipe, mime_type) = res.remove(0);
+                                    let (mut pipe, mime_type) = res.next().unwrap();
 
                                     let mut contents = Vec::new();
                                     pipe.read_to_end(&mut contents).unwrap();
 
-                                    let metadata = if res.len() == 1 {
-                                        let (mut pipe, mimitype) = res.remove(0);
-
+                                    let metadata = if let Some((mut pipe, mimitype)) = res.next() {
                                         let mut metadata = String::new();
                                         pipe.read_to_string(&mut metadata).unwrap();
 
@@ -147,6 +146,8 @@ pub fn sub() -> Subscription<ClipboardMessage> {
                                                 metadata = alt.to_owned();
                                             }
                                         }
+
+                                        debug!("final metadata = {}", metadata);
 
                                         Some(metadata)
                                     } else {
@@ -186,6 +187,21 @@ pub fn sub() -> Subscription<ClipboardMessage> {
             }
         },
     )
+}
+
+// currently best effort
+fn find_alt(html: &str) -> Option<&str> {
+    const DEB: &str = "alt=\"";
+
+    if let Some(pos) = html.find(DEB) {
+        const OFFSET: usize = DEB.as_bytes().len();
+
+        if let Some(pos_end) = html[pos + OFFSET..].find('"') {
+            return Some(&html[pos + OFFSET..pos + pos_end + OFFSET]);
+        }
+    }
+
+    None
 }
 
 pub fn copy(data: Entry) -> Result<(), copy::Error> {
@@ -253,18 +269,3 @@ pub fn sub2() -> Subscription<Message> {
 }
 
  */
-
-// currently best effort
-fn find_alt(html: &str) -> Option<&str> {
-    const DEB: &str = "alt=\"";
-
-    if let Some(pos) = html.find(DEB) {
-        const OFFSET: usize = DEB.as_bytes().len();
-
-        if let Some(pos_end) = html[pos + OFFSET..].find("\"") {
-            return Some(&html[pos + OFFSET..pos + pos_end + OFFSET]);
-        }
-    }
-
-    None
-}
