@@ -67,9 +67,9 @@ pub fn sub() -> Subscription<ClipboardMessage> {
                                         }
                                     }
 
-                                    for mime in mime_types {
+                                    for mime in &mime_types {
                                         if mime.starts_with("text/") {
-                                            request.push(mime);
+                                            request.push(mime.clone());
                                             return request;
                                         }
                                     }
