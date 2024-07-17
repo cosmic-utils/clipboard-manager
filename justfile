@@ -43,7 +43,7 @@ clean:
   cargo clean
 
 
-pull: fmt prettier fix
+pull: fmt prettier fix test
 	
 
 ###################  Test

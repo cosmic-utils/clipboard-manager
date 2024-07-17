@@ -1,21 +1,26 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, cmp::min, path::PathBuf};
 
 use cosmic::{
     iced::{Alignment, Length, Padding},
-    iced_widget::{column, graphics::image::image_rs::flat::View, Row, Scrollable},
+    iced_widget::{graphics::image::image_rs::flat::View, Row, Scrollable},
     theme::{self, Button},
     widget::{
-        self, button, container, context_menu,
+        self,
+        button::{self, button},
+        column, container, context_menu, flex_row, grid,
         icon::{self, Handle},
-        menu, mouse_area, text, text_input, toggler, Column, Container, Icon, MouseArea, Space,
+        image, menu, mouse_area, row, text, text_input, toggler, Column, Container, Icon,
+        MouseArea, Space, Text, TextEditor,
     },
     Element,
 };
 
+use anyhow::{anyhow, bail, Result};
+
 use crate::{
     app::{AppState, ClipboardState},
     config::Config,
-    db::{Content, Data},
+    db::{Content, Entry},
     fl,
     message::AppMessage,
     utils::{formated_value, horizontal_padding},
@@ -74,29 +79,43 @@ fn top_view(state: &AppState) -> Element<AppMessage> {
 }
 
 fn entries(state: &AppState) -> Element<'_, AppMessage> {
-    let entries_view =
+    let entries_view: Vec<_> = if state.db.query().is_empty() {
         state
             .db
             .iter()
             .enumerate()
             .filter_map(|(pos, data)| match data.get_content() {
                 Ok(c) => match c {
-                    Content::Text(text) => {
-                        if text.is_empty() {
-                            None
-                        } else {
-                            Some(entry(data, pos == state.focused, text))
-                        }
-                    }
+                    Content::Text(text) => text_entry(data, pos == state.focused, text),
+                    Content::Image(image) => image_entry(data, pos == state.focused, image),
+                    Content::UriList(uris) => uris_entry(data, pos == state.focused, &uris),
                 },
                 Err(_) => None,
-            });
+            })
+            .collect()
+    } else {
+        state
+            .db
+            .search_iter()
+            .enumerate()
+            .filter_map(|(pos, (data, indices))| match data.get_content() {
+                Ok(c) => match c {
+                    Content::Text(text) => {
+                        text_entry_with_indices(data, pos == state.focused, text, indices)
+                    }
+                    Content::Image(image) => image_entry(data, pos == state.focused, image),
+                    Content::UriList(uris) => uris_entry(data, pos == state.focused, &uris),
+                },
+                Err(_) => None,
+            })
+            .collect()
+    };
 
     let mut padding = horizontal_padding(10f32);
     // try to fix scroll bar
     padding.right += 10f32;
 
-    let column = Column::with_children(entries_view)
+    let column = column::with_children(entries_view)
         .spacing(5f32)
         .padding(padding);
 
@@ -105,9 +124,78 @@ fn entries(state: &AppState) -> Element<'_, AppMessage> {
         .into()
 }
 
-fn entry<'a>(entry: &'a Data, is_focused: bool, content: &'a str) -> Element<'a, AppMessage> {
-    let content = text(formated_value(content, 5, 200));
+fn image_entry<'a>(
+    entry: &'a Entry,
+    is_focused: bool,
+    image_data: &'a [u8],
+) -> Option<Element<'a, AppMessage>> {
+    let handle = image::Handle::from_memory(image_data.to_owned());
 
+    Some(base_entry(
+        entry,
+        is_focused,
+        image(handle).width(Length::Fill),
+    ))
+}
+
+fn uris_entry<'a>(
+    entry: &'a Entry,
+    is_focused: bool,
+    uris: &[&'a str],
+) -> Option<Element<'a, AppMessage>> {
+    if uris.is_empty() {
+        return None;
+    }
+
+    let max = 3;
+
+    let mut lines = Vec::with_capacity(min(uris.len(), max + 1));
+
+    for uri in uris.iter().take(max) {
+        lines.push(text(*uri).into());
+    }
+
+    if uris.len() > max {
+        lines.push(text("...").into());
+    }
+
+    Some(base_entry(
+        entry,
+        is_focused,
+        column::with_children(lines).width(Length::Fill),
+    ))
+}
+
+fn text_entry_with_indices<'a>(
+    entry: &'a Entry,
+    is_focused: bool,
+    content: &'a str,
+    _indices: &'a [u32],
+) -> Option<Element<'a, AppMessage>> {
+    text_entry(entry, is_focused, content)
+}
+
+fn text_entry<'a>(
+    entry: &'a Entry,
+    is_focused: bool,
+    content: &'a str,
+) -> Option<Element<'a, AppMessage>> {
+    if content.is_empty() {
+        return None;
+    }
+
+    Some(base_entry(
+        entry,
+        is_focused,
+        text(formated_value(content, 5, 200)),
+    ))
+}
+
+fn base_entry<'a>(
+    entry: &'a Entry,
+    is_focused: bool,
+    content: impl Into<Element<'a, AppMessage>>,
+) -> Element<'a, AppMessage> {
     let btn = cosmic::widget::button(content)
         .width(Length::Fill)
         .on_press(AppMessage::Copy(entry.clone()))
