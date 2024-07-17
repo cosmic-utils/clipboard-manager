@@ -85,15 +85,9 @@ fn entries(state: &AppState) -> Element<'_, AppMessage> {
             .enumerate()
             .filter_map(|(pos, data)| match data.get_content() {
                 Ok(c) => match c {
-                    Content::Text(text) => {
-                        if text.is_empty() {
-                            None
-                        } else {
-                            Some(text_entry(data, pos == state.focused, text))
-                        }
-                    }
-                    Content::Image(image) => Some(image_entry(data, pos == state.focused, image)),
-                    Content::UriList(uris) => Some(uris_entry(data, pos == state.focused, &uris)),
+                    Content::Text(text) => text_entry(data, pos == state.focused, text),
+                    Content::Image(image) => image_entry(data, pos == state.focused, image),
+                    Content::UriList(uris) => uris_entry(data, pos == state.focused, &uris),
                 },
                 Err(_) => None,
             })
@@ -106,19 +100,10 @@ fn entries(state: &AppState) -> Element<'_, AppMessage> {
             .filter_map(|(pos, (data, indices))| match data.get_content() {
                 Ok(c) => match c {
                     Content::Text(text) => {
-                        if text.is_empty() {
-                            None
-                        } else {
-                            Some(text_entry_with_indices(
-                                data,
-                                pos == state.focused,
-                                text,
-                                indices,
-                            ))
-                        }
+                        text_entry_with_indices(data, pos == state.focused, text, indices)
                     }
-                    Content::Image(image) => Some(image_entry(data, pos == state.focused, image)),
-                    Content::UriList(_) => todo!(),
+                    Content::Image(image) => image_entry(data, pos == state.focused, image),
+                    Content::UriList(uris) => uris_entry(data, pos == state.focused, &uris),
                 },
                 Err(_) => None,
             })
@@ -142,20 +127,34 @@ fn image_entry<'a>(
     entry: &'a Entry,
     is_focused: bool,
     image_data: &'a [u8],
-) -> Element<'a, AppMessage> {
+) -> Option<Element<'a, AppMessage>> {
     let handle = image::Handle::from_memory(image_data.to_owned());
 
-    base_entry(entry, is_focused, image(handle).width(Length::Fill))
+    Some(base_entry(
+        entry,
+        is_focused,
+        image(handle).width(Length::Fill),
+    ))
 }
 
-fn uris_entry<'a>(entry: &'a Entry, is_focused: bool, uris: &[&'a str]) -> Element<'a, AppMessage> {
+fn uris_entry<'a>(
+    entry: &'a Entry,
+    is_focused: bool,
+    uris: &[&'a str],
+) -> Option<Element<'a, AppMessage>> {
+    if uris.is_empty() {
+        return None;
+    }
 
-    
     let url = Url::parse(uris[0]).unwrap();
 
     let handle = image::Handle::from_path(url.to_file_path().unwrap());
 
-    base_entry(entry, is_focused, image(handle).width(Length::Fill))
+    Some(base_entry(
+        entry,
+        is_focused,
+        image(handle).width(Length::Fill),
+    ))
 }
 
 fn text_entry_with_indices<'a>(
@@ -163,12 +162,24 @@ fn text_entry_with_indices<'a>(
     is_focused: bool,
     content: &'a str,
     _indices: &'a [u32],
-) -> Element<'a, AppMessage> {
+) -> Option<Element<'a, AppMessage>> {
     text_entry(entry, is_focused, content)
 }
 
-fn text_entry<'a>(entry: &'a Entry, is_focused: bool, content: &'a str) -> Element<'a, AppMessage> {
-    base_entry(entry, is_focused, text(formated_value(content, 5, 200)))
+fn text_entry<'a>(
+    entry: &'a Entry,
+    is_focused: bool,
+    content: &'a str,
+) -> Option<Element<'a, AppMessage>> {
+    if content.is_empty() {
+        return None;
+    }
+
+    Some(base_entry(
+        entry,
+        is_focused,
+        text(formated_value(content, 5, 200)),
+    ))
 }
 
 fn base_entry<'a>(
