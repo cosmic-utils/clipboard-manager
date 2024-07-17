@@ -41,6 +41,7 @@ tracing-subscriber = { version = "0.3.16", features = [
 tracing-journald = "0.3.0"
 constcat = "0.5.0"
 nucleo = "0.5.0"
+tl = "0.7.8"
 
 [dependencies.libcosmic]
 git = "https://github.com/pop-os/libcosmic"

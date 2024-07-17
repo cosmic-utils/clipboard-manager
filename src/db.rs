@@ -30,7 +30,7 @@ use crate::{
 
 type TimeId = i64;
 
-const DB_VERSION: &str = "1";
+const DB_VERSION: &str = "2";
 const DB_PATH: &str = constcat::concat!(APPID, "-db-", DB_VERSION, ".sqlite");
 
 // warning: if you change somethings in here, change the db version
@@ -79,6 +79,7 @@ impl Debug for Entry {
             .field("creation", &self.creation)
             .field("mime", &self.mime)
             .field("content", &self.get_content())
+            .field("metadata", &self.metadata)
             .finish()
     }
 }

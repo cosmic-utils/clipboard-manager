@@ -147,7 +147,7 @@ fn uris_entry<'a>(
         return None;
     }
 
-    let max = 4;
+    let max = 3;
 
     let mut lines = Vec::with_capacity(min(uris.len(), max + 1));
 
