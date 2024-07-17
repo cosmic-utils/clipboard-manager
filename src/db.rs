@@ -83,19 +83,31 @@ impl Debug for Entry {
 pub enum Content<'a> {
     Text(&'a str),
     Image(&'a Vec<u8>),
+    UriList(Vec<&'a str>),
 }
 
 impl Debug for Content<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Text(arg0) => f.debug_tuple("Text").field(arg0).finish(),
-            _ => Ok(()),
+            Self::UriList(arg0) => f.debug_tuple("UriList").field(arg0).finish(),
+            Self::Image(_) => f.debug_tuple("Image").finish(),
         }
     }
 }
 
 impl Entry {
     pub fn get_content(&self) -> Result<Content<'_>> {
+        if self.mime == "text/uri-list" {
+            let text = core::str::from_utf8(&self.content)?;
+
+            let uris = text
+                .lines()
+                .filter(|l| !l.is_empty() && !l.starts_with('#'))
+                .collect();
+
+            return Ok(Content::UriList(uris));
+        }
         if self.mime.starts_with("text/") {
             return Ok(Content::Text(core::str::from_utf8(&self.content)?));
         }

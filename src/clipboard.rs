@@ -50,6 +50,8 @@ pub fn sub() -> Subscription<ClipboardMessage> {
 
                         tokio::task::spawn_blocking(move || loop {
                             let mime_type_filter = |mut mime_types: HashSet<String>| {
+                                info!("mime type {:?}", mime_types);
+
                                 let mut request = Vec::new();
 
                                 if let Some(mime) = mime_types.take("text/uri-list") {

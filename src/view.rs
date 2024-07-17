@@ -14,6 +14,7 @@ use cosmic::{
     },
     Element,
 };
+use url::Url;
 
 use crate::{
     app::{AppState, ClipboardState},
@@ -92,6 +93,7 @@ fn entries(state: &AppState) -> Element<'_, AppMessage> {
                         }
                     }
                     Content::Image(image) => Some(image_entry(data, pos == state.focused, image)),
+                    Content::UriList(uris) => Some(uris_entry(data, pos == state.focused, &uris)),
                 },
                 Err(_) => None,
             })
@@ -116,6 +118,7 @@ fn entries(state: &AppState) -> Element<'_, AppMessage> {
                         }
                     }
                     Content::Image(image) => Some(image_entry(data, pos == state.focused, image)),
+                    Content::UriList(_) => todo!(),
                 },
                 Err(_) => None,
             })
@@ -141,6 +144,16 @@ fn image_entry<'a>(
     image_data: &'a [u8],
 ) -> Element<'a, AppMessage> {
     let handle = image::Handle::from_memory(image_data.to_owned());
+
+    base_entry(entry, is_focused, image(handle).width(Length::Fill))
+}
+
+fn uris_entry<'a>(entry: &'a Entry, is_focused: bool, uris: &[&'a str]) -> Element<'a, AppMessage> {
+
+    
+    let url = Url::parse(uris[0]).unwrap();
+
+    let handle = image::Handle::from_path(url.to_file_path().unwrap());
 
     base_entry(entry, is_focused, image(handle).width(Length::Fill))
 }
