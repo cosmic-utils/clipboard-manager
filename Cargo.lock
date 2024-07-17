@@ -902,7 +902,6 @@ dependencies = [
  "serde",
  "serial_test",
  "thiserror",
- "tl",
  "tokio",
  "tracing",
  "tracing-journald",
@@ -4517,12 +4516,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
-name = "tl"
-version = "0.7.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b130bd8a58c163224b44e217b4239ca7b927d82bf6cc2fea1fc561d15056e3f7"
-
-[[package]]
 name = "tokio"
 version = "1.38.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5557,7 +5550,6 @@ dependencies = [
 [[package]]
 name = "wl-clipboard-rs"
 version = "0.8.1"
-source = "git+https://github.com/wiiznokes/wl-clipboard-rs.git?branch=watch#fca3a2a47fa22b3c4b166314e19335f0de96df3c"
 dependencies = [
  "libc",
  "log",
