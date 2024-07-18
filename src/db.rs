@@ -49,6 +49,8 @@ pub struct Entry {
     // todo: lazelly load image in memory, since we can't search them anyways
     pub content: Vec<u8>,
 
+    #[derivative(PartialEq = "ignore")]
+    #[derivative(Hash = "ignore")]
     pub metadata: Option<String>,
 }
 
@@ -317,7 +319,9 @@ impl Db {
         // safe to unwrap since we insert before
         let last_row = self.get_last_row()?.unwrap();
 
-        if let Some(old_id) = self.hashs.remove(&data.get_hash()) {
+        let data_hash = data.get_hash();
+
+        if let Some(old_id) = self.hashs.remove(&data_hash) {
             self.state.remove(&old_id);
 
             // in case 2 same data were inserted in a short period
@@ -334,7 +338,7 @@ impl Db {
 
         data.creation = last_row.creation;
 
-        self.hashs.insert(data.get_hash(), data.creation);
+        self.hashs.insert(data_hash, data.creation);
         self.state.insert(data.creation, data);
 
         self.search();
