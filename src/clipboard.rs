@@ -13,7 +13,10 @@ use std::{
 
 use cosmic::iced::{futures::SinkExt, subscription, Subscription};
 use tokio::sync::mpsc;
-use wl_clipboard_rs::{copy, paste_watch};
+use wl_clipboard_rs::{
+    copy::{self, MimeSource},
+    paste_watch,
+};
 
 use crate::config::PRIVATE_MODE;
 use crate::db::Entry;
@@ -140,16 +143,7 @@ pub fn sub() -> Subscription<ClipboardMessage> {
 
                                         debug!("metadata = {}", metadata);
 
-                                        #[allow(clippy::assigning_clones)]
-                                        if mimitype == "text/html" {
-                                            if let Some(alt) = find_alt(&metadata) {
-                                                metadata = alt.to_owned();
-                                            }
-                                        }
-
-                                        debug!("final metadata = {}", metadata);
-
-                                        Some(metadata)
+                                        Some((mimitype, metadata))
                                     } else {
                                         None
                                     };
@@ -189,31 +183,28 @@ pub fn sub() -> Subscription<ClipboardMessage> {
     )
 }
 
-// currently best effort
-fn find_alt(html: &str) -> Option<&str> {
-    const DEB: &str = "alt=\"";
+pub fn copy(data: Entry) -> Result<(), copy::Error> {
+    debug!("copy {:?}", data);
 
-    if let Some(pos) = html.find(DEB) {
-        const OFFSET: usize = DEB.as_bytes().len();
+    let mut sources = Vec::with_capacity(if data.metadata.is_some() { 2 } else { 1 });
 
-        if let Some(pos_end) = html[pos + OFFSET..].find('"') {
-            return Some(&html[pos + OFFSET..pos + pos_end + OFFSET]);
-        }
+    let source = MimeSource {
+        source: copy::Source::Bytes(data.content.into_boxed_slice()),
+        mime_type: copy::MimeType::Specific(data.mime),
+    };
+
+    sources.push(source);
+
+    if let Some((mime, content)) = data.metadata {
+        let source = MimeSource {
+            source: copy::Source::Bytes(content.into_boxed_str().into_boxed_bytes()),
+            mime_type: copy::MimeType::Specific(mime),
+        };
+        sources.push(source);
     }
 
-    None
-}
-
-pub fn copy(data: Entry) -> Result<(), copy::Error> {
-    //dbg!("copy", &data);
     let options = copy::Options::default();
-    let bytes = data.content.into_boxed_slice();
-
-    let source = copy::Source::Bytes(bytes);
-
-    let mime_type = copy::MimeType::Specific(data.mime);
-
-    wl_clipboard_rs::copy::copy(options, source, mime_type)?;
+    wl_clipboard_rs::copy::copy_multi(options, sources)?;
 
     Ok(())
 }
