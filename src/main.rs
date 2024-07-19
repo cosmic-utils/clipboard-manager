@@ -25,9 +25,10 @@ extern crate log;
 
 fn setup_logs() {
     let fmt_layer = fmt::layer().with_target(false);
-    let filter_layer = EnvFilter::try_from_default_env()
-        .or_else(|_| EnvFilter::try_new("warn"))
-        .unwrap();
+    let filter_layer = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new(format!(
+        "warn,{}=warn",
+        env!("CARGO_CRATE_NAME")
+    )));
 
     if let Ok(journal_layer) = tracing_journald::layer() {
         tracing_subscriber::registry()

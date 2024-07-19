@@ -82,7 +82,7 @@ impl Entry {
         Self::new(Utc::now().timestamp_millis(), mime, content, metadata)
     }
 
-    // SELECT creation, mime, content, metadataMime, metadata
+    /// SELECT creation, mime, content, metadataMime, metadata
     fn from_row(row: &Row) -> rusqlite::Result<Self> {
         Ok(Entry::new(
             row.get(0)?,
@@ -125,7 +125,11 @@ impl Debug for Content<'_> {
 impl Entry {
     pub fn get_content(&self) -> Result<Content<'_>> {
         if self.mime == "text/uri-list" {
-            let text = core::str::from_utf8(&self.content)?;
+            let text = if let Some(metadata) = &self.metadata {
+                &metadata.1
+            } else {
+                core::str::from_utf8(&self.content)?
+            };
 
             let uris = text
                 .lines()

@@ -28,7 +28,7 @@ const IMAGE_MIME_TYPES: [&str; 3] = ["image/png", "image/jpeg", "image/ico"];
 
 // prefer popular formats
 // orderer by priority
-const TEXT_MIME_TYPES: [&str; 2] = ["text/plain;charset=utf-8", "UTF8_STRING"];
+const TEXT_MIME_TYPES: [&str; 3] = ["text/plain;charset=utf-8", "UTF8_STRING", "text/plain"];
 
 #[derive(Debug, Clone)]
 pub enum ClipboardMessage {
@@ -62,11 +62,6 @@ pub fn sub() -> Subscription<ClipboardMessage> {
 
                                 let mut request = Vec::new();
 
-                                if let Some(mime) = mime_types.take("text/uri-list") {
-                                    request.push(mime);
-                                    return request;
-                                }
-
                                 if mime_types.iter().any(|m| m.starts_with("image/")) {
                                     for prefered_image_format in IMAGE_MIME_TYPES {
                                         if let Some(mime) = mime_types.take(prefered_image_format) {
@@ -86,8 +81,12 @@ pub fn sub() -> Subscription<ClipboardMessage> {
                                     return request;
                                 }
 
+                                if let Some(mime) = mime_types.take("text/uri-list") {
+                                    request.push(mime);
+                                }
+
                                 if mime_types.iter().any(|m| m.starts_with("text/")) {
-                                    for prefered_text_format in IMAGE_MIME_TYPES {
+                                    for prefered_text_format in TEXT_MIME_TYPES {
                                         if let Some(mime) = mime_types.take(prefered_text_format) {
                                             request.push(mime);
                                             return request;
