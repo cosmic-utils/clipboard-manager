@@ -20,7 +20,9 @@ use nucleo::{
 
 use chrono::Utc;
 use mime::Mime;
-use rusqlite::{named_params, params, Connection, ErrorCode, OpenFlags, OptionalExtension, Row};
+use rusqlite::{
+    ffi::sqlite3, named_params, params, Connection, ErrorCode, OpenFlags, OptionalExtension, Row,
+};
 
 use crate::{
     app::{APP, APPID, ORG, QUALIFIER},
@@ -30,7 +32,7 @@ use crate::{
 
 type TimeId = i64;
 
-const DB_VERSION: &str = "2";
+const DB_VERSION: &str = "3";
 const DB_PATH: &str = constcat::concat!(APPID, "-db-", DB_VERSION, ".sqlite");
 
 // warning: if you change somethings in here, change the db version
@@ -51,7 +53,8 @@ pub struct Entry {
 
     #[derivative(PartialEq = "ignore")]
     #[derivative(Hash = "ignore")]
-    pub metadata: Option<String>,
+    /// (Mime, Content)
+    pub metadata: Option<(String, String)>,
 }
 
 impl Entry {
@@ -61,7 +64,12 @@ impl Entry {
         hasher.finish()
     }
 
-    pub fn new(creation: i64, mime: String, content: Vec<u8>, metadata: Option<String>) -> Self {
+    pub fn new(
+        creation: i64,
+        mime: String,
+        content: Vec<u8>,
+        metadata: Option<(String, String)>,
+    ) -> Self {
         Self {
             creation,
             mime,
@@ -70,8 +78,20 @@ impl Entry {
         }
     }
 
-    pub fn new_now(mime: String, content: Vec<u8>, metadata: Option<String>) -> Self {
+    pub fn new_now(mime: String, content: Vec<u8>, metadata: Option<(String, String)>) -> Self {
         Self::new(Utc::now().timestamp_millis(), mime, content, metadata)
+    }
+
+    // SELECT creation, mime, content, metadataMime, metadata
+    fn from_row(row: &Row) -> rusqlite::Result<Self> {
+        Ok(Entry::new(
+            row.get(0)?,
+            row.get(1)?,
+            row.get(2)?,
+            row.get(3)
+                .ok()
+                .map(|metadata_mime| (metadata_mime, row.get(4).unwrap())),
+        ))
     }
 }
 
@@ -125,13 +145,38 @@ impl Entry {
         bail!("unsupported mime type {}", self.mime)
     }
 
-    pub fn get_text(&self) -> Option<&str> {
+    fn get_searchable_text(&self) -> Option<&str> {
         if self.mime.starts_with("text/") {
             return core::str::from_utf8(&self.content).ok();
         }
 
-        return self.metadata.as_deref();
+        if let Some((mime, metadata)) = &self.metadata {
+            #[allow(clippy::assigning_clones)]
+            if mime == "text/html" {
+                if let Some(alt) = find_alt(metadata) {
+                    return Some(alt);
+                }
+            }
+            return Some(metadata);
+        }
+
+        None
     }
+}
+
+// currently best effort
+fn find_alt(html: &str) -> Option<&str> {
+    const DEB: &str = "alt=\"";
+
+    if let Some(pos) = html.find(DEB) {
+        const OFFSET: usize = DEB.as_bytes().len();
+
+        if let Some(pos_end) = html[pos + OFFSET..].find('"') {
+            return Some(&html[pos + OFFSET..pos + pos_end + OFFSET]);
+        }
+    }
+
+    None
 }
 
 pub struct Db {
@@ -165,11 +210,13 @@ impl Db {
             )?;
 
             let query_create_table = r#"
-                CREATE TABLE data (
+                CREATE TABLE ClipboardEntries (
                     creation INTEGER PRIMARY KEY,
                     mime TEXT NOT NULL,
                     content BLOB NOT NULL,
-                    metadata TEXT
+                    metadataMime TEXT,
+                    metadata TEXT,
+                    CHECK ((metadataMime IS NULL AND metadata IS NULL) OR (metadataMime IS NOT NULL AND metadata IS NOT NULL))
                 )
             "#;
 
@@ -190,7 +237,7 @@ impl Db {
 
         if let Some(max_duration) = &config.maximum_entries_lifetime {
             let query_delete_old_one = r#"
-                DELETE FROM data
+                DELETE FROM ClipboardEntries
                 WHERE (:now - creation) >= :max;
             "#;
 
@@ -205,9 +252,9 @@ impl Db {
 
         if let Some(max_number_of_entries) = &config.maximum_entries_number {
             let query_delete_old_one = r#"
-                DELETE FROM data 
+                DELETE FROM ClipboardEntries 
                 WHERE creation NOT IN
-                    (SELECT creation FROM data
+                    (SELECT creation FROM ClipboardEntries
                     ORDER BY creation DESC
                     LIMIT :max_number_of_entries);
             "#;
@@ -224,8 +271,8 @@ impl Db {
         let mut state = BTreeMap::default();
 
         let query_load_table = r#"
-            SELECT creation, mime, content, metadata
-            FROM data
+            SELECT creation, mime, content, metadataMime, metadata
+            FROM ClipboardEntries
         "#;
 
         {
@@ -234,7 +281,8 @@ impl Db {
             let mut rows = stmt.query(())?;
 
             while let Some(row) = rows.next()? {
-                let data = Entry::new(row.get(0)?, row.get(1)?, row.get(2)?, row.get(3).ok());
+                let data = Entry::from_row(row)?;
+
                 hashs.insert(data.get_hash(), data.creation);
                 state.insert(data.creation, data);
             }
@@ -255,22 +303,15 @@ impl Db {
 
     fn get_last_row(&mut self) -> Result<Option<Entry>> {
         let query_get_last_row = r#"
-            SELECT creation, mime, content, metadata
-            FROM data
+            SELECT creation, mime, content, metadataMime, metadata
+            FROM ClipboardEntries
             ORDER BY creation DESC
             LIMIT 1
         "#;
 
         let data = self
             .conn
-            .query_row(query_get_last_row, (), |row| {
-                Ok(Entry::new(
-                    row.get(0)?,
-                    row.get(1)?,
-                    row.get(2)?,
-                    row.get(3).ok(),
-                ))
-            })
+            .query_row(query_get_last_row, (), Entry::from_row)
             .optional()?;
 
         Ok(data)
@@ -282,13 +323,13 @@ impl Db {
         // insert a new data, only if the last row is not the same AND was not created recently
         let query_insert_if_not_exist = r#"
             WITH last_row AS (
-                SELECT creation, mime, content, metadata
-                FROM data
+                SELECT creation, mime, content, metadataMime, metadata
+                FROM ClipboardEntries
                 ORDER BY creation DESC
                 LIMIT 1
             )
-            INSERT INTO data (creation, mime, content, metadata)
-            SELECT :new_id, :new_mime, :new_content, :new_metadata
+            INSERT INTO ClipboardEntries (creation, mime, content, metadataMime, metadata)
+            SELECT :new_id, :new_mime, :new_content, :new_metadata_mime, :new_metadata
             WHERE NOT EXISTS (
                 SELECT 1
                 FROM last_row AS lr
@@ -302,7 +343,8 @@ impl Db {
                 ":new_id": data.creation,
                 ":new_mime": data.mime,
                 ":new_content": data.content,
-                ":new_metadata": data.metadata,
+                ":new_metadata_mime": data.metadata.as_ref().map(|m| &m.0),
+                ":new_metadata": data.metadata.as_ref().map(|m| &m.1),
                 ":now": utils::now_millis(),
             },
         ) {
@@ -328,7 +370,7 @@ impl Db {
             // we don't want to remove the old_id
             if last_row.creation != old_id {
                 let query_delete_old_id = r#"
-                    DELETE FROM data
+                    DELETE FROM ClipboardEntries
                     WHERE creation = ?1;
                 "#;
 
@@ -347,7 +389,7 @@ impl Db {
 
     pub fn delete(&mut self, data: &Entry) -> Result<()> {
         let query = r#"
-            DELETE FROM data
+            DELETE FROM ClipboardEntries
             WHERE creation = ?1;
         "#;
 
@@ -362,7 +404,7 @@ impl Db {
 
     pub fn clear(&mut self) -> Result<()> {
         let query_delete = r#"
-            DELETE FROM data
+            DELETE FROM ClipboardEntries
         "#;
         self.conn.execute(query_delete, [])?;
 
@@ -382,7 +424,7 @@ impl Db {
                 .iter()
                 .rev()
                 .filter_map(|(id, data)| {
-                    data.get_text().and_then(|text| {
+                    data.get_searchable_text().and_then(|text| {
                         let mut buf = Vec::new();
 
                         let haystack = Utf32Str::new(text, &mut buf);
