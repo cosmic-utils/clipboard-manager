@@ -329,7 +329,7 @@ impl Db {
                 LIMIT 1
             )
             INSERT INTO ClipboardEntries (creation, mime, content, metadataMime, metadata)
-            SELECT :new_id, :new_mime, :new_content, new_metadata_mime, :new_metadata
+            SELECT :new_id, :new_mime, :new_content, :new_metadata_mime, :new_metadata
             WHERE NOT EXISTS (
                 SELECT 1
                 FROM last_row AS lr
