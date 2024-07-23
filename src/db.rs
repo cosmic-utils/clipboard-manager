@@ -231,8 +231,6 @@ impl Db {
             .await?;
 
         if let Some(max_duration) = &config.maximum_entries_lifetime {
-            use sqlx::Executor; // This trait is required for the `.execute` method
-
             let now_millis = utils::now_millis();
             let max_millis = max_duration.as_millis().try_into().unwrap_or(u64::MAX);
 
