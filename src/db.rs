@@ -209,6 +209,7 @@ pub struct Db {
     matcher: Matcher,
     // time
     last_update: i64,
+    data_version: i64,
 }
 
 impl Db {
@@ -273,6 +274,7 @@ impl Db {
         }
 
         let mut db = Db {
+            data_version: fetch_data_version(&mut conn).await?,
             conn,
             hashs: HashMap::default(),
             state: BTreeMap::default(),
@@ -524,73 +526,37 @@ impl Db {
             self.filtered.len()
         }
     }
+
+    pub async fn handle_message(&mut self, _message: DbMessage) -> Result<()> {
+        let data_version = fetch_data_version(&mut self.conn).await?;
+
+        if self.data_version != data_version {
+            self.reload().await?;
+        }
+
+        self.data_version = data_version;
+
+        Ok(())
+    }
+}
+
+/// https://www.sqlite.org/pragma.html#pragma_data_version
+async fn fetch_data_version(conn: &mut SqliteConnection) -> Result<i64> {
+    let data_version: i64 = sqlx::query("PRAGMA data_version")
+        .fetch_one(conn)
+        .await?
+        .get("data_version");
+
+    Ok(data_version)
 }
 
 #[derive(Clone, Debug)]
 pub enum DbMessage {
-    DbWasUpdated,
-    Ready(mpsc::Sender<DbMessage>),
+    CheckUpdate,
 }
 
 pub fn sub() -> Subscription<DbMessage> {
-    struct Update;
-
-    enum State {
-        Starting,
-        Ready(mpsc::Receiver<DbMessage>),
-    }
-
-    subscription::channel(
-        std::any::TypeId::of::<Update>(),
-        5,
-        |mut output| async move {
-            let mut state = State::Starting;
-
-            loop {
-                match &mut state {
-                    State::Starting => {
-                        tokio::time::sleep(Duration::from_millis(500)).await;
-
-                        let (tx, rx) = mpsc::channel(100);
-                        output.send(DbMessage::Ready(tx)).await.unwrap();
-
-                        state = State::Ready(rx);
-                    }
-                    State::Ready(rx) => {
-                        if let Some(mess) = rx.recv().await {
-                            output.send(mess).await.unwrap();
-                        }
-                    }
-                }
-            }
-        },
-    )
-}
-
-impl Db {
-    pub async fn handle_message(&mut self, message: DbMessage) -> Result<()> {
-        info!("db handle_message {:?}", message);
-
-        match message {
-            DbMessage::DbWasUpdated => {
-                if now_millis() - self.last_update > 500 {
-                    self.reload().await?;
-                }
-            }
-            DbMessage::Ready(tx) => {
-                self.conn
-                    .lock_handle()
-                    .await?
-                    .set_update_hook(move |_result| {
-                        if let Err(err) = tx.blocking_send(DbMessage::DbWasUpdated) {
-                            error!("can't send to db {err}");
-                        }
-                    });
-            }
-        }
-
-        Ok(())
-    }
+    cosmic::iced::time::every(Duration::from_millis(1000)).map(|_| DbMessage::CheckUpdate)
 }
 
 #[cfg(test)]
