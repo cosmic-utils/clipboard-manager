@@ -7,6 +7,8 @@ use std::{fs, io};
 use chrono::Utc;
 use cosmic::{app::Message, iced::Padding, iced_runtime::command::Action, Command};
 
+use crate::app::APPID;
+
 pub fn formated_value(value: &str, max_lines: usize, max_chars: usize) -> Cow<str> {
     let value = value.trim();
 

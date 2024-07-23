@@ -1,5 +1,7 @@
 use cosmic::iced_sctk::util;
 use derivative::Derivative;
+use futures::{future::BoxFuture, FutureExt};
+use sqlx::{migrate::MigrateDatabase, prelude::*, sqlite::SqliteRow, Executor, Sqlite, SqlitePool};
 use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap},
@@ -20,9 +22,6 @@ use nucleo::{
 
 use chrono::Utc;
 use mime::Mime;
-use rusqlite::{
-    ffi::sqlite3, named_params, params, Connection, ErrorCode, OpenFlags, OptionalExtension, Row,
-};
 
 use crate::{
     app::{APP, APPID, ORG, QUALIFIER},
@@ -36,9 +35,8 @@ const DB_VERSION: &str = "3";
 const DB_PATH: &str = constcat::concat!(APPID, "-db-", DB_VERSION, ".sqlite");
 
 // warning: if you change somethings in here, change the db version
-#[derive(Derivative)]
+#[derive(Clone, Eq, Derivative)]
 #[derivative(PartialEq, Hash)]
-#[derive(Clone, Eq)]
 pub struct Entry {
     #[derivative(PartialEq = "ignore")]
     #[derivative(Hash = "ignore")]
@@ -54,7 +52,13 @@ pub struct Entry {
     #[derivative(PartialEq = "ignore")]
     #[derivative(Hash = "ignore")]
     /// (Mime, Content)
-    pub metadata: Option<(String, String)>,
+    pub metadata: Option<EntryMetadata>,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct EntryMetadata {
+    pub mime: String,
+    pub value: String,
 }
 
 impl Entry {
@@ -68,7 +72,7 @@ impl Entry {
         creation: i64,
         mime: String,
         content: Vec<u8>,
-        metadata: Option<(String, String)>,
+        metadata: Option<EntryMetadata>,
     ) -> Self {
         Self {
             creation,
@@ -78,19 +82,22 @@ impl Entry {
         }
     }
 
-    pub fn new_now(mime: String, content: Vec<u8>, metadata: Option<(String, String)>) -> Self {
+    pub fn new_now(mime: String, content: Vec<u8>, metadata: Option<EntryMetadata>) -> Self {
         Self::new(Utc::now().timestamp_millis(), mime, content, metadata)
     }
 
     /// SELECT creation, mime, content, metadataMime, metadata
-    fn from_row(row: &Row) -> rusqlite::Result<Self> {
+    fn from_row(row: &SqliteRow) -> Result<Self> {
         Ok(Entry::new(
-            row.get(0)?,
-            row.get(1)?,
-            row.get(2)?,
-            row.get(3)
+            row.get("creation"),
+            row.get("mime"),
+            row.get("content"),
+            row.try_get("metadataMime")
                 .ok()
-                .map(|metadata_mime| (metadata_mime, row.get(4).unwrap())),
+                .map(|metadata_mime| EntryMetadata {
+                    mime: metadata_mime,
+                    value: row.get("metadata"),
+                }),
         ))
     }
 }
@@ -126,7 +133,7 @@ impl Entry {
     pub fn get_content(&self) -> Result<Content<'_>> {
         if self.mime == "text/uri-list" {
             let text = if let Some(metadata) = &self.metadata {
-                &metadata.1
+                &metadata.value
             } else {
                 core::str::from_utf8(&self.content)?
             };
@@ -154,14 +161,14 @@ impl Entry {
             return core::str::from_utf8(&self.content).ok();
         }
 
-        if let Some((mime, metadata)) = &self.metadata {
+        if let Some(metadata) = &self.metadata {
             #[allow(clippy::assigning_clones)]
-            if mime == "text/html" {
-                if let Some(alt) = find_alt(metadata) {
+            if metadata.mime == "text/html" {
+                if let Some(alt) = find_alt(&metadata.value) {
                     return Some(alt);
                 }
             }
-            return Some(metadata);
+            return Some(&metadata.value);
         }
 
         None
@@ -184,7 +191,7 @@ fn find_alt(html: &str) -> Option<&str> {
 }
 
 pub struct Db {
-    conn: Connection,
+    conn: SqlitePool,
     hashs: HashMap<u64, TimeId>,
     state: BTreeMap<TimeId, Entry>,
     filtered: Vec<(TimeId, Vec<u32>)>,
@@ -194,81 +201,64 @@ pub struct Db {
 }
 
 impl Db {
-    pub fn new(config: &Config) -> Result<Self> {
+    pub async fn new(config: &Config) -> Result<Self> {
         let directories = directories::ProjectDirs::from(QUALIFIER, ORG, APP).unwrap();
 
         std::fs::create_dir_all(directories.cache_dir())?;
 
-        Self::inner_new(config, directories.cache_dir())
+        Self::inner_new(config, directories.cache_dir()).await
     }
 
-    fn inner_new(config: &Config, db_dir: &Path) -> Result<Self> {
+    async fn inner_new(config: &Config, db_dir: &Path) -> Result<Self> {
         let db_path = db_dir.join(DB_PATH);
 
-        if !db_path.exists() {
-            remove_dir_contents(db_dir);
+        let db_path = db_path
+            .to_str()
+            .ok_or(anyhow!("can't convert path to str"))?;
 
-            let conn = Connection::open_with_flags(
-                db_path,
-                OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE,
-            )?;
-
-            let query_create_table = r#"
-                CREATE TABLE ClipboardEntries (
-                    creation INTEGER PRIMARY KEY,
-                    mime TEXT NOT NULL,
-                    content BLOB NOT NULL,
-                    metadataMime TEXT,
-                    metadata TEXT,
-                    CHECK ((metadataMime IS NULL AND metadata IS NULL) OR (metadataMime IS NOT NULL AND metadata IS NOT NULL))
-                )
-            "#;
-
-            conn.execute(query_create_table, ())?;
-
-            return Ok(Db {
-                conn,
-                hashs: HashMap::default(),
-                state: BTreeMap::default(),
-                filtered: Vec::default(),
-                query: String::default(),
-                needle: None,
-                matcher: Matcher::new(nucleo::Config::DEFAULT),
-            });
+        if !Sqlite::database_exists(db_path).await? {
+            info!("Creating database {}", db_path);
+            Sqlite::create_database(db_path).await?;
         }
 
-        let conn = Connection::open_with_flags(db_path, OpenFlags::SQLITE_OPEN_READ_WRITE)?;
+        let conn = SqlitePool::connect(db_path).await?;
+
+        sqlx::migrate::Migrator::new(env!("MIGRATIONS_FOLDER"))
+            .await?
+            .run(&conn)
+            .await?;
 
         if let Some(max_duration) = &config.maximum_entries_lifetime {
+            use sqlx::Executor; // This trait is required for the `.execute` method
+
+            let now_millis = utils::now_millis();
+            let max_millis = max_duration.as_millis().try_into().unwrap_or(u64::MAX);
+
             let query_delete_old_one = r#"
                 DELETE FROM ClipboardEntries
-                WHERE (:now - creation) >= :max;
+                WHERE (? - creation) >= ?;
             "#;
 
-            conn.execute(
-                query_delete_old_one,
-                named_params! {
-                    ":now": utils::now_millis(),
-                    ":max": max_duration.as_millis().try_into().unwrap_or(u64::MAX),
-                },
-            )?;
+            sqlx::query(query_delete_old_one)
+                .bind(now_millis)
+                .bind(max_millis as i64)
+                .execute(&conn)
+                .await?;
         }
 
         if let Some(max_number_of_entries) = &config.maximum_entries_number {
             let query_delete_old_one = r#"
-                DELETE FROM ClipboardEntries 
+                DELETE FROM ClipboardEntries
                 WHERE creation NOT IN
                     (SELECT creation FROM ClipboardEntries
                     ORDER BY creation DESC
-                    LIMIT :max_number_of_entries);
+                    LIMIT ?);
             "#;
 
-            conn.execute(
-                query_delete_old_one,
-                named_params! {
-                    ":max_number_of_entries": max_number_of_entries,
-                },
-            )?;
+            sqlx::query(query_delete_old_one)
+                .bind(max_number_of_entries)
+                .execute(&conn)
+                .await?;
         }
 
         let mut hashs = HashMap::default();
@@ -280,11 +270,9 @@ impl Db {
         "#;
 
         {
-            let mut stmt = conn.prepare(query_load_table)?;
+            let rows = sqlx::query(query_load_table).fetch_all(&conn).await?;
 
-            let mut rows = stmt.query(())?;
-
-            while let Some(row) = rows.next()? {
+            while let Some(row) = rows.first() {
                 let data = Entry::from_row(row)?;
 
                 hashs.insert(data.get_hash(), data.creation);
@@ -305,7 +293,7 @@ impl Db {
         Ok(db)
     }
 
-    fn get_last_row(&mut self) -> Result<Option<Entry>> {
+    async fn get_last_row(&mut self) -> Result<Option<Entry>> {
         let query_get_last_row = r#"
             SELECT creation, mime, content, metadataMime, metadata
             FROM ClipboardEntries
@@ -313,19 +301,20 @@ impl Db {
             LIMIT 1
         "#;
 
-        let data = self
-            .conn
-            .query_row(query_get_last_row, (), Entry::from_row)
-            .optional()?;
+        let entry = sqlx::query(query_get_last_row)
+            .fetch_optional(&self.conn)
+            .await?
+            .map(|e| Entry::from_row(&e).unwrap());
 
-        Ok(data)
+        Ok(entry)
     }
 
     // the <= 200 condition, is to unsure we reuse the same timestamp
     // of the first process that inserted the data.
-    pub fn insert(&mut self, mut data: Entry) -> Result<()> {
-        // insert a new data, only if the last row is not the same AND was not created recently
-        let query_insert_if_not_exist = r#"
+    pub fn insert<'a: 'b, 'b>(&'a mut self, mut data: Entry) -> BoxFuture<'b, Result<()>> {
+        async move {
+            // insert a new data, only if the last row is not the same AND was not created recently
+            let query_insert_if_not_exist = r#"
             WITH last_row AS (
                 SELECT creation, mime, content, metadataMime, metadata
                 FROM ClipboardEntries
@@ -333,71 +322,79 @@ impl Db {
                 LIMIT 1
             )
             INSERT INTO ClipboardEntries (creation, mime, content, metadataMime, metadata)
-            SELECT :new_id, :new_mime, :new_content, :new_metadata_mime, :new_metadata
+            SELECT $1, $2, $3, $4, $5
             WHERE NOT EXISTS (
                 SELECT 1
                 FROM last_row AS lr
-                WHERE lr.content = :new_content AND (:now - lr.creation) <= 1000
+                WHERE lr.content = $3 AND ($6 - lr.creation) <= 1000
             );
         "#;
 
-        if let Err(e) = self.conn.execute(
-            query_insert_if_not_exist,
-            named_params! {
-                ":new_id": data.creation,
-                ":new_mime": data.mime,
-                ":new_content": data.content,
-                ":new_metadata_mime": data.metadata.as_ref().map(|m| &m.0),
-                ":new_metadata": data.metadata.as_ref().map(|m| &m.1),
-                ":now": utils::now_millis(),
-            },
-        ) {
-            if let rusqlite::Error::SqliteFailure(rusqlite::ffi::Error { code, .. }, ..) = e {
-                if code == ErrorCode::ConstraintViolation {
-                    warn!("a different value with the same id was already inserted");
-                    data.creation += 1;
-                    return self.insert(data);
+            if let Err(e) = sqlx::query(query_insert_if_not_exist)
+                .bind(data.creation)
+                .bind(&data.mime)
+                .bind(&data.content)
+                .bind(data.metadata.as_ref().map(|m| &m.mime))
+                .bind(data.metadata.as_ref().map(|m| &m.value))
+                .bind(utils::now_millis())
+                .execute(&self.conn)
+                .await
+            {
+                if let sqlx::Error::Database(e) = &e {
+                    if e.is_unique_violation() {
+                        warn!("a different value with the same id was already inserted");
+                        data.creation += 1;
+                        return self.insert(data).await;
+                    }
                 }
+
+                return Err(e.into());
             }
-            return Err(e.into());
-        }
 
-        // safe to unwrap since we insert before
-        let last_row = self.get_last_row()?.unwrap();
+            // safe to unwrap since we insert before
+            let last_row = self.get_last_row().await?.unwrap();
 
-        let data_hash = data.get_hash();
+            let data_hash = data.get_hash();
 
-        if let Some(old_id) = self.hashs.remove(&data_hash) {
-            self.state.remove(&old_id);
+            if let Some(old_id) = self.hashs.remove(&data_hash) {
+                self.state.remove(&old_id);
 
-            // in case 2 same data were inserted in a short period
-            // we don't want to remove the old_id
-            if last_row.creation != old_id {
-                let query_delete_old_id = r#"
+                // in case 2 same data were inserted in a short period
+                // we don't want to remove the old_id
+                if last_row.creation != old_id {
+                    let query_delete_old_id = r#"
                     DELETE FROM ClipboardEntries
-                    WHERE creation = ?1;
+                    WHERE creation = ?;
                 "#;
 
-                self.conn.execute(query_delete_old_id, [old_id])?;
+                    sqlx::query(query_delete_old_id)
+                        .bind(old_id)
+                        .execute(&self.conn)
+                        .await?;
+                }
             }
+
+            data.creation = last_row.creation;
+
+            self.hashs.insert(data_hash, data.creation);
+            self.state.insert(data.creation, data);
+
+            self.search();
+            Ok(())
         }
-
-        data.creation = last_row.creation;
-
-        self.hashs.insert(data_hash, data.creation);
-        self.state.insert(data.creation, data);
-
-        self.search();
-        Ok(())
+        .boxed()
     }
 
-    pub fn delete(&mut self, data: &Entry) -> Result<()> {
+    pub async fn delete(&mut self, data: &Entry) -> Result<()> {
         let query = r#"
             DELETE FROM ClipboardEntries
-            WHERE creation = ?1;
+            WHERE creation = ?;
         "#;
 
-        self.conn.execute(query, [data.creation])?;
+        sqlx::query(query)
+            .bind(data.creation)
+            .execute(&self.conn)
+            .await?;
 
         self.hashs.remove(&data.get_hash());
         self.state.remove(&data.creation);
@@ -406,11 +403,12 @@ impl Db {
         Ok(())
     }
 
-    pub fn clear(&mut self) -> Result<()> {
+    pub async fn clear(&mut self) -> Result<()> {
         let query_delete = r#"
             DELETE FROM ClipboardEntries
         "#;
-        self.conn.execute(query_delete, [])?;
+
+        sqlx::query(query_delete).execute(&self.conn).await?;
 
         self.state.clear();
         self.filtered.clear();
@@ -534,28 +532,28 @@ mod test {
         db_dir
     }
 
-    #[test]
+    #[tokio::test]
     #[serial]
-    fn test() -> Result<()> {
+    async fn test() -> Result<()> {
         let db_dir = prepare_db_dir();
 
-        let mut db = Db::inner_new(&Config::default(), &db_dir)?;
+        let mut db = Db::inner_new(&Config::default(), &db_dir).await?;
 
-        test_db(&mut db).unwrap();
+        test_db(&mut db).await.unwrap();
 
-        db.clear()?;
+        db.clear().await?;
 
-        test_db(&mut db).unwrap();
+        test_db(&mut db).await.unwrap();
 
         Ok(())
     }
 
-    fn test_db(db: &mut Db) -> Result<()> {
+    async fn test_db(db: &mut Db) -> Result<()> {
         assert!(db.len() == 0);
 
         let data = Entry::new_now("text/plain".into(), "content".as_bytes().into(), None);
 
-        db.insert(data).unwrap();
+        db.insert(data).await.unwrap();
 
         assert!(db.len() == 1);
 
@@ -563,7 +561,7 @@ mod test {
 
         let data = Entry::new_now("text/plain".into(), "content".as_bytes().into(), None);
 
-        db.insert(data).unwrap();
+        db.insert(data).await.unwrap();
 
         assert!(db.len() == 1);
 
@@ -571,7 +569,7 @@ mod test {
 
         let data = Entry::new_now("text/plain".into(), "content2".as_bytes().into(), None);
 
-        db.insert(data.clone()).unwrap();
+        db.insert(data.clone()).await.unwrap();
 
         assert!(db.len() == 2);
 
@@ -583,24 +581,24 @@ mod test {
         Ok(())
     }
 
-    #[test]
+    #[tokio::test]
     #[serial]
-    fn test_delete_old_one() {
+    async fn test_delete_old_one() {
         let db_path = prepare_db_dir();
 
-        let mut db = Db::inner_new(&Config::default(), &db_path).unwrap();
+        let mut db = Db::inner_new(&Config::default(), &db_path).await.unwrap();
 
         let data = Entry::new_now("text/plain".into(), "content".as_bytes().into(), None);
-        db.insert(data).unwrap();
+        db.insert(data).await.unwrap();
 
         sleep(Duration::from_millis(100));
 
         let data = Entry::new_now("text/plain".into(), "content2".as_bytes().into(), None);
-        db.insert(data).unwrap();
+        db.insert(data).await.unwrap();
 
         assert!(db.len() == 2);
 
-        let db = Db::inner_new(&Config::default(), &db_path).unwrap();
+        let db = Db::inner_new(&Config::default(), &db_path).await.unwrap();
 
         assert!(db.len() == 2);
 
@@ -608,46 +606,46 @@ mod test {
             maximum_entries_lifetime: Some(Duration::ZERO),
             ..Default::default()
         };
-        let db = Db::inner_new(&config, &db_path).unwrap();
+        let db = Db::inner_new(&config, &db_path).await.unwrap();
 
         assert!(db.len() == 0);
     }
 
-    #[test]
+    #[tokio::test]
     #[serial]
-    fn same() {
+    async fn same() {
         let db_path = prepare_db_dir();
 
-        let mut db = Db::inner_new(&Config::default(), &db_path).unwrap();
+        let mut db = Db::inner_new(&Config::default(), &db_path).await.unwrap();
 
         let now = utils::now_millis();
 
         let data = Entry::new(now, "text/plain".into(), "content".as_bytes().into(), None);
 
-        db.insert(data).unwrap();
+        db.insert(data).await.unwrap();
 
         let data = Entry::new(now, "text/plain".into(), "content".as_bytes().into(), None);
 
-        db.insert(data).unwrap();
+        db.insert(data).await.unwrap();
         assert!(db.len() == 1);
     }
 
-    #[test]
+    #[tokio::test]
     #[serial]
-    fn different_content_same_time() {
+    async fn different_content_same_time() {
         let db_path = prepare_db_dir();
 
-        let mut db = Db::inner_new(&Config::default(), &db_path).unwrap();
+        let mut db = Db::inner_new(&Config::default(), &db_path).await.unwrap();
 
         let now = utils::now_millis();
 
         let data = Entry::new(now, "text/plain".into(), "content".as_bytes().into(), None);
 
-        db.insert(data).unwrap();
+        db.insert(data).await.unwrap();
 
         let data = Entry::new(now, "text/plain".into(), "content2".as_bytes().into(), None);
 
-        db.insert(data).unwrap();
+        db.insert(data).await.unwrap();
         assert!(db.len() == 2);
     }
 }
