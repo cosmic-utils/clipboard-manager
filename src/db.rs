@@ -223,7 +223,9 @@ impl Db {
 
         let conn = SqlitePool::connect(db_path).await?;
 
-        sqlx::migrate::Migrator::new(env!("MIGRATIONS_FOLDER"))
+        let migration_path = Path::new(env!("MIGRATIONS_FOLDER"));
+
+        sqlx::migrate::Migrator::new(migration_path)
             .await?
             .run(&conn)
             .await?;
