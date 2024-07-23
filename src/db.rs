@@ -1,7 +1,14 @@
-use cosmic::iced_sctk::util;
+use cosmic::{
+    cosmic_theme::palette::cast::ComponentsInto,
+    iced::{subscription, Subscription},
+    iced_sctk::util,
+};
 use derivative::Derivative;
-use futures::{future::BoxFuture, FutureExt};
-use sqlx::{migrate::MigrateDatabase, prelude::*, sqlite::SqliteRow, Executor, Sqlite, SqlitePool};
+use futures::{future::BoxFuture, FutureExt, SinkExt};
+use sqlx::{
+    migrate::MigrateDatabase, prelude::*, sqlite::SqliteExecutor, sqlite::SqliteRow, Sqlite,
+    SqliteConnection, SqlitePool,
+};
 use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap},
@@ -13,6 +20,7 @@ use std::{
     thread::sleep,
     time::Duration,
 };
+use tokio::sync::mpsc;
 
 use anyhow::{anyhow, bail, Result};
 use nucleo::{
@@ -26,7 +34,8 @@ use mime::Mime;
 use crate::{
     app::{APP, APPID, ORG, QUALIFIER},
     config::Config,
-    utils::{self, remove_dir_contents},
+    message::AppMessage,
+    utils::{self, now_millis, remove_dir_contents},
 };
 
 type TimeId = i64;
@@ -191,13 +200,15 @@ fn find_alt(html: &str) -> Option<&str> {
 }
 
 pub struct Db {
-    conn: SqlitePool,
+    conn: SqliteConnection,
     hashs: HashMap<u64, TimeId>,
     state: BTreeMap<TimeId, Entry>,
     filtered: Vec<(TimeId, Vec<u32>)>,
     query: String,
     needle: Option<Atom>,
     matcher: Matcher,
+    // time
+    last_update: i64,
 }
 
 impl Db {
@@ -221,13 +232,13 @@ impl Db {
             Sqlite::create_database(db_path).await?;
         }
 
-        let conn = SqlitePool::connect(db_path).await?;
+        let mut conn = SqliteConnection::connect(db_path).await?;
 
         let migration_path = Path::new(env!("MIGRATIONS_FOLDER"));
 
         sqlx::migrate::Migrator::new(migration_path)
             .await?
-            .run(&conn)
+            .run(&mut conn)
             .await?;
 
         if let Some(max_duration) = &config.maximum_entries_lifetime {
@@ -242,7 +253,7 @@ impl Db {
             sqlx::query(query_delete_old_one)
                 .bind(now_millis)
                 .bind(max_millis as i64)
-                .execute(&conn)
+                .execute(&mut conn)
                 .await?;
         }
 
@@ -257,38 +268,49 @@ impl Db {
 
             sqlx::query(query_delete_old_one)
                 .bind(max_number_of_entries)
-                .execute(&conn)
+                .execute(&mut conn)
                 .await?;
         }
 
-        let mut hashs = HashMap::default();
-        let mut state = BTreeMap::default();
+        let mut db = Db {
+            conn,
+            hashs: HashMap::default(),
+            state: BTreeMap::default(),
+            filtered: Vec::default(),
+            query: String::default(),
+            needle: None,
+            matcher: Matcher::new(nucleo::Config::DEFAULT),
+            last_update: 0,
+        };
+
+        db.reload().await?;
+
+        Ok(db)
+    }
+
+    async fn reload(&mut self) -> Result<()> {
+        self.hashs.clear();
+        self.state.clear();
 
         let query_load_table = r#"
             SELECT creation, mime, content, metadataMime, metadata
             FROM ClipboardEntries
         "#;
 
-        let rows = sqlx::query(query_load_table).fetch_all(&conn).await?;
+        let rows = sqlx::query(query_load_table)
+            .fetch_all(&mut self.conn)
+            .await?;
 
         for row in &rows {
             let data = Entry::from_row(row)?;
 
-            hashs.insert(data.get_hash(), data.creation);
-            state.insert(data.creation, data);
+            self.hashs.insert(data.get_hash(), data.creation);
+            self.state.insert(data.creation, data);
         }
 
-        let db = Db {
-            conn,
-            hashs,
-            state,
-            filtered: Vec::default(),
-            query: String::default(),
-            needle: None,
-            matcher: Matcher::new(nucleo::Config::DEFAULT),
-        };
+        self.search();
 
-        Ok(db)
+        Ok(())
     }
 
     async fn get_last_row(&mut self) -> Result<Option<Entry>> {
@@ -300,7 +322,7 @@ impl Db {
         "#;
 
         let entry = sqlx::query(query_get_last_row)
-            .fetch_optional(&self.conn)
+            .fetch_optional(&mut self.conn)
             .await?
             .map(|e| Entry::from_row(&e).unwrap());
 
@@ -313,20 +335,20 @@ impl Db {
         async move {
             // insert a new data, only if the last row is not the same AND was not created recently
             let query_insert_if_not_exist = r#"
-            WITH last_row AS (
-                SELECT creation, mime, content, metadataMime, metadata
-                FROM ClipboardEntries
-                ORDER BY creation DESC
-                LIMIT 1
-            )
-            INSERT INTO ClipboardEntries (creation, mime, content, metadataMime, metadata)
-            SELECT $1, $2, $3, $4, $5
-            WHERE NOT EXISTS (
-                SELECT 1
-                FROM last_row AS lr
-                WHERE lr.content = $3 AND ($6 - lr.creation) <= 1000
-            );
-        "#;
+                WITH last_row AS (
+                    SELECT creation, mime, content, metadataMime, metadata
+                    FROM ClipboardEntries
+                    ORDER BY creation DESC
+                    LIMIT 1
+                )
+                INSERT INTO ClipboardEntries (creation, mime, content, metadataMime, metadata)
+                SELECT $1, $2, $3, $4, $5
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM last_row AS lr
+                    WHERE lr.content = $3 AND ($6 - lr.creation) <= 1000
+                );
+            "#;
 
             if let Err(e) = sqlx::query(query_insert_if_not_exist)
                 .bind(data.creation)
@@ -335,7 +357,7 @@ impl Db {
                 .bind(data.metadata.as_ref().map(|m| &m.mime))
                 .bind(data.metadata.as_ref().map(|m| &m.value))
                 .bind(utils::now_millis())
-                .execute(&self.conn)
+                .execute(&mut self.conn)
                 .await
             {
                 if let sqlx::Error::Database(e) = &e {
@@ -367,7 +389,7 @@ impl Db {
 
                     sqlx::query(query_delete_old_id)
                         .bind(old_id)
-                        .execute(&self.conn)
+                        .execute(&mut self.conn)
                         .await?;
                 }
             }
@@ -376,6 +398,7 @@ impl Db {
 
             self.hashs.insert(data_hash, data.creation);
             self.state.insert(data.creation, data);
+            self.last_update = now_millis();
 
             self.search();
             Ok(())
@@ -391,11 +414,12 @@ impl Db {
 
         sqlx::query(query)
             .bind(data.creation)
-            .execute(&self.conn)
+            .execute(&mut self.conn)
             .await?;
 
         self.hashs.remove(&data.get_hash());
         self.state.remove(&data.creation);
+        self.last_update = now_millis();
 
         self.search();
         Ok(())
@@ -406,11 +430,12 @@ impl Db {
             DELETE FROM ClipboardEntries
         "#;
 
-        sqlx::query(query_delete).execute(&self.conn).await?;
+        sqlx::query(query_delete).execute(&mut self.conn).await?;
 
         self.state.clear();
         self.filtered.clear();
         self.hashs.clear();
+        self.last_update = now_millis();
 
         Ok(())
     }
@@ -498,6 +523,71 @@ impl Db {
         } else {
             self.filtered.len()
         }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum DbMessage {
+    DbWasUpdated,
+    Ready(mpsc::Sender<DbMessage>),
+}
+
+pub fn sub() -> Subscription<DbMessage> {
+    struct Update;
+
+    enum State {
+        Starting,
+        Ready(mpsc::Receiver<DbMessage>),
+    }
+
+    subscription::channel(
+        std::any::TypeId::of::<Update>(),
+        5,
+        |mut output| async move {
+            let mut state = State::Starting;
+
+            loop {
+                match &mut state {
+                    State::Starting => {
+                        tokio::time::sleep(Duration::from_millis(500)).await;
+
+                        let (tx, rx) = mpsc::channel(100);
+                        output.send(DbMessage::Ready(tx)).await.unwrap();
+
+                        state = State::Ready(rx);
+                    }
+                    State::Ready(rx) => {
+                        if let Some(mess) = rx.blocking_recv() {
+                            output.send(mess).await.unwrap();
+                        }
+                    }
+                }
+            }
+        },
+    )
+}
+
+impl Db {
+    pub async fn handle_message(&mut self, message: DbMessage) -> Result<()> {
+        match message {
+            DbMessage::DbWasUpdated => {
+                if now_millis() - self.last_update > 500 {
+                    self.reload().await?;
+                }
+            }
+            DbMessage::Ready(tx) => {
+                self.conn
+                    .lock_handle()
+                    .await?
+                    .set_update_hook(move |_result| {
+                        if let Err(err) = tx.blocking_send(DbMessage::DbWasUpdated) {
+                            error!("can't send to db {err}");
+                        }
+                    });
+            }
+        }
+
+        Ok(())
     }
 }
 

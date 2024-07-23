@@ -304,6 +304,13 @@ impl cosmic::Application for Window {
                 config_set!(private_mode, private_mode);
                 PRIVATE_MODE.store(private_mode, atomic::Ordering::Relaxed);
             }
+            AppMessage::Db(inner) => {
+                block_on(async {
+                    if let Err(err) = self.state.db.handle_message(inner).await {
+                        error!("{err}");
+                    }
+                });
+            }
         }
         Command::none()
     }
@@ -337,7 +344,11 @@ impl cosmic::Application for Window {
         self.core.applet.popup_container(view).into()
     }
     fn subscription(&self) -> Subscription<Self::Message> {
-        let mut subscriptions = vec![config::sub(), navigation::sub().map(AppMessage::Navigation)];
+        let mut subscriptions = vec![
+            config::sub(),
+            navigation::sub().map(AppMessage::Navigation),
+            db::sub().map(AppMessage::Db),
+        ];
 
         if !self.state.clipboard_state.is_error() {
             subscriptions.push(clipboard::sub().map(AppMessage::ClipboardEvent));
