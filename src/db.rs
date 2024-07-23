@@ -31,7 +31,7 @@ use crate::{
 
 type TimeId = i64;
 
-const DB_VERSION: &str = "3";
+const DB_VERSION: &str = "4";
 const DB_PATH: &str = constcat::concat!(APPID, "-db-", DB_VERSION, ".sqlite");
 
 // warning: if you change somethings in here, change the db version
@@ -269,15 +269,13 @@ impl Db {
             FROM ClipboardEntries
         "#;
 
-        {
-            let rows = sqlx::query(query_load_table).fetch_all(&conn).await?;
+        let rows = sqlx::query(query_load_table).fetch_all(&conn).await?;
 
-            while let Some(row) = rows.first() {
-                let data = Entry::from_row(row)?;
+        for row in &rows {
+            let data = Entry::from_row(row)?;
 
-                hashs.insert(data.get_hash(), data.creation);
-                state.insert(data.creation, data);
-            }
+            hashs.insert(data.get_hash(), data.creation);
+            state.insert(data.creation, data);
         }
 
         let db = Db {
