@@ -557,7 +557,7 @@ pub fn sub() -> Subscription<DbMessage> {
                         state = State::Ready(rx);
                     }
                     State::Ready(rx) => {
-                        if let Some(mess) = rx.blocking_recv() {
+                        if let Some(mess) = rx.recv().await {
                             output.send(mess).await.unwrap();
                         }
                     }
@@ -569,6 +569,8 @@ pub fn sub() -> Subscription<DbMessage> {
 
 impl Db {
     pub async fn handle_message(&mut self, message: DbMessage) -> Result<()> {
+        info!("db handle_message {:?}", message);
+
         match message {
             DbMessage::DbWasUpdated => {
                 if now_millis() - self.last_update > 500 {
