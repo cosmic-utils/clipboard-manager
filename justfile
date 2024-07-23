@@ -5,6 +5,7 @@ debug := '0'
 
 export NAME := 'cosmic-ext-applet-clipboard-manager'
 export APPID := 'io.github.wiiznokes.' + NAME 
+export MIGRATIONS_FOLDER := share-dst / APPID / 'migrations'
 
 bin-src := if debug == '1' { 'target/debug' / NAME } else { 'target/release' / NAME }
 
@@ -27,17 +28,26 @@ build-debug *args:
 build-release *args:
   cargo build --release {{args}}
 
-install:
+install: install-migrations
   install -Dm0755 {{bin-src}} {{bin-dst}}
   install -Dm0644 res/desktop_entry.desktop {{desktop-dst}}
   install -Dm0644 res/app_icon.svg {{icon-dst}}
   install -Dm0644 res/env.conf {{env-dst}}
+
+install-migrations:
+  #!/usr/bin/env sh
+  set -ex
+  for file in ./migrations/*; do
+    install -Dm0644 $file "$MIGRATIONS_FOLDER/$(basename "$file")"
+  done
+  
 
 uninstall:
   rm {{bin-dst}}
   rm {{desktop-dst}}
   rm {{icon-dst}}
   rm {{env-dst}}
+  rm -r {{MIGRATIONS_FOLDER}}
 
 clean:
   cargo clean

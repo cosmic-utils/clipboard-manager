@@ -18,8 +18,8 @@ use wl_clipboard_rs::{
     paste_watch,
 };
 
-use crate::config::PRIVATE_MODE;
 use crate::db::Entry;
+use crate::{config::PRIVATE_MODE, db::EntryMetadata};
 use os_pipe::PipeReader;
 
 // prefer popular formats
@@ -142,7 +142,10 @@ pub fn sub() -> Subscription<ClipboardMessage> {
 
                                         debug!("metadata = {}", metadata);
 
-                                        Some((mimitype, metadata))
+                                        Some(EntryMetadata {
+                                            mime: mimitype,
+                                            value: metadata,
+                                        })
                                     } else {
                                         None
                                     };
@@ -194,10 +197,10 @@ pub fn copy(data: Entry) -> Result<(), copy::Error> {
 
     sources.push(source);
 
-    if let Some((mime, content)) = data.metadata {
+    if let Some(metadata) = data.metadata {
         let source = MimeSource {
-            source: copy::Source::Bytes(content.into_boxed_str().into_boxed_bytes()),
-            mime_type: copy::MimeType::Specific(mime),
+            source: copy::Source::Bytes(metadata.value.into_boxed_str().into_boxed_bytes()),
+            mime_type: copy::MimeType::Specific(metadata.mime),
         };
         sources.push(source);
     }

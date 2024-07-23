@@ -15,6 +15,7 @@ use cosmic::iced_widget::Column;
 use cosmic::widget::{button, icon, text, text_input, MouseArea};
 
 use cosmic::{Element, Theme};
+use futures::executor::block_on;
 
 use crate::config::{Config, CONFIG_VERSION, PRIVATE_MODE};
 use crate::db::{self, Db, Entry};
@@ -25,6 +26,7 @@ use crate::{clipboard, config, navigation};
 
 use cosmic::cosmic_config;
 use std::sync::atomic::{self, AtomicBool};
+use std::thread;
 
 pub const QUALIFIER: &str = "io.github";
 pub const ORG: &str = "wiiznokes";
@@ -166,12 +168,15 @@ impl cosmic::Application for Window {
     ) -> (Self, cosmic::Command<cosmic::app::Message<Self::Message>>) {
         let config = flags.config;
         PRIVATE_MODE.store(config.private_mode, atomic::Ordering::Relaxed);
+
+        let db = block_on(async { db::Db::new(&config).await.unwrap() });
+
         let window = Window {
             core,
             config_handler: flags.config_handler,
             popup: None,
             state: AppState {
-                db: db::Db::new(&config).unwrap(),
+                db,
                 clipboard_state: ClipboardState::Init,
                 focused: 0,
             },
@@ -235,9 +240,11 @@ impl cosmic::Application for Window {
                     self.state.clipboard_state = ClipboardState::Connected;
                 }
                 clipboard::ClipboardMessage::Data(data) => {
-                    if let Err(e) = self.state.db.insert(data) {
-                        error!("can't insert data: {e}");
-                    }
+                    block_on(async {
+                        if let Err(e) = self.state.db.insert(data).await {
+                            error!("can't insert data: {e}");
+                        }
+                    });
                 }
                 clipboard::ClipboardMessage::Error(e) => {
                     error!("{e}");
@@ -258,14 +265,18 @@ impl cosmic::Application for Window {
                 return self.close_popup();
             }
             AppMessage::Delete(data) => {
-                if let Err(e) = self.state.db.delete(&data) {
-                    error!("can't delete {:?}: {}", data.get_content(), e);
-                }
+                block_on(async {
+                    if let Err(e) = self.state.db.delete(&data).await {
+                        error!("can't delete {:?}: {}", data.get_content(), e);
+                    }
+                });
             }
             AppMessage::Clear => {
-                if let Err(e) = self.state.db.clear() {
-                    error!("can't clear db: {e}");
-                }
+                block_on(async {
+                    if let Err(e) = self.state.db.clear().await {
+                        error!("can't clear db: {e}");
+                    }
+                });
             }
             AppMessage::RetryConnectingClipboard => {
                 self.state.clipboard_state = ClipboardState::Init;
@@ -292,6 +303,13 @@ impl cosmic::Application for Window {
             AppMessage::PrivateMode(private_mode) => {
                 config_set!(private_mode, private_mode);
                 PRIVATE_MODE.store(private_mode, atomic::Ordering::Relaxed);
+            }
+            AppMessage::Db(inner) => {
+                block_on(async {
+                    if let Err(err) = self.state.db.handle_message(inner).await {
+                        error!("{err}");
+                    }
+                });
             }
         }
         Command::none()
@@ -326,7 +344,11 @@ impl cosmic::Application for Window {
         self.core.applet.popup_container(view).into()
     }
     fn subscription(&self) -> Subscription<Self::Message> {
-        let mut subscriptions = vec![config::sub(), navigation::sub().map(AppMessage::Navigation)];
+        let mut subscriptions = vec![
+            config::sub(),
+            navigation::sub().map(AppMessage::Navigation),
+            db::sub().map(AppMessage::Db),
+        ];
 
         if !self.state.clipboard_state.is_error() {
             subscriptions.push(clipboard::sub().map(AppMessage::ClipboardEvent));

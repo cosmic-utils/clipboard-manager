@@ -31,7 +31,7 @@ directories = "5.0"
 anyhow = "1.0.86"
 chrono = { version = "0.4.38", default-features = false, features = ["now"] }
 mime = "0.3.17"
-rusqlite = "0.31.0"
+sqlx = { version = "0.8.0", features = ["sqlite", "runtime-tokio"] }
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.16", features = [
     "fmt",
@@ -41,6 +41,7 @@ tracing-subscriber = { version = "0.3.16", features = [
 tracing-journald = "0.3.0"
 constcat = "0.5.0"
 nucleo = "0.5.0"
+futures = "0.3.30"
 
 [dependencies.libcosmic]
 git = "https://github.com/pop-os/libcosmic"
