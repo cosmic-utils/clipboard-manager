@@ -235,12 +235,17 @@ impl Db {
 
         let mut conn = SqliteConnection::connect(db_path).await?;
 
-        let migration_path = Path::new(env!("MIGRATIONS_FOLDER"));
+        let migration_path = Path::new(constcat::concat!("/usr/share/", APP, "/migrations"));
 
-        sqlx::migrate::Migrator::new(migration_path)
-            .await?
-            .run(&mut conn)
-            .await?;
+        match sqlx::migrate::Migrator::new(migration_path).await {
+            Ok(migrator) => migrator,
+            Err(e) => {
+                warn!("migrator error {e}, fall back to relative path");
+                sqlx::migrate::Migrator::new(Path::new("./migrations")).await?
+            }
+        }
+        .run(&mut conn)
+        .await?;
 
         if let Some(max_duration) = &config.maximum_entries_lifetime {
             let now_millis = utils::now_millis();
