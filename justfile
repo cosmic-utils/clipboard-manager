@@ -15,6 +15,7 @@ bin-dst := base-dir / 'bin' / NAME
 desktop-dst := share-dst / 'applications' / APPID + '.desktop'
 icon-dst := share-dst / 'icons/hicolor/scalable/apps' / APPID + '-symbolic.svg'
 env-dst := base-dir / 'lib/environment.d' / NAME + '.conf'
+migrations-dst := share-dst / NAME / 'migrations'
 
 
 default: build-release
@@ -36,7 +37,7 @@ install-migrations:
   #!/usr/bin/env sh
   set -ex
   for file in ./migrations/*; do
-    install -Dm0644 $file "$MIGRATIONS_FOLDER/$(basename "$file")"
+    install -Dm0644 $file "{{migrations-dst}}/$(basename "$file")"
   done
   
 
@@ -45,6 +46,7 @@ uninstall:
   rm {{desktop-dst}}
   rm {{icon-dst}}
   rm {{env-dst}}
+  rm -r {{share-dst}}/{{NAME}}
 
 clean:
   cargo clean
