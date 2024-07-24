@@ -5,7 +5,6 @@ debug := '0'
 
 export NAME := 'cosmic-ext-applet-clipboard-manager'
 export APPID := 'io.github.wiiznokes.' + NAME 
-export MIGRATIONS_FOLDER := share-dst / NAME / 'migrations'
 
 bin-src := if debug == '1' { 'target/debug' / NAME } else { 'target/release' / NAME }
 
@@ -46,7 +45,6 @@ uninstall:
   rm {{desktop-dst}}
   rm {{icon-dst}}
   rm {{env-dst}}
-  rm -r {{MIGRATIONS_FOLDER}}
 
 clean:
   cargo clean
