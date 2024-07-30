@@ -8,7 +8,7 @@ edition = "2021"
 license = "GPL-3.0"
 homepage = "https://github.com/wiiznokes/clipboard-manager/"
 repository = "https://github.com/wiiznokes/clipboard-manager.git"
-rust-version = "1.79"
+rust-version = "1.80"
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
