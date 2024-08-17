@@ -31,7 +31,7 @@ Example: `sudo nano /etc/environment` to open the file in terminal, `control+shi
 
 Reboot or restart the session for the `COSMIC_DATA_CONTROL_ENABLED=1` environment variable to take effect.
 
-## Logs
+## Logs (for bug reports)
 
 ```sh
 journalctl -p 3 -xb --user _EXE=/usr/bin/cosmic-ext-applet-clipboard-manager | less
