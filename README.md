@@ -2,7 +2,7 @@
 
 ![screenshot of the applet](https://media.githubusercontent.com/media/wiiznokes/clipboard-manager/master/res/screenshots/main_popup.png)
 
-The goal is to make a simple yet fast clipboard history, with a focus on UX, rapidity and security.
+The goal is to make a simple, yet fast clipboard history, with a focus on UX, rapidity, & security.
 
 There is a quick settings popup when you right click the icon.
 
@@ -17,7 +17,7 @@ sudo dnf copr enable wiiznokes/cosmic-applets-unofficial
 sudo dnf install cosmic-ext-applet-clipboard-manager
 ```
 
-### Build for yourself
+### Other distros
 
 ```sh
 git clone https://github.com/wiiznokes/clipboard-manager.git
@@ -27,6 +27,7 @@ just build-release
 sudo just install
 ```
 After install, write `COSMIC_DATA_CONTROL_ENABLED=1` in `/etc/environment`. (see [this issue](https://github.com/wiiznokes/clipboard-manager/issues/61))_
+Example: `sudo nano /etc/environment` to open the file in terminal, `control+shift+v` to paste `COSMIC_DATA_CONTROL_ENABLED=1` then `control+s` to save & `control+x` to exit. Of course all you need to do is paste the contents & save, so use any method you prefer!
 
 Reboot or restart the session for the `COSMIC_DATA_CONTROL_ENABLED=1` environment variable to take effect.
 
