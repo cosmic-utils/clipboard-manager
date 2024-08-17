@@ -6,7 +6,7 @@ The goal is to make a simple yet fast clipboard history, with a focus on UX, rap
 
 There is a quick settings popup when you right click the icon.
 
-## Install
+## Installation
 
 ### Fedora
 
@@ -17,7 +17,7 @@ sudo dnf copr enable wiiznokes/cosmic-applets-unofficial
 sudo dnf install cosmic-ext-applet-clipboard-manager
 ```
 
-### Other distros
+### Build for yourself
 
 ```sh
 git clone https://github.com/wiiznokes/clipboard-manager.git
@@ -26,9 +26,9 @@ sudo apt install libsqlite3-dev sqlite3 just cargo
 just build-release
 sudo just install
 ```
-_For Pop-os, write `COSMIC_DATA_CONTROL_ENABLED=1` in `/etc/environment`. (see [this issue](https://github.com/wiiznokes/clipboard-manager/issues/61))_
+After install, write `COSMIC_DATA_CONTROL_ENABLED=1` in `/etc/environment`. (see [this issue](https://github.com/wiiznokes/clipboard-manager/issues/61))_
 
-You will probably need to reboot or re login for the `COSMIC_DATA_CONTROL_ENABLED=1` environment variable to take effect.
+Reboot or restart the session for the `COSMIC_DATA_CONTROL_ENABLED=1` environment variable to take effect.
 
 ## Logs
 
