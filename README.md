@@ -26,7 +26,7 @@ sudo apt install libsqlite3-dev sqlite3 just cargo
 just build-release
 sudo just install
 ```
-Write `COSMIC_DATA_CONTROL_ENABLED=1` in `/etc/environment`. (see [this issue](https://github.com/wiiznokes/clipboard-manager/issues/61))_
+_Write `COSMIC_DATA_CONTROL_ENABLED=1` in `/etc/environment`. (see [this issue](https://github.com/wiiznokes/clipboard-manager/issues/61))_
 
 Reboot or restart the session for the `COSMIC_DATA_CONTROL_ENABLED=1` environment variable to take effect.
 
