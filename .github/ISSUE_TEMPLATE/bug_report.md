@@ -14,4 +14,4 @@ labels: bug
 
 #### Possible Additional Information (optional)
 
-#### Logs
+#### Logs (optional)
