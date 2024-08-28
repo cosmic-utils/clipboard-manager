@@ -1,6 +1,5 @@
 use cosmic::app::{command, Core};
 
-use cosmic::cctk::sctk::reexports::protocols::wp::presentation_time::client::wp_presentation_feedback::Kind;
 use cosmic::iced::advanced::subscription;
 use cosmic::iced::wayland::popup::{destroy_popup, get_popup};
 use cosmic::iced::window::Id;
@@ -10,7 +9,6 @@ use cosmic::iced_futures::Subscription;
 use cosmic::iced_runtime::command::Action;
 use cosmic::iced_runtime::core::window;
 use cosmic::iced_style::application;
-use cosmic::iced_widget::graphics::text::cosmic_text::rustybuzz::ttf_parser::name_id::POST_SCRIPT_NAME;
 use cosmic::iced_widget::{qr_code, Column};
 use cosmic::widget::{button, icon, text, text_input, MouseArea};
 
