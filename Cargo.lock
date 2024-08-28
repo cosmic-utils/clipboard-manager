@@ -693,6 +693,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
+name = "checked_int_cast"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "17cc5e6b5ab06331c33589842070416baa137e8b0eb912b008cfd4a78ada7919"
+
+[[package]]
 name = "chrono"
 version = "0.4.38"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -916,12 +922,12 @@ dependencies = [
 [[package]]
 name = "cosmic-config"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/libcosmic#60817451bbe97cbe9f2c70897b5ef401d6078446"
+source = "git+https://github.com/wiiznokes/libcosmic?branch=qr_code#d461f6917eff09b4ab75569edeebb4bd77a3755c"
 dependencies = [
  "atomicwrites",
- "cosmic-config-derive",
+ "cosmic-config-derive 0.1.0 (git+https://github.com/wiiznokes/libcosmic?branch=qr_code)",
  "dirs",
- "iced_futures",
+ "iced_futures 0.12.0 (git+https://github.com/wiiznokes/libcosmic?branch=qr_code)",
  "known-folders",
  "notify",
  "once_cell",
@@ -930,6 +936,33 @@ dependencies = [
  "tokio",
  "tracing",
  "xdg",
+]
+
+[[package]]
+name = "cosmic-config"
+version = "0.1.0"
+source = "git+https://github.com/pop-os/libcosmic#60817451bbe97cbe9f2c70897b5ef401d6078446"
+dependencies = [
+ "atomicwrites",
+ "cosmic-config-derive 0.1.0 (git+https://github.com/pop-os/libcosmic)",
+ "dirs",
+ "iced_futures 0.12.0 (git+https://github.com/pop-os/libcosmic)",
+ "known-folders",
+ "notify",
+ "once_cell",
+ "ron",
+ "serde",
+ "tracing",
+ "xdg",
+]
+
+[[package]]
+name = "cosmic-config-derive"
+version = "0.1.0"
+source = "git+https://github.com/wiiznokes/libcosmic?branch=qr_code#d461f6917eff09b4ab75569edeebb4bd77a3755c"
+dependencies = [
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -978,7 +1011,7 @@ version = "0.1.0"
 source = "git+https://github.com/pop-os/cosmic-panel#e184d10535e43dfc3e470a481f81f9fe24359521"
 dependencies = [
  "anyhow",
- "cosmic-config",
+ "cosmic-config 0.1.0 (git+https://github.com/pop-os/libcosmic)",
  "ron",
  "serde",
  "smithay-client-toolkit",
@@ -1026,10 +1059,10 @@ dependencies = [
 [[package]]
 name = "cosmic-theme"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/libcosmic#60817451bbe97cbe9f2c70897b5ef401d6078446"
+source = "git+https://github.com/wiiznokes/libcosmic?branch=qr_code#d461f6917eff09b4ab75569edeebb4bd77a3755c"
 dependencies = [
  "almost",
- "cosmic-config",
+ "cosmic-config 0.1.0 (git+https://github.com/wiiznokes/libcosmic?branch=qr_code)",
  "csscolorparser",
  "dirs",
  "lazy_static",
@@ -1166,7 +1199,7 @@ version = "0.19.0"
 source = "git+https://github.com/gfx-rs/wgpu?rev=20fda69#20fda698341efbdc870b8027d6d49f5bf3f36109"
 dependencies = [
  "bitflags 2.6.0",
- "libloading 0.8.5",
+ "libloading 0.7.4",
  "winapi",
 ]
 
@@ -1324,7 +1357,7 @@ version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "330c60081dcc4c72131f8eb70510f1ac07223e5d4163db481a04a0befcffa412"
 dependencies = [
- "libloading 0.8.5",
+ "libloading 0.7.4",
 ]
 
 [[package]]
@@ -2136,7 +2169,7 @@ dependencies = [
  "bitflags 2.6.0",
  "com",
  "libc",
- "libloading 0.8.5",
+ "libloading 0.7.4",
  "thiserror",
  "widestring",
  "winapi",
@@ -2301,12 +2334,12 @@ dependencies = [
 [[package]]
 name = "iced"
 version = "0.12.0"
-source = "git+https://github.com/pop-os/libcosmic#60817451bbe97cbe9f2c70897b5ef401d6078446"
+source = "git+https://github.com/wiiznokes/libcosmic?branch=qr_code#d461f6917eff09b4ab75569edeebb4bd77a3755c"
 dependencies = [
  "dnd",
  "iced_accessibility",
- "iced_core",
- "iced_futures",
+ "iced_core 0.12.0 (git+https://github.com/wiiznokes/libcosmic?branch=qr_code)",
+ "iced_futures 0.12.0 (git+https://github.com/wiiznokes/libcosmic?branch=qr_code)",
  "iced_renderer",
  "iced_sctk",
  "iced_widget",
@@ -2319,7 +2352,7 @@ dependencies = [
 [[package]]
 name = "iced_accessibility"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/libcosmic#60817451bbe97cbe9f2c70897b5ef401d6078446"
+source = "git+https://github.com/wiiznokes/libcosmic?branch=qr_code#d461f6917eff09b4ab75569edeebb4bd77a3755c"
 dependencies = [
  "accesskit",
  "accesskit_unix",
@@ -2328,7 +2361,7 @@ dependencies = [
 [[package]]
 name = "iced_core"
 version = "0.12.0"
-source = "git+https://github.com/pop-os/libcosmic#60817451bbe97cbe9f2c70897b5ef401d6078446"
+source = "git+https://github.com/wiiznokes/libcosmic?branch=qr_code#d461f6917eff09b4ab75569edeebb4bd77a3755c"
 dependencies = [
  "bitflags 2.6.0",
  "dnd",
@@ -2348,12 +2381,30 @@ dependencies = [
 ]
 
 [[package]]
-name = "iced_futures"
+name = "iced_core"
 version = "0.12.0"
 source = "git+https://github.com/pop-os/libcosmic#60817451bbe97cbe9f2c70897b5ef401d6078446"
 dependencies = [
+ "bitflags 2.6.0",
+ "dnd",
+ "log",
+ "mime 0.1.0",
+ "num-traits",
+ "raw-window-handle",
+ "smol_str",
+ "thiserror",
+ "web-time",
+ "window_clipboard",
+ "xxhash-rust",
+]
+
+[[package]]
+name = "iced_futures"
+version = "0.12.0"
+source = "git+https://github.com/wiiznokes/libcosmic?branch=qr_code#d461f6917eff09b4ab75569edeebb4bd77a3755c"
+dependencies = [
  "futures",
- "iced_core",
+ "iced_core 0.12.0 (git+https://github.com/wiiznokes/libcosmic?branch=qr_code)",
  "log",
  "tokio",
  "wasm-bindgen-futures",
@@ -2361,17 +2412,29 @@ dependencies = [
 ]
 
 [[package]]
-name = "iced_graphics"
+name = "iced_futures"
 version = "0.12.0"
 source = "git+https://github.com/pop-os/libcosmic#60817451bbe97cbe9f2c70897b5ef401d6078446"
+dependencies = [
+ "futures",
+ "iced_core 0.12.0 (git+https://github.com/pop-os/libcosmic)",
+ "log",
+ "wasm-bindgen-futures",
+ "wasm-timer",
+]
+
+[[package]]
+name = "iced_graphics"
+version = "0.12.0"
+source = "git+https://github.com/wiiznokes/libcosmic?branch=qr_code#d461f6917eff09b4ab75569edeebb4bd77a3755c"
 dependencies = [
  "bitflags 2.6.0",
  "bytemuck",
  "cosmic-text",
  "glam",
  "half",
- "iced_core",
- "iced_futures",
+ "iced_core 0.12.0 (git+https://github.com/wiiznokes/libcosmic?branch=qr_code)",
+ "iced_futures 0.12.0 (git+https://github.com/wiiznokes/libcosmic?branch=qr_code)",
  "image",
  "kamadak-exif",
  "log",
@@ -2387,7 +2450,7 @@ dependencies = [
 [[package]]
 name = "iced_renderer"
 version = "0.12.0"
-source = "git+https://github.com/pop-os/libcosmic#60817451bbe97cbe9f2c70897b5ef401d6078446"
+source = "git+https://github.com/wiiznokes/libcosmic?branch=qr_code#d461f6917eff09b4ab75569edeebb4bd77a3755c"
 dependencies = [
  "iced_graphics",
  "iced_tiny_skia",
@@ -2399,12 +2462,12 @@ dependencies = [
 [[package]]
 name = "iced_runtime"
 version = "0.12.0"
-source = "git+https://github.com/pop-os/libcosmic#60817451bbe97cbe9f2c70897b5ef401d6078446"
+source = "git+https://github.com/wiiznokes/libcosmic?branch=qr_code#d461f6917eff09b4ab75569edeebb4bd77a3755c"
 dependencies = [
  "dnd",
  "iced_accessibility",
- "iced_core",
- "iced_futures",
+ "iced_core 0.12.0 (git+https://github.com/wiiznokes/libcosmic?branch=qr_code)",
+ "iced_futures 0.12.0 (git+https://github.com/wiiznokes/libcosmic?branch=qr_code)",
  "smithay-client-toolkit",
  "thiserror",
  "window_clipboard",
@@ -2413,12 +2476,12 @@ dependencies = [
 [[package]]
 name = "iced_sctk"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/libcosmic#60817451bbe97cbe9f2c70897b5ef401d6078446"
+source = "git+https://github.com/wiiznokes/libcosmic?branch=qr_code#d461f6917eff09b4ab75569edeebb4bd77a3755c"
 dependencies = [
  "enum-repr",
  "float-cmp",
  "futures",
- "iced_futures",
+ "iced_futures 0.12.0 (git+https://github.com/wiiznokes/libcosmic?branch=qr_code)",
  "iced_graphics",
  "iced_runtime",
  "iced_style",
@@ -2439,9 +2502,9 @@ dependencies = [
 [[package]]
 name = "iced_style"
 version = "0.12.0"
-source = "git+https://github.com/pop-os/libcosmic#60817451bbe97cbe9f2c70897b5ef401d6078446"
+source = "git+https://github.com/wiiznokes/libcosmic?branch=qr_code#d461f6917eff09b4ab75569edeebb4bd77a3755c"
 dependencies = [
- "iced_core",
+ "iced_core 0.12.0 (git+https://github.com/wiiznokes/libcosmic?branch=qr_code)",
  "once_cell",
  "palette",
 ]
@@ -2449,7 +2512,7 @@ dependencies = [
 [[package]]
 name = "iced_tiny_skia"
 version = "0.12.0"
-source = "git+https://github.com/pop-os/libcosmic#60817451bbe97cbe9f2c70897b5ef401d6078446"
+source = "git+https://github.com/wiiznokes/libcosmic?branch=qr_code#d461f6917eff09b4ab75569edeebb4bd77a3755c"
 dependencies = [
  "bytemuck",
  "cosmic-text",
@@ -2466,7 +2529,7 @@ dependencies = [
 [[package]]
 name = "iced_wgpu"
 version = "0.12.0"
-source = "git+https://github.com/pop-os/libcosmic#60817451bbe97cbe9f2c70897b5ef401d6078446"
+source = "git+https://github.com/wiiznokes/libcosmic?branch=qr_code#d461f6917eff09b4ab75569edeebb4bd77a3755c"
 dependencies = [
  "as-raw-xcb-connection",
  "bitflags 2.6.0",
@@ -2495,7 +2558,7 @@ dependencies = [
 [[package]]
 name = "iced_widget"
 version = "0.12.0"
-source = "git+https://github.com/pop-os/libcosmic#60817451bbe97cbe9f2c70897b5ef401d6078446"
+source = "git+https://github.com/wiiznokes/libcosmic?branch=qr_code#d461f6917eff09b4ab75569edeebb4bd77a3755c"
 dependencies = [
  "dnd",
  "iced_renderer",
@@ -2503,6 +2566,7 @@ dependencies = [
  "iced_style",
  "num-traits",
  "ouroboros",
+ "qrcode",
  "smithay-client-toolkit",
  "thiserror",
  "unicode-segmentation",
@@ -2745,13 +2809,13 @@ checksum = "d8adc4bb1803a324070e64a98ae98f38934d91957a99cfb3a43dcbc01bc56439"
 [[package]]
 name = "libcosmic"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/libcosmic#60817451bbe97cbe9f2c70897b5ef401d6078446"
+source = "git+https://github.com/wiiznokes/libcosmic?branch=qr_code#d461f6917eff09b4ab75569edeebb4bd77a3755c"
 dependencies = [
  "apply",
  "ashpd 0.9.1",
  "chrono",
  "cosmic-client-toolkit",
- "cosmic-config",
+ "cosmic-config 0.1.0 (git+https://github.com/wiiznokes/libcosmic?branch=qr_code)",
  "cosmic-panel-config",
  "cosmic-theme",
  "css-color",
@@ -2759,8 +2823,8 @@ dependencies = [
  "fraction",
  "freedesktop-icons",
  "iced",
- "iced_core",
- "iced_futures",
+ "iced_core 0.12.0 (git+https://github.com/wiiznokes/libcosmic?branch=qr_code)",
+ "iced_futures 0.12.0 (git+https://github.com/wiiznokes/libcosmic?branch=qr_code)",
  "iced_renderer",
  "iced_runtime",
  "iced_sctk",
@@ -3756,6 +3820,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f6d64c71eb498fe9eae14ce4ec935c555749aef511cca85b5568910d6e48001"
 dependencies = [
  "bytemuck",
+]
+
+[[package]]
+name = "qrcode"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "16d2f1455f3630c6e5107b4f2b94e74d76dea80736de0981fd27644216cff57f"
+dependencies = [
+ "checked_int_cast",
 ]
 
 [[package]]
@@ -5738,7 +5811,7 @@ dependencies = [
  "js-sys",
  "khronos-egl",
  "libc",
- "libloading 0.8.5",
+ "libloading 0.7.4",
  "log",
  "metal",
  "naga",

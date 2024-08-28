@@ -50,6 +50,7 @@ features = [
     "applet",
     "tokio",
     "wayland",
+    "qr_code",
     #"multi-window",
     #"winit",
     #"wgpu",
@@ -60,9 +61,9 @@ git = "https://github.com/wiiznokes/wl-clipboard-rs.git"
 branch = "watch"
 # path = "../wl-clipboard-rs"
 
-# [patch."https://github.com/pop-os/libcosmic".libcosmic]
-#git = "https://github.com/wiiznokes/libcosmic"
-#branch = "icon-applet"
+[patch."https://github.com/pop-os/libcosmic".libcosmic]
+git = "https://github.com/wiiznokes/libcosmic"
+branch = "qr_code"
 # path = "../libcosmic"
 
 
