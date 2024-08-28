@@ -1,6 +1,5 @@
 use cosmic::app::{command, Core};
 
-use cosmic::cctk::sctk::reexports::protocols::wp::presentation_time::client::wp_presentation_feedback::Kind;
 use cosmic::iced::advanced::subscription;
 use cosmic::iced::wayland::popup::{destroy_popup, get_popup};
 use cosmic::iced::window::Id;
@@ -10,8 +9,7 @@ use cosmic::iced_futures::Subscription;
 use cosmic::iced_runtime::command::Action;
 use cosmic::iced_runtime::core::window;
 use cosmic::iced_style::application;
-use cosmic::iced_widget::graphics::text::cosmic_text::rustybuzz::ttf_parser::name_id::POST_SCRIPT_NAME;
-use cosmic::iced_widget::Column;
+use cosmic::iced_widget::{qr_code, Column};
 use cosmic::widget::{button, icon, text, text_input, MouseArea};
 
 use cosmic::{Element, Theme};
@@ -45,6 +43,7 @@ pub struct AppState {
     pub db: Db,
     pub clipboard_state: ClipboardState,
     pub focused: usize,
+    pub qr_code: Option<Result<qr_code::State, ()>>,
 }
 
 impl AppState {
@@ -89,19 +88,8 @@ enum PopupKind {
 }
 
 impl Window {
-    fn close_popup(&mut self) -> Command<cosmic::app::Message<AppMessage>> {
-        self.state.focused = 0;
-        self.state.db.set_query_and_search("".into());
-
-        if let Some(popup) = self.popup.take() {
-            //info!("destroy {:?}", popup.id);
-            destroy_popup(popup.id)
-        } else {
-            Command::none()
-        }
-    }
-
-    fn toogle_popup(&mut self, kind: PopupKind) -> Command<cosmic::app::Message<AppMessage>> {
+    fn toggle_popup(&mut self, kind: PopupKind) -> Command<cosmic::app::Message<AppMessage>> {
+        self.state.qr_code.take();
         match &self.popup {
             Some(popup) => {
                 if popup.kind == kind {
@@ -111,6 +99,18 @@ impl Window {
                 }
             }
             None => self.open_popup(kind),
+        }
+    }
+
+    fn close_popup(&mut self) -> Command<cosmic::app::Message<AppMessage>> {
+        self.state.focused = 0;
+        self.state.db.set_query_and_search("".into());
+
+        if let Some(popup) = self.popup.take() {
+            //info!("destroy {:?}", popup.id);
+            destroy_popup(popup.id)
+        } else {
+            Command::none()
         }
     }
 
@@ -179,6 +179,7 @@ impl cosmic::Application for Window {
                 db,
                 clipboard_state: ClipboardState::Init,
                 focused: 0,
+                qr_code: None,
             },
             config,
         };
@@ -225,11 +226,11 @@ impl cosmic::Application for Window {
                 }
             }
             AppMessage::ToggleQuickSettings => {
-                return self.toogle_popup(PopupKind::QuickSettings);
+                return self.toggle_popup(PopupKind::QuickSettings);
             }
 
             AppMessage::TogglePopup => {
-                return self.toogle_popup(PopupKind::Popup);
+                return self.toggle_popup(PopupKind::Popup);
             }
             AppMessage::ClosePopup => return self.close_popup(),
             AppMessage::Search(query) => {
@@ -310,6 +311,26 @@ impl cosmic::Application for Window {
                         error!("{err}");
                     }
                 });
+            }
+            AppMessage::ShowQrCode(e) => {
+                // todo: handle better this error
+                if e.content.len() < 700 {
+                    match qr_code::State::new(&e.content) {
+                        Ok(s) => {
+                            self.state.qr_code.replace(Ok(s));
+                        }
+                        Err(e) => {
+                            error!("{e}");
+                            self.state.qr_code.replace(Err(()));
+                        }
+                    }
+                } else {
+                    error!("qr code to long: {}", e.content.len());
+                    self.state.qr_code.replace(Err(()));
+                }
+            }
+            AppMessage::ReturnToClipboard => {
+                self.state.qr_code.take();
             }
         }
         Command::none()

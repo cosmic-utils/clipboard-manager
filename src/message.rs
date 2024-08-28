@@ -22,4 +22,6 @@ pub enum AppMessage {
     Clear,
     Navigation(NavigationMessage),
     Db(DbMessage),
+    ShowQrCode(Entry),
+    ReturnToClipboard,
 }

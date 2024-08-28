@@ -2,7 +2,8 @@ use std::{borrow::Cow, cmp::min, path::PathBuf};
 
 use cosmic::{
     iced::{Alignment, Length, Padding},
-    iced_widget::{graphics::image::image_rs::flat::View, Row, Scrollable},
+    iced_widget::{graphics::image::image_rs::flat::View, qr_code, QRCode, Row, Scrollable},
+    prelude::CollectionWidget,
     theme::{self, Button},
     widget::{
         self,
@@ -55,27 +56,52 @@ pub fn quick_settings_view<'a>(
         .into()
 }
 
-pub fn popup_view<'a>(state: &'a AppState, _config: &'a Config) -> Element<'a, AppMessage> {
-    Column::new()
-        .width(Length::Fill)
-        .spacing(20)
-        .padding(10)
-        .push(top_view(state))
-        .push(entries(state))
-        .into()
-}
-
-fn top_view(state: &AppState) -> Element<AppMessage> {
+#[inline]
+fn top_bar<'a>(ele: impl Into<Element<'a, AppMessage>>) -> Element<'a, AppMessage> {
     let mut padding = Padding::new(10f32);
     padding.bottom = 0f32;
 
-    let input = text_input::search_input(fl!("search_entries"), state.db.query())
-        .always_active()
-        .on_input(AppMessage::Search)
-        .on_paste(AppMessage::Search)
-        .on_clear(AppMessage::Search("".into()));
+    container(ele).padding(padding).into()
+}
 
-    container(input).padding(padding).into()
+pub fn popup_view<'a>(state: &'a AppState, _config: &'a Config) -> Element<'a, AppMessage> {
+    let mut col = Column::new().width(Length::Fill).spacing(20).padding(10);
+
+    match &state.qr_code {
+        Some(qr_code) => {
+            let qr_code_content: Element<_> = match qr_code {
+                Ok(c) => QRCode::new(c).into(),
+                Err(()) => text(fl!("qr_code_error")).into(),
+            };
+
+            col = col
+                .push(top_bar(
+                    button::text(fl!("return_to_clipboard"))
+                        .width(Length::Fill)
+                        .on_press(AppMessage::ReturnToClipboard),
+                ))
+                .push(
+                    container(qr_code_content)
+                        .width(Length::Fill)
+                        .height(Length::FillPortion(2))
+                        .center_x()
+                        .center_y(),
+                );
+        }
+        None => {
+            col = col
+                .push(top_bar(
+                    text_input::search_input(fl!("search_entries"), state.db.query())
+                        .always_active()
+                        .on_input(AppMessage::Search)
+                        .on_paste(AppMessage::Search)
+                        .on_clear(AppMessage::Search("".into())),
+                ))
+                .push(entries(state));
+        }
+    }
+
+    col.into()
 }
 
 fn entries(state: &AppState) -> Element<'_, AppMessage> {
@@ -243,12 +269,20 @@ fn base_entry<'a>(
 
     context_menu(
         btn,
-        Some(vec![menu::Tree::new(
-            button(text(fl!("delete_entry")))
-                .on_press(AppMessage::Delete(entry.clone()))
-                .width(Length::Fill)
-                .style(Button::Destructive),
-        )]),
+        Some(vec![
+            menu::Tree::new(
+                button(text(fl!("delete_entry")))
+                    .on_press(AppMessage::Delete(entry.clone()))
+                    .width(Length::Fill)
+                    .style(Button::Destructive),
+            ),
+            menu::Tree::new(
+                button(text(fl!("show_qr_code")))
+                    .on_press(AppMessage::ShowQrCode(entry.clone()))
+                    .width(Length::Fill)
+                    .style(Button::Destructive),
+            ),
+        ]),
     )
     .into()
 }
