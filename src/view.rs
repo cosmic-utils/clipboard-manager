@@ -71,6 +71,7 @@ impl AppState {
             .width(Length::Fill)
             .spacing(20)
             .padding(10)
+            .align_items(Alignment::Center)
             .into()
     }
 
@@ -81,9 +82,17 @@ impl AppState {
                 .on_input(AppMsg::Search)
                 .on_paste(AppMsg::Search)
                 .on_clear(AppMsg::Search("".into()))
+                .width(match self.config.horizontal {
+                    true => Length::Fixed(250f32),
+                    false => Length::Fill,
+                })
                 .into(),
             false => button::text(fl!("return_to_clipboard"))
                 .on_press(AppMsg::ReturnToClipboard)
+                .width(match self.config.horizontal {
+                    true => Length::Shrink,
+                    false => Length::Fill,
+                })
                 .into(),
         };
 
@@ -91,11 +100,6 @@ impl AppState {
         padding.bottom = 0f32;
 
         let content = container(content).padding(padding);
-
-        let content = match self.config.horizontal {
-            true => content.width(Length::Shrink),
-            false => content.width(Length::Fill),
-        };
 
         content.into()
     }
@@ -111,7 +115,6 @@ impl AppState {
                 return container(qr_code_content)
                     .width(Length::Fill)
                     .height(Length::Fill)
-                    // .height(Length::FillPortion(2))
                     .center_x()
                     .center_y()
                     .into();
@@ -161,29 +164,37 @@ impl AppState {
                 };
 
                 if self.config.horizontal {
-                    let mut padding = vertical_padding(10f32);
                     // try to fix scroll bar
-                    padding.bottom += 10f32;
+                    let padding = Padding {
+                        top: 0f32,
+                        right: 10f32,
+                        bottom: 20f32,
+                        left: 10f32,
+                    };
 
                     let column = row::with_children(entries_view)
                         .spacing(5f32)
                         .padding(padding);
 
                     Scrollable::new(column)
-                        .height(Length::FillPortion(2))
                         .direction(Direction::Horizontal(Properties::default()))
                         .into()
                 } else {
-                    let mut padding = horizontal_padding(10f32);
                     // try to fix scroll bar
-                    padding.right += 10f32;
+                    let padding = Padding {
+                        top: 0f32,
+                        right: 20f32,
+                        bottom: 0f32,
+                        left: 10f32,
+                    };
 
                     let column = column::with_children(entries_view)
                         .spacing(5f32)
                         .padding(padding);
 
                     Scrollable::new(column)
-                        // .height(Length::FillPortion(2))
+                        // XXX: why ?
+                        .height(Length::FillPortion(2))
                         .into()
                 }
             }
@@ -249,8 +260,12 @@ impl AppState {
         if content.is_empty() {
             return None;
         }
-
-        Some(self.base_entry(entry, is_focused, text(formatted_value(content, 5, 200))))
+        // todo: remove this max line things: display the maximum
+        if self.config.horizontal {
+            Some(self.base_entry(entry, is_focused, text(formatted_value(content, 10, 500))))
+        } else {
+            Some(self.base_entry(entry, is_focused, text(formatted_value(content, 5, 200))))
+        }
     }
 
     fn base_entry<'a>(
@@ -262,6 +277,8 @@ impl AppState {
         let btn = cosmic::widget::button(content)
             .on_press(AppMsg::Copy(entry.clone()))
             .padding([8, 16])
+            .width(Length::Fill)
+            .height(Length::Fill)
             .style(Button::Custom {
                 active: Box::new(move |focused, theme| {
                     let rad_s = theme.cosmic().corner_radii.radius_s;
@@ -303,8 +320,11 @@ impl AppState {
                 }),
             });
 
+        let btn = container(btn);
+
+        // XXX: min width
         let btn = if self.config.horizontal {
-            btn.height(Length::Fill)
+            btn.height(Length::Fill).max_width(350f32)
         } else {
             btn.width(Length::Fill)
         };
