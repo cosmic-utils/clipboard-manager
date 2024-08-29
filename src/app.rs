@@ -1,6 +1,10 @@
 use cosmic::app::{command, Core};
 
 use cosmic::iced::advanced::subscription;
+use cosmic::iced::wayland::actions::layer_surface::{IcedMargin, SctkLayerSurfaceSettings};
+use cosmic::iced::wayland::layer_surface::{
+    destroy_layer_surface, get_layer_surface, Anchor, KeyboardInteractivity,
+};
 use cosmic::iced::wayland::popup::{destroy_popup, get_popup};
 use cosmic::iced::window::Id;
 use cosmic::iced::{self, event, Command, Limits};
@@ -108,7 +112,12 @@ impl Window {
 
         if let Some(popup) = self.popup.take() {
             //info!("destroy {:?}", popup.id);
-            destroy_popup(popup.id)
+
+            if self.config.horizontal {
+                destroy_layer_surface(popup.id)
+            } else {
+                destroy_popup(popup.id)
+            }
         } else {
             Command::none()
         }
@@ -119,30 +128,42 @@ impl Window {
         //info!("will create {:?}", new_id);
 
         let popup = Popup { kind, id: new_id };
-
         self.popup.replace(popup);
-        let mut popup_settings =
-            self.core
-                .applet
-                .get_popup_settings(Id::MAIN, new_id, None, None, None);
 
-        match kind {
-            PopupKind::Popup => {
-                popup_settings.positioner.size_limits = Limits::NONE
-                    .max_width(400.0)
-                    .min_width(300.0)
-                    .min_height(200.0)
-                    .max_height(500.0);
-                get_popup(popup_settings)
-            }
-            PopupKind::QuickSettings => {
-                popup_settings.positioner.size_limits = Limits::NONE
-                    .max_width(250.0)
-                    .min_width(200.0)
-                    .min_height(200.0)
-                    .max_height(550.0);
+        if self.config.horizontal {
+            get_layer_surface(SctkLayerSurfaceSettings {
+                id: new_id,
+                keyboard_interactivity: KeyboardInteractivity::OnDemand,
+                anchor: Anchor::BOTTOM | Anchor::LEFT | Anchor::RIGHT,
+                namespace: "clipboard manager".into(),
+                size: Some((None, Some(350))),
+                size_limits: Limits::NONE.min_width(1.0).min_height(1.0),
+                ..Default::default()
+            })
+        } else {
+            let mut popup_settings =
+                self.core
+                    .applet
+                    .get_popup_settings(Id::MAIN, new_id, None, None, None);
 
-                get_popup(popup_settings)
+            match kind {
+                PopupKind::Popup => {
+                    popup_settings.positioner.size_limits = Limits::NONE
+                        .max_width(400.0)
+                        .min_width(300.0)
+                        .min_height(200.0)
+                        .max_height(500.0);
+                    get_popup(popup_settings)
+                }
+                PopupKind::QuickSettings => {
+                    popup_settings.positioner.size_limits = Limits::NONE
+                        .max_width(250.0)
+                        .min_width(200.0)
+                        .min_height(200.0)
+                        .max_height(550.0);
+
+                    get_popup(popup_settings)
+                }
             }
         }
     }

@@ -16,6 +16,7 @@ pub struct Config {
     pub private_mode: bool,
     pub maximum_entries_lifetime: Option<Duration>,
     pub maximum_entries_number: Option<u32>,
+    pub horizontal: bool,
 }
 
 impl Default for Config {
@@ -24,6 +25,7 @@ impl Default for Config {
             private_mode: false,
             maximum_entries_lifetime: Some(Duration::from_secs(30 * 24 * 60 * 60)), // 30 days,
             maximum_entries_number: Some(500),
+            horizontal: true,
         }
     }
 }

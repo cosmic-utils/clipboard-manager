@@ -2,7 +2,12 @@ use std::{borrow::Cow, cmp::min, path::PathBuf};
 
 use cosmic::{
     iced::{Alignment, Length, Padding},
-    iced_widget::{graphics::image::image_rs::flat::View, qr_code, QRCode, Row, Scrollable},
+    iced_widget::{
+        graphics::image::image_rs::flat::View,
+        qr_code,
+        scrollable::{Direction, Properties},
+        QRCode, Row, Scrollable,
+    },
     prelude::CollectionWidget,
     theme::{self, Button},
     widget::{
@@ -64,7 +69,7 @@ fn top_bar<'a>(ele: impl Into<Element<'a, AppMessage>>) -> Element<'a, AppMessag
     container(ele).padding(padding).into()
 }
 
-pub fn popup_view<'a>(state: &'a AppState, _config: &'a Config) -> Element<'a, AppMessage> {
+pub fn popup_view<'a>(state: &'a AppState, config: &'a Config) -> Element<'a, AppMessage> {
     let mut col = Column::new().width(Length::Fill).spacing(20).padding(10);
 
     match &state.qr_code {
@@ -97,11 +102,65 @@ pub fn popup_view<'a>(state: &'a AppState, _config: &'a Config) -> Element<'a, A
                         .on_paste(AppMessage::Search)
                         .on_clear(AppMessage::Search("".into())),
                 ))
-                .push(entries(state));
+                .push(if config.horizontal {
+                    entries_horizontal(state)
+                } else {
+                    entries(state)
+                });
         }
     }
 
     col.into()
+}
+
+fn entries_horizontal(state: &AppState) -> Element<'_, AppMessage> {
+    let entries_view: Vec<_> = if state.db.query().is_empty() {
+        state
+            .db
+            .iter()
+            .take(20)
+            .enumerate()
+            .filter_map(|(pos, data)| match data.get_content() {
+                Ok(c) => match c {
+                    Content::Text(text) => text_entry(data, pos == state.focused, text),
+                    Content::Image(image) => image_entry(data, pos == state.focused, image),
+                    Content::UriList(uris) => uris_entry(data, pos == state.focused, &uris),
+                },
+                Err(_) => None,
+            })
+            .collect()
+    } else {
+        state
+            .db
+            .search_iter()
+            .take(20)
+            .enumerate()
+            .filter_map(|(pos, (data, indices))| match data.get_content() {
+                Ok(c) => match c {
+                    Content::Text(text) => {
+                        text_entry_with_indices(data, pos == state.focused, text, indices)
+                    }
+                    Content::Image(image) => image_entry(data, pos == state.focused, image),
+                    Content::UriList(uris) => uris_entry(data, pos == state.focused, &uris),
+                },
+                Err(_) => None,
+            })
+            .collect()
+    };
+
+    let mut padding = horizontal_padding(10f32);
+    // try to fix scroll bar
+    padding.right += 10f32;
+
+    let column = row::with_children(entries_view)
+        .spacing(5f32)
+        .padding(padding);
+
+    column.into()
+    // Scrollable::new(column)
+    //     .height(Length::FillPortion(2))
+    //     .direction(Direction::Horizontal(Properties::default()))
+    //     .into()
 }
 
 fn entries(state: &AppState) -> Element<'_, AppMessage> {
