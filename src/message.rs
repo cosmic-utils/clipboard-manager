@@ -4,7 +4,7 @@ use crate::{
     clipboard::{self, ClipboardMessage},
     config::Config,
     db::{self, DbMessage, Entry},
-    navigation::NavigationMessage,
+    navigation::EventMsg,
 };
 
 #[derive(Clone, Debug)]
@@ -19,7 +19,7 @@ pub enum AppMsg {
     Copy(Entry),
     Delete(Entry),
     Clear,
-    Navigation(NavigationMessage),
+    Navigation(EventMsg),
     Db(DbMessage),
     ShowQrCode(Entry),
     ReturnToClipboard,

@@ -277,8 +277,6 @@ impl AppState {
         let btn = cosmic::widget::button(content)
             .on_press(AppMsg::Copy(entry.clone()))
             .padding([8, 16])
-            .width(Length::Fill)
-            .height(Length::Fill)
             .style(Button::Custom {
                 active: Box::new(move |focused, theme| {
                     let rad_s = theme.cosmic().corner_radii.radius_s;
@@ -320,13 +318,12 @@ impl AppState {
                 }),
             });
 
-        let btn = container(btn);
-
-        // XXX: min width
-        let btn = if self.config.horizontal {
-            btn.height(Length::Fill).max_width(350f32)
+        let btn: Element<_> = if self.config.horizontal {
+            container(btn.width(Length::Fill).height(Length::Fill))
+                .max_width(350f32)
+                .into()
         } else {
-            btn.width(Length::Fill)
+            btn.width(Length::Fill).into()
         };
 
         context_menu(

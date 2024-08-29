@@ -1,3 +1,4 @@
+use chrono::{Local, Utc};
 use cosmic::app::{command, Core};
 
 use cosmic::iced::advanced::subscription;
@@ -16,7 +17,7 @@ use cosmic::iced_runtime::command::Action;
 use cosmic::iced_runtime::core::window;
 use cosmic::iced_style::application;
 use cosmic::iced_widget::{qr_code, Column};
-use cosmic::widget::{button, icon, text, text_input, MouseArea};
+use cosmic::widget::{button, icon, text, text_input, MouseArea, Space};
 
 use cosmic::{Element, Theme};
 use futures::executor::block_on;
@@ -24,7 +25,7 @@ use futures::executor::block_on;
 use crate::config::{Config, CONFIG_VERSION, PRIVATE_MODE};
 use crate::db::{self, Db, Entry};
 use crate::message::{AppMsg, ConfigMsg};
-use crate::navigation::NavigationMessage;
+use crate::navigation::EventMsg;
 use crate::utils::command_message;
 use crate::{clipboard, config, navigation};
 
@@ -46,6 +47,7 @@ pub struct AppState {
     pub clipboard_state: ClipboardState,
     pub focused: usize,
     pub qr_code: Option<Result<qr_code::State, ()>>,
+    last_quit: Option<(i64, PopupKind)>,
 }
 
 impl AppState {
@@ -109,7 +111,9 @@ impl AppState {
         self.db.set_query_and_search("".into());
 
         if let Some(popup) = self.popup.take() {
-            //info!("destroy {:?}", popup.id);
+            // info!("destroy {:?}", popup.id);
+
+            self.last_quit = Some((Utc::now().timestamp_millis(), popup.kind));
 
             if self.config.horizontal {
                 destroy_layer_surface(popup.id)
@@ -122,8 +126,17 @@ impl AppState {
     }
 
     fn open_popup(&mut self, kind: PopupKind) -> Command<cosmic::app::Message<AppMsg>> {
+        // handle the case where the popup was closed by clicking the icon
+        if self
+            .last_quit
+            .map(|(t, k)| (Utc::now().timestamp_millis() - t) < 200 && k == kind)
+            .unwrap_or(false)
+        {
+            return Command::none();
+        }
+
         let new_id = Id::unique();
-        //info!("will create {:?}", new_id);
+        // info!("will create {:?}", new_id);
 
         let popup = Popup { kind, id: new_id };
         self.popup.replace(popup);
@@ -204,6 +217,7 @@ impl cosmic::Application for AppState {
             focused: 0,
             qr_code: None,
             config,
+            last_quit: None,
         };
 
         #[cfg(debug_assertions)]
@@ -305,26 +319,26 @@ impl cosmic::Application for AppState {
                 self.clipboard_state = ClipboardState::Init;
             }
             AppMsg::Navigation(message) => match message {
-                navigation::NavigationMessage::Event(e) => {
+                navigation::EventMsg::Event(e) => {
                     let message = match e {
-                        Named::Enter => NavigationMessage::Enter,
-                        Named::Escape => NavigationMessage::Quit,
-                        Named::ArrowDown if !self.config.horizontal => NavigationMessage::Next,
-                        Named::ArrowUp if !self.config.horizontal => NavigationMessage::Previous,
-                        Named::ArrowLeft if self.config.horizontal => NavigationMessage::Previous,
-                        Named::ArrowRight if self.config.horizontal => NavigationMessage::Next,
-                        _ => NavigationMessage::None,
+                        Named::Enter => EventMsg::Enter,
+                        Named::Escape => EventMsg::Quit,
+                        Named::ArrowDown if !self.config.horizontal => EventMsg::Next,
+                        Named::ArrowUp if !self.config.horizontal => EventMsg::Previous,
+                        Named::ArrowLeft if self.config.horizontal => EventMsg::Previous,
+                        Named::ArrowRight if self.config.horizontal => EventMsg::Next,
+                        _ => EventMsg::None,
                     };
 
                     return command_message(AppMsg::Navigation(message));
                 }
-                navigation::NavigationMessage::Next => {
+                navigation::EventMsg::Next => {
                     self.focus_next();
                 }
-                navigation::NavigationMessage::Previous => {
+                navigation::EventMsg::Previous => {
                     self.focus_previous();
                 }
-                navigation::NavigationMessage::Enter => {
+                navigation::EventMsg::Enter => {
                     if let Some(data) = self.db.get(self.focused) {
                         if let Err(e) = clipboard::copy(data.clone()) {
                             error!("can't copy: {e}");
@@ -332,10 +346,10 @@ impl cosmic::Application for AppState {
                         return self.close_popup();
                     }
                 }
-                navigation::NavigationMessage::Quit => {
+                navigation::EventMsg::Quit => {
                     return self.close_popup();
                 }
-                NavigationMessage::None => {}
+                EventMsg::None => {}
             },
             AppMsg::Db(inner) => {
                 block_on(async {
@@ -391,7 +405,7 @@ impl cosmic::Application for AppState {
 
     fn view_window(&self, _id: Id) -> Element<Self::Message> {
         let Some(popup) = &self.popup else {
-            return self.core.applet.popup_container(self.popup_view()).into();
+            return Space::new(0, 0).into();
         };
 
         let view = match &popup.kind {
