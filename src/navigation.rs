@@ -1,7 +1,10 @@
-use cosmic::iced::{event, Subscription};
+use cosmic::iced::{
+    event::{self},
+    Subscription,
+};
 
 #[derive(Debug, Clone)]
-pub enum NavigationMessage {
+pub enum EventMsg {
     Next,
     Previous,
     Enter,
@@ -11,12 +14,21 @@ pub enum NavigationMessage {
 }
 
 #[allow(clippy::collapsible_match)]
-pub fn sub() -> Subscription<NavigationMessage> {
+pub fn sub() -> Subscription<EventMsg> {
     cosmic::iced_futures::event::listen_with(|event, status| {
         match status {
             event::Status::Captured => None,
             event::Status::Ignored => {
                 match event {
+                    cosmic::iced::Event::PlatformSpecific(
+                        cosmic::iced::event::PlatformSpecific::Wayland(
+                            cosmic::iced::event::wayland::Event::Layer(
+                                cosmic::iced::event::wayland::LayerEvent::Unfocused,
+                                ..,
+                            ),
+                        ),
+                    ) => Some(EventMsg::Quit),
+
                     event::Event::Keyboard(event) => match event {
                         cosmic::iced::keyboard::Event::KeyPressed { key, .. } => {
                             match key {
@@ -27,7 +39,7 @@ pub fn sub() -> Subscription<NavigationMessage> {
                                     | cosmic::iced::keyboard::key::Named::ArrowUp
                                     | cosmic::iced::keyboard::key::Named::ArrowLeft
                                     | cosmic::iced::keyboard::key::Named::ArrowRight => {
-                                        Some(NavigationMessage::Event(named))
+                                        Some(EventMsg::Event(named))
                                     }
 
                                     /*
