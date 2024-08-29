@@ -34,7 +34,7 @@ use mime::Mime;
 use crate::{
     app::{APP, APPID, ORG, QUALIFIER},
     config::Config,
-    message::AppMessage,
+    message::AppMsg,
     utils::{self, now_millis, remove_dir_contents},
 };
 

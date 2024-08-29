@@ -7,7 +7,7 @@ use cosmic::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::{app::APPID, message::AppMessage, utils};
+use crate::{app::APPID, message::AppMsg, utils};
 
 pub const CONFIG_VERSION: u64 = 2;
 
@@ -16,6 +16,7 @@ pub struct Config {
     pub private_mode: bool,
     pub maximum_entries_lifetime: Option<Duration>,
     pub maximum_entries_number: Option<u32>,
+    pub horizontal: bool,
 }
 
 impl Default for Config {
@@ -24,13 +25,14 @@ impl Default for Config {
             private_mode: false,
             maximum_entries_lifetime: Some(Duration::from_secs(30 * 24 * 60 * 60)), // 30 days,
             maximum_entries_number: Some(500),
+            horizontal: false,
         }
     }
 }
 
 pub static PRIVATE_MODE: AtomicBool = AtomicBool::new(false);
 
-pub fn sub() -> Subscription<AppMessage> {
+pub fn sub() -> Subscription<AppMsg> {
     struct ConfigSubscription;
 
     cosmic_config::config_subscription(
@@ -42,6 +44,6 @@ pub fn sub() -> Subscription<AppMessage> {
         if !update.errors.is_empty() {
             error!("can't load config {:?}: {:?}", update.keys, update.errors);
         }
-        AppMessage::ChangeConfig(update.config)
+        AppMsg::ChangeConfig(update.config)
     })
 }

@@ -6,6 +6,8 @@ pub enum NavigationMessage {
     Previous,
     Enter,
     Quit,
+    Event(cosmic::iced::keyboard::key::Named),
+    None,
 }
 
 #[allow(clippy::collapsible_match)]
@@ -19,19 +21,13 @@ pub fn sub() -> Subscription<NavigationMessage> {
                         cosmic::iced::keyboard::Event::KeyPressed { key, .. } => {
                             match key {
                                 cosmic::iced::keyboard::Key::Named(named) => match named {
-                                    cosmic::iced::keyboard::key::Named::Enter => {
-                                        Some(NavigationMessage::Enter)
-                                    }
-
-                                    cosmic::iced::keyboard::key::Named::Escape => {
-                                        Some(NavigationMessage::Quit)
-                                    }
-
-                                    cosmic::iced::keyboard::key::Named::ArrowDown => {
-                                        Some(NavigationMessage::Next)
-                                    }
-                                    cosmic::iced::keyboard::key::Named::ArrowUp => {
-                                        Some(NavigationMessage::Previous)
+                                    cosmic::iced::keyboard::key::Named::Enter
+                                    | cosmic::iced::keyboard::key::Named::Escape
+                                    | cosmic::iced::keyboard::key::Named::ArrowDown
+                                    | cosmic::iced::keyboard::key::Named::ArrowUp
+                                    | cosmic::iced::keyboard::key::Named::ArrowLeft
+                                    | cosmic::iced::keyboard::key::Named::ArrowRight => {
+                                        Some(NavigationMessage::Event(named))
                                     }
 
                                     /*

@@ -2,7 +2,7 @@
 #![allow(unused_macros)]
 #![allow(unused_imports)]
 
-use app::{Flags, Window};
+use app::{AppState, Flags};
 use config::{Config, CONFIG_VERSION};
 use cosmic::cosmic_config;
 use cosmic::cosmic_config::CosmicConfigEntry;
@@ -70,5 +70,5 @@ fn main() -> cosmic::iced::Result {
         config_handler,
         config,
     };
-    cosmic::applet::run::<Window>(true, flags)
+    cosmic::applet::run::<AppState>(true, flags)
 }
