@@ -69,6 +69,7 @@ impl AppState {
             .push(self.top_bar())
             .push(self.content())
             .width(Length::Fill)
+            .height(Length::Fill)
             .spacing(20)
             .padding(10)
             .align_items(Alignment::Center)
