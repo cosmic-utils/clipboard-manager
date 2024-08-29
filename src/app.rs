@@ -2,6 +2,7 @@ use cosmic::app::{command, Core};
 
 use cosmic::iced::advanced::subscription;
 use cosmic::iced::wayland::actions::layer_surface::{IcedMargin, SctkLayerSurfaceSettings};
+use cosmic::iced::wayland::actions::popup::SctkPopupSettings;
 use cosmic::iced::wayland::layer_surface::{
     destroy_layer_surface, get_layer_surface, Anchor, KeyboardInteractivity,
 };
@@ -21,9 +22,8 @@ use futures::executor::block_on;
 
 use crate::config::{Config, CONFIG_VERSION, PRIVATE_MODE};
 use crate::db::{self, Db, Entry};
-use crate::message::AppMessage;
+use crate::message::{AppMsg, ConfigMsg};
 use crate::utils::command_message;
-use crate::view::{popup_view, quick_settings_view};
 use crate::{clipboard, config, navigation};
 
 use cosmic::cosmic_config;
@@ -35,15 +35,11 @@ pub const ORG: &str = "wiiznokes";
 pub const APP: &str = "cosmic-ext-applet-clipboard-manager";
 pub const APPID: &str = constcat::concat!(QUALIFIER, ".", ORG, ".", APP);
 
-pub struct Window {
+pub struct AppState {
     core: Core,
-    config: Config,
     config_handler: cosmic_config::Config,
     popup: Option<Popup>,
-    state: AppState,
-}
-
-pub struct AppState {
+    pub config: Config,
     pub db: Db,
     pub clipboard_state: ClipboardState,
     pub focused: usize,
@@ -91,9 +87,9 @@ enum PopupKind {
     QuickSettings,
 }
 
-impl Window {
-    fn toggle_popup(&mut self, kind: PopupKind) -> Command<cosmic::app::Message<AppMessage>> {
-        self.state.qr_code.take();
+impl AppState {
+    fn toggle_popup(&mut self, kind: PopupKind) -> Command<cosmic::app::Message<AppMsg>> {
+        self.qr_code.take();
         match &self.popup {
             Some(popup) => {
                 if popup.kind == kind {
@@ -106,9 +102,9 @@ impl Window {
         }
     }
 
-    fn close_popup(&mut self) -> Command<cosmic::app::Message<AppMessage>> {
-        self.state.focused = 0;
-        self.state.db.set_query_and_search("".into());
+    fn close_popup(&mut self) -> Command<cosmic::app::Message<AppMsg>> {
+        self.focused = 0;
+        self.db.set_query_and_search("".into());
 
         if let Some(popup) = self.popup.take() {
             //info!("destroy {:?}", popup.id);
@@ -123,31 +119,31 @@ impl Window {
         }
     }
 
-    fn open_popup(&mut self, kind: PopupKind) -> Command<cosmic::app::Message<AppMessage>> {
+    fn open_popup(&mut self, kind: PopupKind) -> Command<cosmic::app::Message<AppMsg>> {
         let new_id = Id::unique();
         //info!("will create {:?}", new_id);
 
         let popup = Popup { kind, id: new_id };
         self.popup.replace(popup);
 
-        if self.config.horizontal {
-            get_layer_surface(SctkLayerSurfaceSettings {
-                id: new_id,
-                keyboard_interactivity: KeyboardInteractivity::OnDemand,
-                anchor: Anchor::BOTTOM | Anchor::LEFT | Anchor::RIGHT,
-                namespace: "clipboard manager".into(),
-                size: Some((None, Some(350))),
-                size_limits: Limits::NONE.min_width(1.0).min_height(1.0),
-                ..Default::default()
-            })
-        } else {
-            let mut popup_settings =
-                self.core
-                    .applet
-                    .get_popup_settings(Id::MAIN, new_id, None, None, None);
+        match kind {
+            PopupKind::Popup => {
+                if self.config.horizontal {
+                    get_layer_surface(SctkLayerSurfaceSettings {
+                        id: new_id,
+                        keyboard_interactivity: KeyboardInteractivity::OnDemand,
+                        anchor: Anchor::BOTTOM | Anchor::LEFT | Anchor::RIGHT,
+                        namespace: "clipboard manager".into(),
+                        size: Some((None, Some(350))),
+                        size_limits: Limits::NONE.min_width(1.0).min_height(1.0),
+                        ..Default::default()
+                    })
+                } else {
+                    let mut popup_settings =
+                        self.core
+                            .applet
+                            .get_popup_settings(Id::MAIN, new_id, None, None, None);
 
-            match kind {
-                PopupKind::Popup => {
                     popup_settings.positioner.size_limits = Limits::NONE
                         .max_width(400.0)
                         .min_width(300.0)
@@ -155,24 +151,29 @@ impl Window {
                         .max_height(500.0);
                     get_popup(popup_settings)
                 }
-                PopupKind::QuickSettings => {
-                    popup_settings.positioner.size_limits = Limits::NONE
-                        .max_width(250.0)
-                        .min_width(200.0)
-                        .min_height(200.0)
-                        .max_height(550.0);
+            }
+            PopupKind::QuickSettings => {
+                let mut popup_settings =
+                    self.core
+                        .applet
+                        .get_popup_settings(Id::MAIN, new_id, None, None, None);
 
-                    get_popup(popup_settings)
-                }
+                popup_settings.positioner.size_limits = Limits::NONE
+                    .max_width(250.0)
+                    .min_width(200.0)
+                    .min_height(200.0)
+                    .max_height(550.0);
+
+                get_popup(popup_settings)
             }
         }
     }
 }
 
-impl cosmic::Application for Window {
+impl cosmic::Application for AppState {
     type Executor = cosmic::executor::Default;
     type Flags = Flags;
-    type Message = AppMessage;
+    type Message = AppMsg;
     const APP_ID: &'static str = APPID;
 
     fn core(&self) -> &Core {
@@ -192,22 +193,20 @@ impl cosmic::Application for Window {
 
         let db = block_on(async { db::Db::new(&config).await.unwrap() });
 
-        let window = Window {
+        let window = AppState {
             core,
             config_handler: flags.config_handler,
             popup: None,
-            state: AppState {
-                db,
-                clipboard_state: ClipboardState::Init,
-                focused: 0,
-                qr_code: None,
-            },
+            db,
+            clipboard_state: ClipboardState::Init,
+            focused: 0,
+            qr_code: None,
             config,
         };
 
         #[cfg(debug_assertions)]
         let command = Command::single(Action::Future(Box::pin(async {
-            cosmic::app::Message::App(AppMessage::TogglePopup)
+            cosmic::app::Message::App(AppMsg::TogglePopup)
         })));
 
         #[cfg(not(debug_assertions))]
@@ -216,12 +215,12 @@ impl cosmic::Application for Window {
         (window, command)
     }
 
-    fn on_close_requested(&self, id: window::Id) -> Option<AppMessage> {
+    fn on_close_requested(&self, id: window::Id) -> Option<AppMsg> {
         info!("on_close_requested");
 
         if let Some(popup) = &self.popup {
             if popup.id == id {
-                return Some(AppMessage::ClosePopup);
+                return Some(AppMsg::ClosePopup);
             }
         }
         None
@@ -240,78 +239,78 @@ impl cosmic::Application for Window {
         }
 
         match message {
-            AppMessage::ChangeConfig(config) => {
+            AppMsg::ChangeConfig(config) => {
                 if config != self.config {
                     PRIVATE_MODE.store(config.private_mode, atomic::Ordering::Relaxed);
                     self.config = config;
                 }
             }
-            AppMessage::ToggleQuickSettings => {
+            AppMsg::ToggleQuickSettings => {
                 return self.toggle_popup(PopupKind::QuickSettings);
             }
 
-            AppMessage::TogglePopup => {
+            AppMsg::TogglePopup => {
                 return self.toggle_popup(PopupKind::Popup);
             }
-            AppMessage::ClosePopup => return self.close_popup(),
-            AppMessage::Search(query) => {
-                self.state.db.set_query_and_search(query);
+            AppMsg::ClosePopup => return self.close_popup(),
+            AppMsg::Search(query) => {
+                self.db.set_query_and_search(query);
             }
-            AppMessage::ClipboardEvent(message) => match message {
+            AppMsg::ClipboardEvent(message) => match message {
                 clipboard::ClipboardMessage::Connected => {
-                    self.state.clipboard_state = ClipboardState::Connected;
+                    self.clipboard_state = ClipboardState::Connected;
                 }
                 clipboard::ClipboardMessage::Data(data) => {
                     block_on(async {
-                        if let Err(e) = self.state.db.insert(data).await {
+                        if let Err(e) = self.db.insert(data).await {
                             error!("can't insert data: {e}");
                         }
                     });
                 }
                 clipboard::ClipboardMessage::Error(e) => {
                     error!("{e}");
-                    self.state.clipboard_state = ClipboardState::Error(e);
+                    self.clipboard_state = ClipboardState::Error(e);
                 }
                 clipboard::ClipboardMessage::EmptyKeyboard => {
-                    if let Some(data) = self.state.db.get(0) {
+                    if let Some(data) = self.db.get(0) {
                         if let Err(e) = clipboard::copy(data.to_owned()) {
                             error!("can't copy: {e}");
                         }
                     }
                 }
             },
-            AppMessage::Copy(data) => {
+            AppMsg::Copy(data) => {
                 if let Err(e) = clipboard::copy(data) {
                     error!("can't copy: {e}");
                 }
                 return self.close_popup();
             }
-            AppMessage::Delete(data) => {
+            AppMsg::Delete(data) => {
                 block_on(async {
-                    if let Err(e) = self.state.db.delete(&data).await {
+                    if let Err(e) = self.db.delete(&data).await {
                         error!("can't delete {:?}: {}", data.get_content(), e);
                     }
                 });
             }
-            AppMessage::Clear => {
+            AppMsg::Clear => {
                 block_on(async {
-                    if let Err(e) = self.state.db.clear().await {
+                    if let Err(e) = self.db.clear().await {
                         error!("can't clear db: {e}");
                     }
                 });
             }
-            AppMessage::RetryConnectingClipboard => {
-                self.state.clipboard_state = ClipboardState::Init;
+            AppMsg::RetryConnectingClipboard => {
+                self.clipboard_state = ClipboardState::Init;
             }
-            AppMessage::Navigation(message) => match message {
+            AppMsg::Navigation(message) => match message {
                 navigation::NavigationMessage::Next => {
-                    self.state.focus_next();
+                    self.focus_next();
                 }
                 navigation::NavigationMessage::Previous => {
-                    self.state.focus_previous();
+                    self.focus_previous();
                 }
                 navigation::NavigationMessage::Enter => {
-                    if let Some(data) = self.state.db.get(self.state.focused) {
+                    if let Some(data) = self.db.get(self.focused) {
                         if let Err(e) = clipboard::copy(data.clone()) {
                             error!("can't copy: {e}");
                         }
@@ -322,37 +321,42 @@ impl cosmic::Application for Window {
                     return self.close_popup();
                 }
             },
-            AppMessage::PrivateMode(private_mode) => {
-                config_set!(private_mode, private_mode);
-                PRIVATE_MODE.store(private_mode, atomic::Ordering::Relaxed);
-            }
-            AppMessage::Db(inner) => {
+            AppMsg::Db(inner) => {
                 block_on(async {
-                    if let Err(err) = self.state.db.handle_message(inner).await {
+                    if let Err(err) = self.db.handle_message(inner).await {
                         error!("{err}");
                     }
                 });
             }
-            AppMessage::ShowQrCode(e) => {
+            AppMsg::ShowQrCode(e) => {
                 // todo: handle better this error
                 if e.content.len() < 700 {
                     match qr_code::State::new(&e.content) {
                         Ok(s) => {
-                            self.state.qr_code.replace(Ok(s));
+                            self.qr_code.replace(Ok(s));
                         }
                         Err(e) => {
                             error!("{e}");
-                            self.state.qr_code.replace(Err(()));
+                            self.qr_code.replace(Err(()));
                         }
                     }
                 } else {
                     error!("qr code to long: {}", e.content.len());
-                    self.state.qr_code.replace(Err(()));
+                    self.qr_code.replace(Err(()));
                 }
             }
-            AppMessage::ReturnToClipboard => {
-                self.state.qr_code.take();
+            AppMsg::ReturnToClipboard => {
+                self.qr_code.take();
             }
+            AppMsg::Config(msg) => match msg {
+                ConfigMsg::PrivateMode(private_mode) => {
+                    config_set!(private_mode, private_mode);
+                    PRIVATE_MODE.store(private_mode, atomic::Ordering::Relaxed);
+                }
+                ConfigMsg::Horizontal(horizontal) => {
+                    config_set!(horizontal, horizontal);
+                }
+            },
         }
         Command::none()
     }
@@ -362,25 +366,21 @@ impl cosmic::Application for Window {
             .core
             .applet
             .icon_button(constcat::concat!(APPID, "-symbolic"))
-            .on_press(AppMessage::TogglePopup);
+            .on_press(AppMsg::TogglePopup);
 
         MouseArea::new(icon)
-            .on_right_release(AppMessage::ToggleQuickSettings)
+            .on_right_release(AppMsg::ToggleQuickSettings)
             .into()
     }
 
     fn view_window(&self, _id: Id) -> Element<Self::Message> {
         let Some(popup) = &self.popup else {
-            return self
-                .core
-                .applet
-                .popup_container(popup_view(&self.state, &self.config))
-                .into();
+            return self.core.applet.popup_container(self.popup_view()).into();
         };
 
         let view = match &popup.kind {
-            PopupKind::Popup => popup_view(&self.state, &self.config),
-            PopupKind::QuickSettings => quick_settings_view(&self.state, &self.config),
+            PopupKind::Popup => self.popup_view(),
+            PopupKind::QuickSettings => self.quick_settings_view(),
         };
 
         self.core.applet.popup_container(view).into()
@@ -388,12 +388,12 @@ impl cosmic::Application for Window {
     fn subscription(&self) -> Subscription<Self::Message> {
         let mut subscriptions = vec![
             config::sub(),
-            navigation::sub().map(AppMessage::Navigation),
-            db::sub().map(AppMessage::Db),
+            navigation::sub().map(AppMsg::Navigation),
+            db::sub().map(AppMsg::Db),
         ];
 
-        if !self.state.clipboard_state.is_error() {
-            subscriptions.push(clipboard::sub().map(AppMessage::ClipboardEvent));
+        if !self.clipboard_state.is_error() {
+            subscriptions.push(clipboard::sub().map(AppMsg::ClipboardEvent));
         }
 
         Subscription::batch(subscriptions)

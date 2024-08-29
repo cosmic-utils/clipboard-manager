@@ -8,7 +8,7 @@ use crate::{
 };
 
 #[derive(Clone, Debug)]
-pub enum AppMessage {
+pub enum AppMsg {
     ChangeConfig(Config),
     TogglePopup,
     ToggleQuickSettings,
@@ -18,10 +18,16 @@ pub enum AppMessage {
     RetryConnectingClipboard,
     Copy(Entry),
     Delete(Entry),
-    PrivateMode(bool),
     Clear,
     Navigation(NavigationMessage),
     Db(DbMessage),
     ShowQrCode(Entry),
     ReturnToClipboard,
+    Config(ConfigMsg),
+}
+
+#[derive(Clone, Debug)]
+pub enum ConfigMsg {
+    PrivateMode(bool),
+    Horizontal(bool),
 }
