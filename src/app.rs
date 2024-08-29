@@ -1,6 +1,7 @@
 use cosmic::app::{command, Core};
 
 use cosmic::iced::advanced::subscription;
+use cosmic::iced::keyboard::key::Named;
 use cosmic::iced::wayland::actions::layer_surface::{IcedMargin, SctkLayerSurfaceSettings};
 use cosmic::iced::wayland::actions::popup::SctkPopupSettings;
 use cosmic::iced::wayland::layer_surface::{
@@ -23,6 +24,7 @@ use futures::executor::block_on;
 use crate::config::{Config, CONFIG_VERSION, PRIVATE_MODE};
 use crate::db::{self, Db, Entry};
 use crate::message::{AppMsg, ConfigMsg};
+use crate::navigation::NavigationMessage;
 use crate::utils::command_message;
 use crate::{clipboard, config, navigation};
 
@@ -303,6 +305,19 @@ impl cosmic::Application for AppState {
                 self.clipboard_state = ClipboardState::Init;
             }
             AppMsg::Navigation(message) => match message {
+                navigation::NavigationMessage::Event(e) => {
+                    let message = match e {
+                        Named::Enter => NavigationMessage::Enter,
+                        Named::Escape => NavigationMessage::Quit,
+                        Named::ArrowDown if !self.config.horizontal => NavigationMessage::Next,
+                        Named::ArrowUp if !self.config.horizontal => NavigationMessage::Previous,
+                        Named::ArrowLeft if self.config.horizontal => NavigationMessage::Previous,
+                        Named::ArrowRight if self.config.horizontal => NavigationMessage::Next,
+                        _ => NavigationMessage::None,
+                    };
+
+                    return command_message(AppMsg::Navigation(message));
+                }
                 navigation::NavigationMessage::Next => {
                     self.focus_next();
                 }
@@ -320,6 +335,7 @@ impl cosmic::Application for AppState {
                 navigation::NavigationMessage::Quit => {
                     return self.close_popup();
                 }
+                NavigationMessage::None => {}
             },
             AppMsg::Db(inner) => {
                 block_on(async {
