@@ -329,9 +329,9 @@ impl AppState {
             btn.width(Length::Fill).into()
         };
 
-        let open_with = Lazy::new(entry, |entry| {
-            println!("lazy");
-            
+        let open_with = {
+            // println!("lazy");
+
             let mut mimes = vec![entry.mime.as_ref()];
 
             if let Ok(Content::Text(content)) = entry.get_content() {
@@ -340,31 +340,26 @@ impl AppState {
                 }
             }
 
-            let res = fde::DesktopEntry::from_paths::<&str>(
-                fde::Iter::new(fde::default_paths()),
-                Some(&[]),
-            )
-            .filter_map(|e| {
-                e.ok().and_then(|e| {
+            self
+                .desktop_entries
+                .iter()
+                .filter_map(|e| {
                     e.mime_type()
                         .unwrap_or_default()
                         .iter()
                         .any(|e| mimes.contains(e))
-                        .then_some(
+                        .then_some(menu::Tree::new(
                             button(text(e.appid.clone()))
                                 .on_press(AppMsg::OpenWith {
                                     entry: (*entry).clone(),
-                                    desktop_entry: e,
+                                    desktop_entry: e.clone(),
                                 })
-                                .width(Length::Fill)
-                                .into(),
-                        )
+                                .width(Length::Fill),
+                        ))
                 })
-            })
-            .collect::<Vec<_>>();
+                .collect::<Vec<_>>()
 
-            Column::with_children(res)
-        });
+        };
 
         context_menu(
             btn,
@@ -382,7 +377,7 @@ impl AppState {
                 ),
                 menu::Tree::with_children(
                     text("Open with").width(Length::Fill),
-                    vec![menu::Tree::new(open_with)],
+                    open_with,
                 ),
             ]),
         )

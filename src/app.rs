@@ -20,6 +20,7 @@ use cosmic::iced_widget::{qr_code, Column};
 use cosmic::widget::{button, icon, text, text_input, MouseArea, Space};
 
 use cosmic::{Element, Theme};
+use freedesktop_desktop_entry::DesktopEntry;
 use futures::executor::block_on;
 
 use crate::config::{Config, CONFIG_VERSION, PRIVATE_MODE};
@@ -32,6 +33,8 @@ use crate::{clipboard, config, navigation};
 use cosmic::cosmic_config;
 use std::sync::atomic::{self, AtomicBool};
 use std::thread;
+
+use freedesktop_desktop_entry as fde;
 
 pub const QUALIFIER: &str = "io.github";
 pub const ORG: &str = "wiiznokes";
@@ -48,6 +51,7 @@ pub struct AppState {
     pub focused: usize,
     pub qr_code: Option<Result<qr_code::State, ()>>,
     last_quit: Option<(i64, PopupKind)>,
+    pub desktop_entries: Vec<DesktopEntry<'static>>,
 }
 
 impl AppState {
@@ -208,6 +212,14 @@ impl cosmic::Application for AppState {
 
         let db = block_on(async { db::Db::new(&config).await.unwrap() });
 
+        let mut desktop_entries = Vec::new();
+
+        for path in fde::Iter::new(fde::default_paths()) {
+            if let Ok(e) = DesktopEntry::from_path(path, Some(&[] as &[&str])) {
+                desktop_entries.push(e);
+            }
+        }
+
         let window = AppState {
             core,
             config_handler: flags.config_handler,
@@ -218,6 +230,7 @@ impl cosmic::Application for AppState {
             qr_code: None,
             config,
             last_quit: None,
+            desktop_entries,
         };
 
         #[cfg(debug_assertions)]
@@ -388,7 +401,10 @@ impl cosmic::Application for AppState {
                 }
             },
             AppMsg::Open(_) => todo!(),
-            AppMsg::OpenWith { entry, desktop_entry } => todo!(),
+            AppMsg::OpenWith {
+                entry,
+                desktop_entry,
+            } => todo!(),
         }
         Command::none()
     }
