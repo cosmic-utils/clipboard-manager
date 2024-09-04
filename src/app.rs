@@ -387,6 +387,8 @@ impl cosmic::Application for AppState {
                     config_set!(horizontal, horizontal);
                 }
             },
+            AppMsg::Open(_) => todo!(),
+            AppMsg::OpenWith { entry, desktop_entry } => todo!(),
         }
         Command::none()
     }

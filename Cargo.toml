@@ -40,6 +40,8 @@ tracing-journald = "0.3"
 constcat = "0.5"
 nucleo = "0.5"
 futures = "0.3"
+freedesktop-desktop-entry = "0.7.4"
+memchr = "2.7.4"
 
 [dependencies.libcosmic]
 git = "https://github.com/pop-os/libcosmic"

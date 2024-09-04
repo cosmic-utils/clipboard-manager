@@ -15,11 +15,13 @@ use cosmic::{
         button::{self},
         column, container, context_menu, flex_row, grid,
         icon::{self, Handle},
-        image, menu, mouse_area, row, text, text_input, toggler, Column, Container, Icon,
+        image, menu, mouse_area, row, text, text_input, toggler, Column, Container, Icon, Lazy,
         MouseArea, Space, Text, TextEditor,
     },
     Element,
 };
+
+use freedesktop_desktop_entry as fde;
 
 use anyhow::{anyhow, bail, Result};
 
@@ -29,7 +31,7 @@ use crate::{
     db::{Content, Entry},
     fl,
     message::{AppMsg, ConfigMsg},
-    utils::{formatted_value, horizontal_padding, vertical_padding},
+    utils::{find_x_scheme_handler, formatted_value, horizontal_padding, vertical_padding},
 };
 
 impl AppState {
@@ -327,6 +329,43 @@ impl AppState {
             btn.width(Length::Fill).into()
         };
 
+        let open_with = Lazy::new(entry, |entry| {
+            println!("lazy");
+            
+            let mut mimes = vec![entry.mime.as_ref()];
+
+            if let Ok(Content::Text(content)) = entry.get_content() {
+                if let Some(m) = find_x_scheme_handler(content) {
+                    mimes.push(m);
+                }
+            }
+
+            let res = fde::DesktopEntry::from_paths::<&str>(
+                fde::Iter::new(fde::default_paths()),
+                Some(&[]),
+            )
+            .filter_map(|e| {
+                e.ok().and_then(|e| {
+                    e.mime_type()
+                        .unwrap_or_default()
+                        .iter()
+                        .any(|e| mimes.contains(e))
+                        .then_some(
+                            button(text(e.appid.clone()))
+                                .on_press(AppMsg::OpenWith {
+                                    entry: (*entry).clone(),
+                                    desktop_entry: e,
+                                })
+                                .width(Length::Fill)
+                                .into(),
+                        )
+                })
+            })
+            .collect::<Vec<_>>();
+
+            Column::with_children(res)
+        });
+
         context_menu(
             btn,
             Some(vec![
@@ -339,8 +378,11 @@ impl AppState {
                 menu::Tree::new(
                     button::text(fl!("show_qr_code"))
                         .on_press(AppMsg::ShowQrCode(entry.clone()))
-                        .width(Length::Fill)
-                        .style(Button::Destructive),
+                        .width(Length::Fill),
+                ),
+                menu::Tree::with_children(
+                    text("Open with").width(Length::Fill),
+                    vec![menu::Tree::new(open_with)],
                 ),
             ]),
         )

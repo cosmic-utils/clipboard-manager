@@ -1,4 +1,5 @@
 use cosmic::iced::window::Id;
+use freedesktop_desktop_entry::DesktopEntry;
 
 use crate::{
     clipboard::{self, ClipboardMessage},
@@ -24,6 +25,12 @@ pub enum AppMsg {
     ShowQrCode(Entry),
     ReturnToClipboard,
     Config(ConfigMsg),
+    Open(Entry),
+    OpenWith {
+        entry: Entry,
+        desktop_entry: DesktopEntry<'static>,
+    },
+
 }
 
 #[derive(Clone, Debug)]
