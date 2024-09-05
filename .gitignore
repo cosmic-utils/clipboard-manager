@@ -1,3 +1,6 @@
 /target
 /vendor
 /tests
+/flatpak-builder-tools
+/.flatpak-builder
+/cargo-sources.json
