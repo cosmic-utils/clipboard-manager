@@ -14,7 +14,7 @@ share-dst := base-dir / 'share'
 bin-dst := base-dir / 'bin' / NAME
 desktop-dst := share-dst / 'applications' / APPID + '.desktop'
 icon-dst := share-dst / 'icons/hicolor/scalable/apps' / APPID + '-symbolic.svg'
-env-dst := base-dir / 'lib/environment.d' / NAME + '.conf'
+env-dst := base-dir / 'lib/profile.d' / NAME + '.sh'
 migrations-dst := share-dst / NAME / 'migrations'
 
 
@@ -31,7 +31,7 @@ install: install-migrations
   install -Dm0755 {{bin-src}} {{bin-dst}}
   install -Dm0644 res/desktop_entry.desktop {{desktop-dst}}
   install -Dm0644 res/app_icon.svg {{icon-dst}}
-  install -Dm0644 res/env.conf {{env-dst}}
+  install -Dm0644 res/env.sh {{env-dst}}
 
 install-migrations:
   #!/usr/bin/env sh
