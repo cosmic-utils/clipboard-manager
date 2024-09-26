@@ -14,7 +14,7 @@ share-dst := base-dir / 'share'
 bin-dst := base-dir / 'bin' / NAME
 desktop-dst := share-dst / 'applications' / APPID + '.desktop'
 icon-dst := share-dst / 'icons/hicolor/scalable/apps' / APPID + '-symbolic.svg'
-env-dst := base-dir / 'lib/profile.d' / NAME + '.sh'
+env-dst := rootdir / 'etc/profile.d' / NAME + '.sh'
 migrations-dst := share-dst / NAME / 'migrations'
 
 
