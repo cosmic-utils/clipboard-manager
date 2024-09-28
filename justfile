@@ -6,7 +6,8 @@ debug := '0'
 export NAME := 'cosmic-ext-applet-clipboard-manager'
 export APPID := 'io.github.wiiznokes.' + NAME 
 
-bin-src := if debug == '1' { 'target/debug' / NAME } else { 'target/release' / NAME }
+cargo-target-dir := env('CARGO_TARGET_DIR', 'target')
+bin-src := cargo-target-dir / if debug == '1' { 'debug' / NAME } else { 'release' / NAME }
 
 base-dir := absolute_path(clean(rootdir / prefix))
 share-dst := base-dir / 'share'
@@ -19,7 +20,6 @@ migrations-dst := share-dst / NAME / 'migrations'
 
 
 default: build-release
-
 
 build-debug *args:
   cargo build {{args}}
