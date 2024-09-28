@@ -30,7 +30,6 @@ pub enum AppMsg {
         entry: Entry,
         desktop_entry: DesktopEntry<'static>,
     },
-
 }
 
 #[derive(Clone, Debug)]
