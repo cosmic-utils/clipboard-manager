@@ -212,13 +212,9 @@ impl cosmic::Application for AppState {
 
         let db = block_on(async { db::Db::new(&config).await.unwrap() });
 
-        let mut desktop_entries = Vec::new();
-
-        for path in fde::Iter::new(fde::default_paths()) {
-            if let Ok(e) = DesktopEntry::from_path(path, Some(&[] as &[&str])) {
-                desktop_entries.push(e);
-            }
-        }
+        let desktop_entries = fde::Iter::new(fde::default_paths())
+            .entries(Some(&[] as &[&str]))
+            .collect::<Vec<_>>();
 
         let window = AppState {
             core,

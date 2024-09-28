@@ -28,7 +28,7 @@ const IMAGE_MIME_TYPES: [&str; 3] = ["image/png", "image/jpeg", "image/ico"];
 
 // prefer popular formats
 // orderer by priority
-const TEXT_MIME_TYPES: [&str; 3] = ["text/plain;charset=utf-8", "UTF8_STRING", "text/plain"];
+const TEXT_MIME_TYPES: [&str; 3] = ["text/plain", "text/plain;charset=utf-8", "UTF8_STRING"];
 
 #[derive(Debug, Clone)]
 pub enum ClipboardMessage {

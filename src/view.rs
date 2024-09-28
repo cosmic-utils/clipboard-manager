@@ -329,36 +329,34 @@ impl AppState {
             btn.width(Length::Fill).into()
         };
 
-        let open_with = {
-            // println!("lazy");
+      
 
-            let mut mimes = vec![entry.mime.as_ref()];
+        let open_with = {
+            let mut mimes: Vec<Cow<str>> = vec![Cow::Borrowed(entry.mime.as_ref())];
 
             if let Ok(Content::Text(content)) = entry.get_content() {
                 if let Some(m) = find_x_scheme_handler(content) {
-                    mimes.push(m);
+                    mimes.push(Cow::Owned(m));
                 }
             }
 
-            self
-                .desktop_entries
+            self.desktop_entries
                 .iter()
-                .filter_map(|e| {
-                    e.mime_type()
+                .filter_map(|de| {
+                    de.mime_type()
                         .unwrap_or_default()
                         .iter()
-                        .any(|e| mimes.contains(e))
+                        .any(|de_mime| mimes.iter().any(|mime| mime == de_mime))
                         .then_some(menu::Tree::new(
-                            button(text(e.appid.clone()))
+                            button::custom(text(de.appid.clone()))
                                 .on_press(AppMsg::OpenWith {
                                     entry: (*entry).clone(),
-                                    desktop_entry: e.clone(),
+                                    desktop_entry: de.clone(),
                                 })
                                 .width(Length::Fill),
                         ))
                 })
                 .collect::<Vec<_>>()
-
         };
 
         context_menu(
@@ -375,12 +373,42 @@ impl AppState {
                         .on_press(AppMsg::ShowQrCode(entry.clone()))
                         .width(Length::Fill),
                 ),
-                menu::Tree::with_children(
-                    text("Open with").width(Length::Fill),
-                    open_with,
+                menu::Tree::new(
+                    button::text(fl!("open"))
+                        .on_press(AppMsg::ShowQrCode(entry.clone()))
+                        .width(Length::Fill),
                 ),
+                menu::Tree::with_children(text(fl!("open_with")).width(Length::Fill), open_with),
             ]),
         )
         .into()
+    }
+}
+
+mod test {
+
+    use freedesktop_desktop_entry as fde;
+
+    #[test]
+    fn t() {
+        let desktop_entries = fde::Iter::new(fde::default_paths())
+            .entries(Some(&[] as &[&str]))
+            .collect::<Vec<_>>();
+
+        let mimes = vec!["text/plain"];
+
+        let res = desktop_entries
+            .iter()
+            .filter(|e| {
+                e.mime_type()
+                    .unwrap_or_default()
+                    .iter()
+                    .any(|e| mimes.contains(e))
+            })
+            .collect::<Vec<_>>();
+
+        for r in res {
+            println!("{}", r.appid);
+        }
     }
 }

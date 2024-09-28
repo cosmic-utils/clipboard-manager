@@ -100,16 +100,12 @@ pub fn remove_dir_contents(dir: &Path) {
     let _ = inner(dir);
 }
 
-pub fn find_x_scheme_handler<'a>(a: &'a str) -> Option<&'a str> {
-    // Use memchr to find the first occurrence of ':' in the input string.
+pub fn find_x_scheme_handler(a: &str) -> Option<String> {
     if let Some(colon_index) = memchr::memchr(b':', a.as_bytes()) {
-        // Check if the colon is followed by "//" to validate the scheme.
         if a[colon_index..].starts_with("://") {
-            // If valid, return the scheme as a slice from the start up to the colon.
-            return Some(&a[..colon_index]);
+            return Some(format!("x-scheme-handler/{}", &a[..colon_index]));
         }
     }
-    // If no scheme is found, return None.
     None
 }
 
@@ -117,11 +113,11 @@ pub fn find_x_scheme_handler<'a>(a: &'a str) -> Option<&'a str> {
 fn find_x_scheme_handler_test() {
     assert_eq!(
         find_x_scheme_handler("https://github.com/wiiznokes/clipboard-manager"),
-        Some("https")
+        Some("x-scheme-handler/https".into())
     );
-    
+
     assert_eq!(
         find_x_scheme_handler("ddg://query%20terms"),
-        Some("ddg")
+        Some("x-scheme-handler/ddg".into())
     );
 }
