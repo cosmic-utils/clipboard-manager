@@ -12,7 +12,7 @@ use cosmic::{
     theme::{self, Button},
     widget::{
         self,
-        button::{self, button},
+        button::{self},
         column, container, context_menu, flex_row, grid,
         icon::{self, Handle},
         image, menu, mouse_area, row, text, text_input, toggler, Column, Container, Icon,
@@ -275,7 +275,7 @@ impl AppState {
         is_focused: bool,
         content: impl Into<Element<'a, AppMsg>>,
     ) -> Element<'a, AppMsg> {
-        let btn = cosmic::widget::button(content)
+        let btn = button::custom(content)
             .on_press(AppMsg::Copy(entry.clone()))
             .padding([8, 16])
             .style(Button::Custom {
@@ -331,13 +331,13 @@ impl AppState {
             btn,
             Some(vec![
                 menu::Tree::new(
-                    button(text(fl!("delete_entry")))
+                    button::text(fl!("delete_entry"))
                         .on_press(AppMsg::Delete(entry.clone()))
                         .width(Length::Fill)
                         .style(Button::Destructive),
                 ),
                 menu::Tree::new(
-                    button(text(fl!("show_qr_code")))
+                    button::text(fl!("show_qr_code"))
                         .on_press(AppMsg::ShowQrCode(entry.clone()))
                         .width(Length::Fill)
                         .style(Button::Destructive),

@@ -6,7 +6,6 @@ use app::{AppState, Flags};
 use config::{Config, CONFIG_VERSION};
 use cosmic::cosmic_config;
 use cosmic::cosmic_config::CosmicConfigEntry;
-use log::LevelFilter;
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 mod app;
@@ -21,7 +20,7 @@ mod view;
 
 #[allow(unused_imports)]
 #[macro_use]
-extern crate log;
+extern crate tracing;
 
 fn setup_logs() {
     let fmt_layer = fmt::layer().with_target(false);

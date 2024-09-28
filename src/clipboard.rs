@@ -113,7 +113,7 @@ pub fn sub() -> Subscription<ClipboardMessage> {
                                     if !PRIVATE_MODE.load(atomic::Ordering::Relaxed) {
                                         tx.blocking_send(Some(res)).expect("can't send");
                                     } else {
-                                        log::info!("private mode")
+                                        info!("private mode")
                                     }
                                 }
                                 Err(e) => match e {
@@ -175,7 +175,7 @@ pub fn sub() -> Subscription<ClipboardMessage> {
                             .await
                             .expect("can't send");
                         loop {
-                            log::error!("inside error: {e}");
+                            error!("inside error: {e}");
                             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
                         }
                     }
