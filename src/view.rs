@@ -15,11 +15,13 @@ use cosmic::{
         button::{self},
         column, container, context_menu, flex_row, grid,
         icon::{self, Handle},
-        image, menu, mouse_area, row, text, text_input, toggler, Column, Container, Icon,
+        image, menu, mouse_area, row, text, text_input, toggler, Column, Container, Icon, Lazy,
         MouseArea, Space, Text, TextEditor,
     },
     Element,
 };
+
+use freedesktop_desktop_entry as fde;
 
 use anyhow::{anyhow, bail, Result};
 
@@ -29,7 +31,7 @@ use crate::{
     db::{Content, Entry},
     fl,
     message::{AppMsg, ConfigMsg},
-    utils::{formatted_value, horizontal_padding, vertical_padding},
+    utils::{find_x_scheme_handler, formatted_value, horizontal_padding, vertical_padding},
 };
 
 impl AppState {
@@ -327,6 +329,66 @@ impl AppState {
             btn.width(Length::Fill).into()
         };
 
+        let open_with2 = Lazy::new(entry, |entry| {
+            println!("lazy");
+
+            let mut mimes: Vec<Cow<str>> = vec![Cow::Borrowed(entry.mime.as_ref())];
+
+            if let Ok(Content::Text(content)) = entry.get_content() {
+                if let Some(m) = find_x_scheme_handler(content) {
+                    mimes.push(Cow::Owned(m));
+                }
+            }
+
+            let res = fde::Iter::new(fde::default_paths())
+                .entries(Some(&[] as &[&str]))
+                .filter_map(|e| {
+                    e.mime_type()
+                        .unwrap_or_default()
+                        .iter()
+                        .any(|de_mime| mimes.iter().any(|mime| mime == de_mime))
+                        .then_some(
+                            button::custom(text(e.appid.clone()))
+                                .on_press(AppMsg::OpenWith {
+                                    entry: (*entry).clone(),
+                                    desktop_entry: e,
+                                })
+                                .width(Length::Fill)
+                                .into(),
+                        )
+                });
+
+            Column::with_children(res)
+        });
+
+        let open_with = {
+            let mut mimes: Vec<Cow<str>> = vec![Cow::Borrowed(entry.mime.as_ref())];
+
+            if let Ok(Content::Text(content)) = entry.get_content() {
+                if let Some(m) = find_x_scheme_handler(content) {
+                    mimes.push(Cow::Owned(m));
+                }
+            }
+
+            self.desktop_entries
+                .iter()
+                .filter_map(|de| {
+                    de.mime_type()
+                        .unwrap_or_default()
+                        .iter()
+                        .any(|de_mime| mimes.iter().any(|mime| mime == de_mime))
+                        .then_some(menu::Tree::new(
+                            button::custom(text(de.appid.clone()))
+                                .on_press(AppMsg::OpenWith {
+                                    entry: (*entry).clone(),
+                                    desktop_entry: de.clone(),
+                                })
+                                .width(Length::Fill),
+                        ))
+                })
+                .collect::<Vec<_>>()
+        };
+
         context_menu(
             btn,
             Some(vec![
@@ -339,11 +401,48 @@ impl AppState {
                 menu::Tree::new(
                     button::text(fl!("show_qr_code"))
                         .on_press(AppMsg::ShowQrCode(entry.clone()))
-                        .width(Length::Fill)
-                        .style(Button::Destructive),
+                        .width(Length::Fill),
+                ),
+                menu::Tree::new(
+                    button::text(fl!("open"))
+                        .on_press(AppMsg::ShowQrCode(entry.clone()))
+                        .width(Length::Fill),
+                ),
+                menu::Tree::with_children(text(fl!("open_with")).width(Length::Fill), open_with),
+                menu::Tree::with_children(
+                    text("Open with 2").width(Length::Fill),
+                    vec![menu::Tree::new(open_with2)],
                 ),
             ]),
         )
         .into()
+    }
+}
+
+mod test {
+
+    use freedesktop_desktop_entry as fde;
+
+    #[test]
+    fn t() {
+        let desktop_entries = fde::Iter::new(fde::default_paths())
+            .entries(Some(&[] as &[&str]))
+            .collect::<Vec<_>>();
+
+        let mimes = ["text/plain"];
+
+        let res = desktop_entries
+            .iter()
+            .filter(|e| {
+                e.mime_type()
+                    .unwrap_or_default()
+                    .iter()
+                    .any(|e| mimes.contains(e))
+            })
+            .collect::<Vec<_>>();
+
+        for r in res {
+            println!("{}", r.appid);
+        }
     }
 }

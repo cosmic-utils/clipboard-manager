@@ -99,3 +99,25 @@ pub fn remove_dir_contents(dir: &Path) {
 
     let _ = inner(dir);
 }
+
+pub fn find_x_scheme_handler(a: &str) -> Option<String> {
+    if let Some(colon_index) = memchr::memchr(b':', a.as_bytes()) {
+        if a[colon_index..].starts_with("://") {
+            return Some(format!("x-scheme-handler/{}", &a[..colon_index]));
+        }
+    }
+    None
+}
+
+#[test]
+fn find_x_scheme_handler_test() {
+    assert_eq!(
+        find_x_scheme_handler("https://github.com/wiiznokes/clipboard-manager"),
+        Some("x-scheme-handler/https".into())
+    );
+
+    assert_eq!(
+        find_x_scheme_handler("ddg://query%20terms"),
+        Some("x-scheme-handler/ddg".into())
+    );
+}
