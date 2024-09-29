@@ -24,6 +24,8 @@ pub enum AppMsg {
     ShowQrCode(Entry),
     ReturnToClipboard,
     Config(ConfigMsg),
+    AddFavorite(Entry),
+    RemoveFavorite(Entry),
 }
 
 #[derive(Clone, Debug)]

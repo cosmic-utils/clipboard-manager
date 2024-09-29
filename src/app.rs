@@ -387,6 +387,20 @@ impl cosmic::Application for AppState {
                     config_set!(horizontal, horizontal);
                 }
             },
+            AppMsg::AddFavorite(entry) => {
+                block_on(async {
+                    if let Err(err) = self.db.add_favorite(&entry, None).await {
+                        error!("{err}");
+                    }
+                });
+            }
+            AppMsg::RemoveFavorite(entry) => {
+                block_on(async {
+                    if let Err(err) = self.db.remove_favorite(&entry).await {
+                        error!("{err}");
+                    }
+                });
+            }
         }
         Command::none()
     }

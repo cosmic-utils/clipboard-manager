@@ -32,6 +32,14 @@ use crate::{
     utils::{formatted_value, horizontal_padding, vertical_padding},
 };
 
+#[macro_export]
+macro_rules! icon {
+    ($name:literal) => {{
+        let bytes = include_bytes!(concat!("../../res/icons/", $name, "px.svg"));
+        cosmic::widget::icon::from_svg_bytes(bytes)
+    }};
+}
+
 impl AppState {
     pub fn quick_settings_view(&self) -> Element<'_, AppMsg> {
         fn toggle_settings<'a>(
@@ -339,9 +347,21 @@ impl AppState {
                 menu::Tree::new(
                     button::text(fl!("show_qr_code"))
                         .on_press(AppMsg::ShowQrCode(entry.clone()))
-                        .width(Length::Fill)
-                        .style(Button::Destructive),
+                        .width(Length::Fill),
                 ),
+                if entry.is_favorite {
+                    menu::Tree::new(
+                        button::text(fl!("remove_favorite"))
+                            .on_press(AppMsg::RemoveFavorite(entry.clone()))
+                            .width(Length::Fill),
+                    )
+                } else {
+                    menu::Tree::new(
+                        button::text(fl!("add_favorite"))
+                            .on_press(AppMsg::AddFavorite(entry.clone()))
+                            .width(Length::Fill),
+                    )
+                },
             ]),
         )
         .into()
