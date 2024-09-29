@@ -779,7 +779,6 @@ mod test {
     use cosmic::{iced_sctk::util, widget::canvas::Path};
     use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
-
     use crate::{
         config::Config,
         utils::{self, remove_dir_contents},
@@ -1042,7 +1041,6 @@ mod test {
         assert_eq!(db.favorites.fav(), &vec![now1, now2, now3]);
 
         drop(db);
-        
 
         let db = Db::inner_new(&Config::default(), &db_path).await.unwrap();
 
