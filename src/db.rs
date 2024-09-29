@@ -11,7 +11,7 @@ use sqlx::{
 };
 use std::{
     borrow::Cow,
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     fmt::{Debug, Display},
     fs::{self, DirBuilder, File},
     hash::{DefaultHasher, Hash, Hasher},
@@ -62,6 +62,10 @@ pub struct Entry {
     #[derivative(Hash = "ignore")]
     /// (Mime, Content)
     pub metadata: Option<EntryMetadata>,
+
+    #[derivative(PartialEq = "ignore")]
+    #[derivative(Hash = "ignore")]
+    pub is_favorite: bool,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -82,23 +86,39 @@ impl Entry {
         mime: String,
         content: Vec<u8>,
         metadata: Option<EntryMetadata>,
+        is_favorite: bool,
     ) -> Self {
         Self {
             creation,
             mime,
             content,
             metadata,
+            is_favorite,
         }
     }
 
-    pub fn new_now(mime: String, content: Vec<u8>, metadata: Option<EntryMetadata>) -> Self {
-        Self::new(Utc::now().timestamp_millis(), mime, content, metadata)
+    pub fn new_now(
+        mime: String,
+        content: Vec<u8>,
+        metadata: Option<EntryMetadata>,
+        is_favorite: bool,
+    ) -> Self {
+        Self::new(
+            Utc::now().timestamp_millis(),
+            mime,
+            content,
+            metadata,
+            is_favorite,
+        )
     }
 
     /// SELECT creation, mime, content, metadataMime, metadata
-    fn from_row(row: &SqliteRow) -> Result<Self> {
+    fn from_row(row: &SqliteRow, favorites: &Favorites) -> Result<Self> {
+        let id = row.get("creation");
+        let is_fav = favorites.contains(&id);
+
         Ok(Entry::new(
-            row.get("creation"),
+            id,
             row.get("mime"),
             row.get("content"),
             row.try_get("metadataMime")
@@ -107,6 +127,7 @@ impl Entry {
                     mime: metadata_mime,
                     value: row.get("metadata"),
                 }),
+            is_fav,
         ))
     }
 }
@@ -210,6 +231,50 @@ pub struct Db {
     // time
     last_update: i64,
     data_version: i64,
+    favorites: Favorites,
+}
+
+#[derive(Default)]
+struct Favorites {
+    favorites: Vec<TimeId>,
+    favorites_hash_set: HashSet<TimeId>,
+}
+
+impl Favorites {
+    fn contains(&self, id: &TimeId) -> bool {
+        self.favorites_hash_set.contains(id)
+    }
+    fn clear(&mut self) {
+        self.favorites.clear();
+        self.favorites_hash_set.clear();
+    }
+
+    fn insert_row(&mut self, row: &SqliteRow) -> usize {
+        let id = row.get("id");
+        let index: i32 = row.get("position");
+        self.favorites[index as usize] = id;
+        self.favorites_hash_set.insert(id);
+        index as usize
+    }
+
+    fn insert_at(&mut self, id: TimeId, pos: Option<usize>) {
+        match pos {
+            Some(pos) => self.favorites.insert(pos, id),
+            None => self.favorites.push(id),
+        }
+        self.favorites_hash_set.insert(id);
+    }
+
+    fn remove(&mut self, id: &TimeId) -> Option<usize> {
+        self.favorites_hash_set.remove(id);
+        self.favorites.iter().position(|e| e == id).inspect(|i| {
+            self.favorites.remove(*i);
+        })
+    }
+
+    fn fav(&self) -> &Vec<TimeId> {
+        &self.favorites
+    }
 }
 
 impl Db {
@@ -288,6 +353,7 @@ impl Db {
             needle: None,
             matcher: Matcher::new(nucleo::Config::DEFAULT),
             last_update: 0,
+            favorites: Favorites::default(),
         };
 
         db.reload().await?;
@@ -298,21 +364,41 @@ impl Db {
     async fn reload(&mut self) -> Result<()> {
         self.hashs.clear();
         self.state.clear();
+        self.favorites.clear();
 
-        let query_load_table = r#"
-            SELECT creation, mime, content, metadataMime, metadata
-            FROM ClipboardEntries
-        "#;
+        {
+            let query_load_favs = r#"
+                SELECT id, position
+                FROM FavoriteClipboardEntries
+            "#;
 
-        let rows = sqlx::query(query_load_table)
-            .fetch_all(&mut self.conn)
-            .await?;
+            let rows = sqlx::query(query_load_favs)
+                .fetch_all(&mut self.conn)
+                .await?;
 
-        for row in &rows {
-            let data = Entry::from_row(row)?;
+            let mut max = 0;
+            for row in &rows {
+                max = std::cmp::max(max, self.favorites.insert_row(row));
+            }
+            assert!(max == self.favorite_len() - 1);
+        }
 
-            self.hashs.insert(data.get_hash(), data.creation);
-            self.state.insert(data.creation, data);
+        {
+            let query_load_table = r#"
+                SELECT creation, mime, content, metadataMime, metadata
+                FROM ClipboardEntries
+            "#;
+
+            let rows = sqlx::query(query_load_table)
+                .fetch_all(&mut self.conn)
+                .await?;
+
+            for row in &rows {
+                let data = Entry::from_row(row, &self.favorites)?;
+
+                self.hashs.insert(data.get_hash(), data.creation);
+                self.state.insert(data.creation, data);
+            }
         }
 
         self.search();
@@ -331,7 +417,7 @@ impl Db {
         let entry = sqlx::query(query_get_last_row)
             .fetch_optional(&mut self.conn)
             .await?
-            .map(|e| Entry::from_row(&e).unwrap());
+            .map(|e| Entry::from_row(&e, &self.favorites).unwrap());
 
         Ok(entry)
     }
@@ -428,6 +514,10 @@ impl Db {
         self.state.remove(&data.creation);
         self.last_update = now_millis();
 
+        if data.is_favorite {
+            self.favorites.remove(&data.creation);
+        }
+
         self.search();
         Ok(())
     }
@@ -443,19 +533,86 @@ impl Db {
         self.filtered.clear();
         self.hashs.clear();
         self.last_update = now_millis();
+        self.favorites.clear();
 
         Ok(())
+    }
+
+    pub async fn add_favorite(&mut self, entry: &Entry, index: Option<usize>) -> Result<()> {
+        debug_assert!(!self.favorites.fav().contains(&entry.creation));
+
+        self.favorites.insert_at(entry.creation, index);
+
+        if let Some(pos) = index {
+            let query = r#"
+                UPDATE FavoriteClipboardEntries
+                SET position = position + 1
+                WHERE position >= ?;
+            "#;
+            sqlx::query(query)
+                .bind(pos as i32)
+                .execute(&mut self.conn)
+                .await?;
+        }
+
+        let index = index.unwrap_or(self.favorite_len());
+
+        {
+            let query = r#"
+                INSERT INTO FavoriteClipboardEntries (id, position)
+                VALUES ($1, $2);
+            "#;
+
+            sqlx::query(query)
+                .bind(entry.creation)
+                .bind(index as i32)
+                .execute(&mut self.conn)
+                .await?;
+        }
+
+        Ok(())
+    }
+
+    pub async fn remove_favorite(&mut self, entry: &Entry) -> Result<()> {
+        debug_assert!(self.favorites.fav().contains(&entry.creation));
+
+        {
+            let query = r#"
+                DELETE FROM FavoriteClipboardEntries
+                WHERE id = ?;
+            "#;
+
+            sqlx::query(query)
+                .bind(entry.creation)
+                .execute(&mut self.conn)
+                .await?;
+        }
+
+        if let Some(pos) = self.favorites.remove(&entry.creation) {
+            let query = r#"
+                UPDATE FavoriteClipboardEntries
+                SET position = position - 1
+                WHERE position >= ?;
+            "#;
+            sqlx::query(query)
+                .bind(pos as i32)
+                .execute(&mut self.conn)
+                .await?;
+        }
+
+        Ok(())
+    }
+
+    pub fn favorite_len(&self) -> usize {
+        self.favorites.favorites.len()
     }
 
     pub fn search(&mut self) {
         if self.query.is_empty() {
             self.filtered.clear();
         } else if let Some(atom) = &self.needle {
-            self.filtered = self
-                .state
-                .iter()
-                .rev()
-                .filter_map(|(id, data)| {
+            self.filtered = Self::iter_inner(&self.state, &self.favorites)
+                .filter_map(|data| {
                     data.get_searchable_text().and_then(|text| {
                         let mut buf = Vec::new();
 
@@ -466,7 +623,7 @@ impl Db {
                         let _res = atom.indices(haystack, &mut self.matcher, &mut indices);
 
                         if !indices.is_empty() {
-                            Some((*id, indices))
+                            Some((data.creation, indices))
                         } else {
                             None
                         }
@@ -502,8 +659,7 @@ impl Db {
 
     pub fn get(&self, index: usize) -> Option<&Entry> {
         if self.query.is_empty() {
-            // because we expose the tree in reverse
-            self.state.iter().rev().nth(index).map(|e| e.1)
+            self.iter().nth(index)
         } else {
             self.filtered
                 .get(index)
@@ -513,7 +669,18 @@ impl Db {
 
     pub fn iter(&self) -> impl Iterator<Item = &'_ Entry> {
         debug_assert!(self.query.is_empty());
-        self.state.values().rev()
+        Self::iter_inner(&self.state, &self.favorites)
+    }
+
+    fn iter_inner<'a>(
+        state: &'a BTreeMap<TimeId, Entry>,
+        favorites: &'a Favorites,
+    ) -> impl Iterator<Item = &'a Entry> + 'a {
+        favorites
+            .fav()
+            .iter()
+            .filter_map(|id| state.get(id))
+            .chain(state.values().filter(|e| !e.is_favorite).rev())
     }
 
     pub fn search_iter(&self) -> impl Iterator<Item = (&'_ Entry, &'_ Vec<u32>)> {
@@ -612,7 +779,12 @@ mod test {
     async fn test_db(db: &mut Db) -> Result<()> {
         assert!(db.len() == 0);
 
-        let data = Entry::new_now("text/plain".into(), "content".as_bytes().into(), None);
+        let data = Entry::new_now(
+            "text/plain".into(),
+            "content".as_bytes().into(),
+            None,
+            false,
+        );
 
         db.insert(data).await.unwrap();
 
@@ -620,7 +792,12 @@ mod test {
 
         sleep(Duration::from_millis(1000));
 
-        let data = Entry::new_now("text/plain".into(), "content".as_bytes().into(), None);
+        let data = Entry::new_now(
+            "text/plain".into(),
+            "content".as_bytes().into(),
+            None,
+            false,
+        );
 
         db.insert(data).await.unwrap();
 
@@ -628,7 +805,12 @@ mod test {
 
         sleep(Duration::from_millis(1000));
 
-        let data = Entry::new_now("text/plain".into(), "content2".as_bytes().into(), None);
+        let data = Entry::new_now(
+            "text/plain".into(),
+            "content2".as_bytes().into(),
+            None,
+            false,
+        );
 
         db.insert(data.clone()).await.unwrap();
 
@@ -649,12 +831,22 @@ mod test {
 
         let mut db = Db::inner_new(&Config::default(), &db_path).await.unwrap();
 
-        let data = Entry::new_now("text/plain".into(), "content".as_bytes().into(), None);
+        let data = Entry::new_now(
+            "text/plain".into(),
+            "content".as_bytes().into(),
+            None,
+            false,
+        );
         db.insert(data).await.unwrap();
 
         sleep(Duration::from_millis(100));
 
-        let data = Entry::new_now("text/plain".into(), "content2".as_bytes().into(), None);
+        let data = Entry::new_now(
+            "text/plain".into(),
+            "content2".as_bytes().into(),
+            None,
+            false,
+        );
         db.insert(data).await.unwrap();
 
         assert!(db.len() == 2);
@@ -681,11 +873,23 @@ mod test {
 
         let now = utils::now_millis();
 
-        let data = Entry::new(now, "text/plain".into(), "content".as_bytes().into(), None);
+        let data = Entry::new(
+            now,
+            "text/plain".into(),
+            "content".as_bytes().into(),
+            None,
+            false,
+        );
 
         db.insert(data).await.unwrap();
 
-        let data = Entry::new(now, "text/plain".into(), "content".as_bytes().into(), None);
+        let data = Entry::new(
+            now,
+            "text/plain".into(),
+            "content".as_bytes().into(),
+            None,
+            false,
+        );
 
         db.insert(data).await.unwrap();
         assert!(db.len() == 1);
@@ -700,11 +904,23 @@ mod test {
 
         let now = utils::now_millis();
 
-        let data = Entry::new(now, "text/plain".into(), "content".as_bytes().into(), None);
+        let data = Entry::new(
+            now,
+            "text/plain".into(),
+            "content".as_bytes().into(),
+            None,
+            false,
+        );
 
         db.insert(data).await.unwrap();
 
-        let data = Entry::new(now, "text/plain".into(), "content2".as_bytes().into(), None);
+        let data = Entry::new(
+            now,
+            "text/plain".into(),
+            "content2".as_bytes().into(),
+            None,
+            false,
+        );
 
         db.insert(data).await.unwrap();
         assert!(db.len() == 2);

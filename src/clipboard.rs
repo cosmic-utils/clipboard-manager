@@ -150,7 +150,7 @@ pub fn sub() -> Subscription<ClipboardMessage> {
                                         None
                                     };
 
-                                    let data = Entry::new_now(mime_type, contents, metadata);
+                                    let data = Entry::new_now(mime_type, contents, metadata, false);
 
                                     info!("sending data to database: {:?}", data);
                                     output.send(ClipboardMessage::Data(data)).await.unwrap();
