@@ -245,14 +245,6 @@ impl Favorites {
         self.favorites_hash_set.clear();
     }
 
-    fn insert_row(&mut self, row: &SqliteRow) -> usize {
-        let id = row.get("id");
-        let index: i32 = row.get("position");
-        self.favorites[index as usize] = id;
-        self.favorites_hash_set.insert(id);
-        index as usize
-    }
-
     fn insert_at(&mut self, id: TimeId, pos: Option<usize>) {
         match pos {
             Some(pos) => self.favorites.insert(pos, id),
@@ -382,11 +374,22 @@ impl Db {
                 .fetch_all(&mut self.conn)
                 .await?;
 
-            let mut max = 0;
-            for row in &rows {
-                max = std::cmp::max(max, self.favorites.insert_row(row) + 1);
+            let mut rows = rows
+                .iter()
+                .map(|row| {
+                    let id: i64 = row.get("id");
+                    let index: i32 = row.get("position");
+                    (id, index as usize)
+                })
+                .collect::<Vec<_>>();
+
+            rows.sort_by(|e1, e2| e1.1.cmp(&e2.1));
+
+            debug_assert_eq!(rows.last().map(|e| e.1 + 1).unwrap_or(0), rows.len());
+
+            for (id, pos) in rows {
+                self.favorites.insert_at(id, Some(pos));
             }
-            assert!(max == self.favorite_len());
         }
 
         {
@@ -1040,9 +1043,15 @@ mod test {
 
         assert_eq!(db.favorites.fav(), &vec![now1, now2, now3]);
 
-        drop(db);
-
-        let db = Db::inner_new(&Config::default(), &db_path).await.unwrap();
+        let db = Db::inner_new(
+            &Config {
+                maximum_entries_lifetime: None,
+                ..Default::default()
+            },
+            &db_path,
+        )
+        .await
+        .unwrap();
 
         assert_eq!(db.len(), 3);
 
