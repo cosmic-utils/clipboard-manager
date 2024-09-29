@@ -40,7 +40,7 @@ use crate::{
 
 type TimeId = i64;
 
-const DB_VERSION: &str = "4-dev";
+const DB_VERSION: &str = "4";
 const DB_PATH: &str = constcat::concat!(APPID, "-db-", DB_VERSION, ".sqlite");
 
 #[derive(Clone, Eq, Derivative)]
