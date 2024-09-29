@@ -793,10 +793,10 @@ mod test {
             "warn,{}=info",
             env!("CARGO_CRATE_NAME")
         )));
-        tracing_subscriber::registry()
+        let _ = tracing_subscriber::registry()
             .with(filter_layer)
             .with(fmt_layer)
-            .init();
+            .try_init();
 
         let db_dir = PathBuf::from("tests");
         let _ = std::fs::create_dir_all(&db_dir);
