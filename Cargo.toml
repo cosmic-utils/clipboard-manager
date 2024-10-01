@@ -6,8 +6,8 @@ version = "0.1.0"
 authors = ["wiiznokes <wiiznokes2@gmail.com>"]
 edition = "2021"
 license = "GPL-3.0"
-homepage = "https://github.com/wiiznokes/clipboard-manager/"
-repository = "https://github.com/wiiznokes/clipboard-manager.git"
+homepage = "https://github.com//cosmic-utils/clipboard-manager/"
+repository = "https://github.com//cosmic-utils/clipboard-manager.git"
 rust-version = "1.80"
 
 [dependencies]
