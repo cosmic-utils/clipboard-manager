@@ -1,6 +1,6 @@
 # Clipboard manager for COSMIC™
 
-![screenshot of the applet](https://media.githubusercontent.com/media/wiiznokes/clipboard-manager/master/res/screenshots/main_popup.png)
+![screenshot of the applet](https://media.githubusercontent.com/media/cosmic-utils/clipboard-manager/master/res/screenshots/main_popup.png)
 
 The goal is to make a simple yet fast clipboard history, with a focus on UX, rapidity and security.
 
@@ -20,7 +20,7 @@ sudo dnf install cosmic-ext-applet-clipboard-manager
 ### Other distros
 
 ```sh
-git clone https://github.com//cosmic-utils/clipboard-manager.git
+git clone https://github.com/cosmic-utils/clipboard-manager.git
 cd clipboard-manager
 sudo apt install libsqlite3-dev sqlite3 just cargo
 just build-release
