@@ -388,7 +388,7 @@ impl cosmic::Application for AppState {
                 }
                 ConfigMsg::UniqueSession(unique_session) => {
                     config_set!(unique_session, unique_session);
-                },
+                }
             },
             AppMsg::AddFavorite(entry) => {
                 block_on(async {
