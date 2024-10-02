@@ -68,6 +68,11 @@ impl AppState {
                 self.config.horizontal,
                 |v| AppMsg::Config(ConfigMsg::Horizontal(v)),
             ))
+            .push(toggle_settings(
+                fl!("unique_session"),
+                self.config.unique_session,
+                |v| AppMsg::Config(ConfigMsg::UniqueSession(v)),
+            ))
             .push(widget::button::destructive(fl!("clear_entries")).on_press(AppMsg::Clear))
             .into()
     }
