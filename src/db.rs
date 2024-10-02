@@ -317,29 +317,40 @@ impl Db {
 
             let query_delete_old_one = r#"
                 DELETE FROM ClipboardEntries
-                WHERE (? - creation) >= ?;
+                WHERE (? - creation) >= ? AND creation NOT IN(
+                    SELECT id
+                    FROM FavoriteClipboardEntries
+                );
             "#;
 
             sqlx::query(query_delete_old_one)
                 .bind(now_millis)
                 .bind(max_millis as i64)
                 .execute(&mut conn)
-                .await?;
+                .await
+                .unwrap();
         }
 
         if let Some(max_number_of_entries) = &config.maximum_entries_number {
             let query_delete_old_one = r#"
-                DELETE FROM ClipboardEntries
-                WHERE creation NOT IN
-                    (SELECT creation FROM ClipboardEntries
+                WITH MostRecentEntries AS (
+                    SELECT creation
+                    FROM ClipboardEntries
                     ORDER BY creation DESC
-                    LIMIT ?);
+                    LIMIT ?
+                )
+                DELETE FROM ClipboardEntries
+                WHERE creation NOT IN (
+                    SELECT creation
+                    FROM MostRecentEntries
+                    FULL JOIN FavoriteClipboardEntries ON (creation = id));
             "#;
 
             sqlx::query(query_delete_old_one)
                 .bind(max_number_of_entries)
                 .execute(&mut conn)
-                .await?;
+                .await
+                .unwrap();
         }
 
         let mut db = Db {
@@ -553,14 +564,15 @@ impl Db {
     pub async fn clear(&mut self) -> Result<()> {
         let query_delete = r#"
             DELETE FROM ClipboardEntries
+            WHERE creation NOT IN(
+                SELECT id
+                FROM FavoriteClipboardEntries
+            );
         "#;
 
         sqlx::query(query_delete).execute(&mut self.conn).await?;
 
-        self.state.clear();
-        self.filtered.clear();
-        self.hashs.clear();
-        self.favorites.clear();
+        self.reload().await?;
 
         Ok(())
     }
