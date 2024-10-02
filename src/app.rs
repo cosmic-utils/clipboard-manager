@@ -386,6 +386,9 @@ impl cosmic::Application for AppState {
                 ConfigMsg::Horizontal(horizontal) => {
                     config_set!(horizontal, horizontal);
                 }
+                ConfigMsg::UniqueSession(unique_session) => {
+                    config_set!(unique_session, unique_session);
+                }
             },
             AppMsg::AddFavorite(entry) => {
                 block_on(async {
@@ -441,6 +444,15 @@ impl cosmic::Application for AppState {
         }
 
         Subscription::batch(subscriptions)
+    }
+
+    fn on_app_exit(&mut self) -> Option<Self::Message> {
+        block_on(async {
+            if let Err(err) = self.db.clear().await {
+                error!("{err}");
+            }
+        });
+        None
     }
 
     fn style(&self) -> Option<<Theme as application::StyleSheet>::Style> {

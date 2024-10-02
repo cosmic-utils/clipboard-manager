@@ -8,3 +8,4 @@ qr_code_error = Error while generating the QR code
 horizontal_layout = Horizontal
 add_favorite = Add Favorite
 remove_favorite = Remove Favorite
+unique_session = Unique session

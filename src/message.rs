@@ -32,4 +32,5 @@ pub enum AppMsg {
 pub enum ConfigMsg {
     PrivateMode(bool),
     Horizontal(bool),
+    UniqueSession(bool),
 }
