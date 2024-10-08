@@ -132,7 +132,7 @@ async fn test_delete_old_one() {
     assert!(db.len() == 2);
 
     let config = Config {
-        maximum_entries_lifetime: Some(Duration::ZERO),
+        maximum_entries_lifetime: Some(0),
         ..Default::default()
     };
     let db = Db::inner_new(&config, &db_path).await.unwrap();
