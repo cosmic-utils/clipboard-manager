@@ -1,0 +1,11 @@
+search_entries = Sök
+delete_entry = Ta bort
+incognito = Incognito
+clear_entries = Rensa
+show_qr_code = Visa QR-kod
+return_to_clipboard = Gå tillbaka till urklipp
+qr_code_error = Fel vid generering av QR-kod
+horizontal_layout = Horisontell
+add_favorite = Lägg till favorit 
+remove_favorite = Ta bort favorit
+unique_session = Unik session
