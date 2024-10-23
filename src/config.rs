@@ -1,5 +1,10 @@
 use std::{sync::atomic::AtomicBool, time::Duration};
 
+#[cfg(test)]
+use configurator_schema::schemars;
+#[cfg(test)]
+use configurator_schema::schemars::JsonSchema;
+
 use cosmic::{
     cosmic_config::{self, cosmic_config_derive::CosmicConfigEntry, CosmicConfigEntry},
     iced::Subscription,
@@ -12,12 +17,17 @@ use crate::{app::APPID, message::AppMsg, utils};
 pub const CONFIG_VERSION: u64 = 2;
 
 #[derive(CosmicConfigEntry, Debug, Clone, Eq, PartialEq, Deserialize, Serialize)]
+#[cfg_attr(test, derive(JsonSchema))]
+#[serde(default)]
 pub struct Config {
+    /// Disable the clipboard manager
     pub private_mode: bool,
     /// In second
     pub maximum_entries_lifetime: Option<u64>,
     pub maximum_entries_number: Option<u32>,
+    /// Enable horizontal layout
     pub horizontal: bool,
+    /// Reset the database at each login
     pub unique_session: bool,
 }
 
@@ -56,4 +66,26 @@ pub fn sub() -> Subscription<AppMsg> {
         }
         AppMsg::ChangeConfig(update.config)
     })
+}
+
+#[cfg(test)]
+mod test {
+    use std::fs;
+
+    use configurator_schema::ConfigFormat;
+
+    use crate::app::APPID;
+
+    use super::{Config, CONFIG_VERSION};
+
+    #[test]
+    fn gen_schema() {
+        let string = configurator_schema::gen_schema::<Config>()
+            .format(ConfigFormat::CosmicRon)
+            .source_home_path(&format!(".config/cosmic/{}/v{}", APPID, CONFIG_VERSION))
+            .call()
+            .unwrap();
+
+        fs::write("res/config_schema.json", &string).unwrap();
+    }
 }

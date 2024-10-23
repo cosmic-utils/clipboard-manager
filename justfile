@@ -16,6 +16,7 @@ bin-dst := base-dir / 'bin' / NAME
 desktop-dst := share-dst / 'applications' / APPID + '.desktop'
 icon-dst := share-dst / 'icons/hicolor/scalable/apps' / APPID + '-symbolic.svg'
 env-dst := rootdir / 'etc/profile.d' / NAME + '.sh'
+schema-dst := share-dst / 'configurator' / APPID + '.json'
 
 default: build-release
 
@@ -32,11 +33,15 @@ install:
   install -Dm0644 res/env.sh {{env-dst}}
 
 
+install-schema:
+  install -Dm0644 res/config_schema.json {{schema-dst}}
+
 uninstall:
   rm {{bin-dst}}
   rm {{desktop-dst}}
   rm {{icon-dst}}
   rm {{env-dst}}
+  rm {{schema-dst}}
 
 clean:
   cargo clean
