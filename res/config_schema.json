@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Config",
+  "type": "object",
+  "properties": {
+    "private_mode": {
+      "description": "Disable the clipboard manager",
+      "default": false,
+      "type": "boolean"
+    },
+    "maximum_entries_lifetime": {
+      "description": "In second",
+      "default": 30,
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "maximum_entries_number": {
+      "default": 500,
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint32",
+      "minimum": 0.0
+    },
+    "horizontal": {
+      "description": "Enable horizontal layout",
+      "default": false,
+      "type": "boolean"
+    },
+    "unique_session": {
+      "description": "Reset the database at each login",
+      "default": false,
+      "type": "boolean"
+    }
+  },
+  "X_CONFIGURATOR_SOURCE_HOME_PATH": ".config/cosmic/io.github.wiiznokes.cosmic-ext-applet-clipboard-manager/v2",
+  "X_CONFIGURATOR_FORMAT": "cosmic_ron"
+}

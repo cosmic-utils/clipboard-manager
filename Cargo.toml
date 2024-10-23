@@ -41,7 +41,6 @@ constcat = "0.5"
 nucleo = "0.5"
 futures = "0.3"
 include_dir = "0.7.4"
-
 [dependencies.libcosmic]
 git = "https://github.com/pop-os/libcosmic"
 default-features = false
@@ -68,6 +67,7 @@ branch = "watch"
 
 [dev-dependencies]
 serial_test = "3"
+configurator_schema = { git = "https://github.com/cosmic-utils/configurator.git" }
 
 
 [profile.release-lto]
