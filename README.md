@@ -22,7 +22,7 @@ sudo dnf install cosmic-ext-applet-clipboard-manager
 ```sh
 git clone https://github.com/cosmic-utils/clipboard-manager.git
 cd clipboard-manager
-sudo apt install libsqlite3-dev sqlite3 just cargo
+sudo apt install libsqlite3-dev sqlite3 just cargo libxkbcommon-dev
 just build-release
 sudo just install
 ```
