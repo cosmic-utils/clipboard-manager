@@ -1,14 +1,11 @@
+use std::borrow::Cow;
 use std::cmp::min;
 use std::path::Path;
-use std::time::{SystemTime, UNIX_EPOCH};
-use std::{borrow::Cow, time::Duration};
 use std::{fs, io};
 
 use chrono::Utc;
 use cosmic::Task;
 use cosmic::{app::Message, iced::Padding};
-
-use crate::app::APPID;
 
 pub fn formatted_value(value: &str, max_lines: usize, max_chars: usize) -> Cow<str> {
     let value = value.trim();

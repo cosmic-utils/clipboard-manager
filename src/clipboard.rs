@@ -1,17 +1,10 @@
 use std::{
     collections::HashSet,
-    fs::File,
-    future::Future,
-    io::{Read, Write},
-    sync::{
-        atomic::{self, AtomicBool},
-        Arc,
-    },
-    thread::{self, sleep},
-    time::Duration,
+    io::Read,
+    sync::atomic::{self},
 };
 
-use cosmic::iced::{futures::SinkExt, stream::channel, Subscription};
+use cosmic::iced::{futures::SinkExt, stream::channel};
 use futures::Stream;
 use tokio::sync::mpsc;
 use wl_clipboard_rs::{
@@ -42,8 +35,6 @@ pub enum ClipboardMessage {
 }
 
 pub fn sub() -> impl Stream<Item = ClipboardMessage> {
-    struct ClipboardSub;
-
     channel(500, move |mut output| {
         async move {
             match paste_watch::Watcher::init(paste_watch::ClipboardType::Regular) {

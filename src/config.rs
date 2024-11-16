@@ -12,7 +12,7 @@ use cosmic::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::{app::APPID, message::AppMsg, utils};
+use crate::{app::APPID, message::AppMsg};
 
 pub const CONFIG_VERSION: u64 = 2;
 

@@ -1,35 +1,33 @@
-use chrono::{Local, Utc};
-use cosmic::app::{command, Core};
+use chrono::Utc;
+use cosmic::app::Core;
 
-use cosmic::iced::advanced::subscription;
 use cosmic::iced::keyboard::key::Named;
 use cosmic::iced::window::Id;
-use cosmic::iced::{self, event, Limits};
+use cosmic::iced::{self, Limits};
 
 use cosmic::iced_futures::Subscription;
 use cosmic::iced_runtime::core::window;
 use cosmic::iced_runtime::platform_specific::wayland::layer_surface::SctkLayerSurfaceSettings;
-use cosmic::iced_widget::{qr_code, Column};
+use cosmic::iced_widget::qr_code;
 use cosmic::iced_winit::commands::layer_surface::{
     self, destroy_layer_surface, get_layer_surface, KeyboardInteractivity,
 };
 use cosmic::iced_winit::commands::popup::{destroy_popup, get_popup};
-use cosmic::widget::{button, icon, text, text_input, MouseArea, Space};
+use cosmic::widget::{MouseArea, Space};
 
-use cosmic::{Element, Task, Theme};
+use cosmic::{Element, Task};
 use futures::executor::block_on;
 use futures::StreamExt;
 
-use crate::config::{Config, CONFIG_VERSION, PRIVATE_MODE};
-use crate::db::{self, Db, DbMessage, Entry};
+use crate::config::{Config, PRIVATE_MODE};
+use crate::db::{self, Db, DbMessage};
 use crate::message::{AppMsg, ConfigMsg};
 use crate::navigation::EventMsg;
 use crate::utils::command_message;
 use crate::{clipboard, config, navigation};
 
 use cosmic::cosmic_config;
-use std::sync::atomic::{self, AtomicBool};
-use std::thread;
+use std::sync::atomic::{self};
 use std::time::Duration;
 
 pub const QUALIFIER: &str = "io.github";

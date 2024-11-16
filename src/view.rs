@@ -1,35 +1,28 @@
-use std::{borrow::Cow, cmp::min, path::PathBuf};
+use std::{borrow::Cow, cmp::min};
 
 use cosmic::{
     iced::{Alignment, Length, Padding},
     iced_widget::{
-        graphics::image::image_rs::flat::View,
-        qr_code,
         scrollable::{Direction, Scrollbar},
-        QRCode, Row, Scrollable,
+        Row, Scrollable,
     },
     prelude::CollectionWidget,
-    theme::{self, Button},
+    theme::Button,
     widget::{
         self,
         button::{self},
-        column, container, context_menu, flex_row, grid,
-        icon::{self, Handle},
-        image, menu, mouse_area, row, text, text_input, toggler, Column, Container, Icon,
-        MouseArea, Space, Text, TextEditor,
+        column, container, context_menu, image, menu, row, text, text_input, toggler, Column,
+        Space,
     },
     Element,
 };
 
-use anyhow::{anyhow, bail, Result};
-
 use crate::{
-    app::{AppState, ClipboardState},
-    config::Config,
+    app::AppState,
     db::{Content, Entry},
     fl,
     message::{AppMsg, ConfigMsg},
-    utils::{formatted_value, horizontal_padding, vertical_padding},
+    utils::formatted_value,
 };
 
 #[macro_export]
