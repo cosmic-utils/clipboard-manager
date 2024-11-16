@@ -1,8 +1,3 @@
-use cosmic::{
-    cosmic_theme::palette::cast::ComponentsInto,
-    iced::{subscription, Subscription},
-    iced_sctk::util,
-};
 use derivative::Derivative;
 use futures::{future::BoxFuture, FutureExt, SinkExt};
 use sqlx::{
@@ -775,8 +770,4 @@ async fn fetch_data_version(conn: &mut SqliteConnection) -> Result<i64> {
 #[derive(Clone, Debug)]
 pub enum DbMessage {
     CheckUpdate,
-}
-
-pub fn sub() -> Subscription<DbMessage> {
-    cosmic::iced::time::every(Duration::from_millis(1000)).map(|_| DbMessage::CheckUpdate)
 }

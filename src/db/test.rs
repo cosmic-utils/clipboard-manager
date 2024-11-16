@@ -9,7 +9,6 @@ use std::{
 use serial_test::serial;
 
 use anyhow::Result;
-use cosmic::{iced_sctk::util, widget::canvas::Path};
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 use crate::{

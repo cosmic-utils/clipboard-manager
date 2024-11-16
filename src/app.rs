@@ -3,27 +3,25 @@ use cosmic::app::{command, Core};
 
 use cosmic::iced::advanced::subscription;
 use cosmic::iced::keyboard::key::Named;
-use cosmic::iced::wayland::actions::layer_surface::{IcedMargin, SctkLayerSurfaceSettings};
-use cosmic::iced::wayland::actions::popup::SctkPopupSettings;
-use cosmic::iced::wayland::layer_surface::{
-    destroy_layer_surface, get_layer_surface, Anchor, KeyboardInteractivity,
-};
-use cosmic::iced::wayland::popup::{destroy_popup, get_popup};
 use cosmic::iced::window::Id;
-use cosmic::iced::{self, event, Command, Limits};
+use cosmic::iced::{self, event, Limits};
 
 use cosmic::iced_futures::Subscription;
-use cosmic::iced_runtime::command::Action;
 use cosmic::iced_runtime::core::window;
-use cosmic::iced_style::application;
+use cosmic::iced_runtime::platform_specific::wayland::layer_surface::SctkLayerSurfaceSettings;
 use cosmic::iced_widget::{qr_code, Column};
+use cosmic::iced_winit::commands::layer_surface::{
+    self, destroy_layer_surface, get_layer_surface, KeyboardInteractivity,
+};
+use cosmic::iced_winit::commands::popup::{destroy_popup, get_popup};
 use cosmic::widget::{button, icon, text, text_input, MouseArea, Space};
 
-use cosmic::{Element, Theme};
+use cosmic::{Element, Task, Theme};
 use futures::executor::block_on;
+use futures::StreamExt;
 
 use crate::config::{Config, CONFIG_VERSION, PRIVATE_MODE};
-use crate::db::{self, Db, Entry};
+use crate::db::{self, Db, DbMessage, Entry};
 use crate::message::{AppMsg, ConfigMsg};
 use crate::navigation::EventMsg;
 use crate::utils::command_message;
@@ -32,6 +30,7 @@ use crate::{clipboard, config, navigation};
 use cosmic::cosmic_config;
 use std::sync::atomic::{self, AtomicBool};
 use std::thread;
+use std::time::Duration;
 
 pub const QUALIFIER: &str = "io.github";
 pub const ORG: &str = "wiiznokes";
@@ -46,7 +45,7 @@ pub struct AppState {
     pub db: Db,
     pub clipboard_state: ClipboardState,
     pub focused: usize,
-    pub qr_code: Option<Result<qr_code::State, ()>>,
+    pub qr_code: Option<Result<qr_code::Data, ()>>,
     last_quit: Option<(i64, PopupKind)>,
 }
 
@@ -92,21 +91,21 @@ enum PopupKind {
 }
 
 impl AppState {
-    fn toggle_popup(&mut self, kind: PopupKind) -> Command<cosmic::app::Message<AppMsg>> {
+    fn toggle_popup(&mut self, kind: PopupKind) -> Task<cosmic::app::Message<AppMsg>> {
         self.qr_code.take();
         match &self.popup {
             Some(popup) => {
                 if popup.kind == kind {
                     self.close_popup()
                 } else {
-                    Command::batch(vec![self.close_popup(), self.open_popup(kind)])
+                    Task::batch(vec![self.close_popup(), self.open_popup(kind)])
                 }
             }
             None => self.open_popup(kind),
         }
     }
 
-    fn close_popup(&mut self) -> Command<cosmic::app::Message<AppMsg>> {
+    fn close_popup(&mut self) -> Task<cosmic::app::Message<AppMsg>> {
         self.focused = 0;
         self.db.set_query_and_search("".into());
 
@@ -121,18 +120,18 @@ impl AppState {
                 destroy_popup(popup.id)
             }
         } else {
-            Command::none()
+            Task::none()
         }
     }
 
-    fn open_popup(&mut self, kind: PopupKind) -> Command<cosmic::app::Message<AppMsg>> {
+    fn open_popup(&mut self, kind: PopupKind) -> Task<cosmic::app::Message<AppMsg>> {
         // handle the case where the popup was closed by clicking the icon
         if self
             .last_quit
             .map(|(t, k)| (Utc::now().timestamp_millis() - t) < 200 && k == kind)
             .unwrap_or(false)
         {
-            return Command::none();
+            return Task::none();
         }
 
         let new_id = Id::unique();
@@ -147,7 +146,9 @@ impl AppState {
                     get_layer_surface(SctkLayerSurfaceSettings {
                         id: new_id,
                         keyboard_interactivity: KeyboardInteractivity::OnDemand,
-                        anchor: Anchor::BOTTOM | Anchor::LEFT | Anchor::RIGHT,
+                        anchor: layer_surface::Anchor::BOTTOM
+                            | layer_surface::Anchor::LEFT
+                            | layer_surface::Anchor::RIGHT,
                         namespace: "clipboard manager".into(),
                         size: Some((None, Some(350))),
                         size_limits: Limits::NONE.min_width(1.0).min_height(1.0),
@@ -157,7 +158,7 @@ impl AppState {
                     let mut popup_settings =
                         self.core
                             .applet
-                            .get_popup_settings(Id::MAIN, new_id, None, None, None);
+                            .get_popup_settings(Id::RESERVED, new_id, None, None, None);
 
                     popup_settings.positioner.size_limits = Limits::NONE
                         .max_width(400.0)
@@ -171,7 +172,7 @@ impl AppState {
                 let mut popup_settings =
                     self.core
                         .applet
-                        .get_popup_settings(Id::MAIN, new_id, None, None, None);
+                        .get_popup_settings(Id::RESERVED, new_id, None, None, None);
 
                 popup_settings.positioner.size_limits = Limits::NONE
                     .max_width(250.0)
@@ -199,10 +200,7 @@ impl cosmic::Application for AppState {
         &mut self.core
     }
 
-    fn init(
-        core: Core,
-        flags: Self::Flags,
-    ) -> (Self, cosmic::Command<cosmic::app::Message<Self::Message>>) {
+    fn init(core: Core, flags: Self::Flags) -> (Self, Task<cosmic::app::Message<Self::Message>>) {
         let config = flags.config;
         PRIVATE_MODE.store(config.private_mode, atomic::Ordering::Relaxed);
 
@@ -221,9 +219,7 @@ impl cosmic::Application for AppState {
         };
 
         #[cfg(debug_assertions)]
-        let command = Command::single(Action::Future(Box::pin(async {
-            cosmic::app::Message::App(AppMsg::TogglePopup)
-        })));
+        let command = command_message(AppMsg::TogglePopup);
 
         #[cfg(not(debug_assertions))]
         let command = Command::none();
@@ -242,7 +238,7 @@ impl cosmic::Application for AppState {
         None
     }
 
-    fn update(&mut self, message: Self::Message) -> Command<cosmic::app::Message<Self::Message>> {
+    fn update(&mut self, message: Self::Message) -> Task<cosmic::app::Message<Self::Message>> {
         macro_rules! config_set {
             ($name: ident, $value: expr) => {
                 match paste::paste! { self.config.[<set_ $name>](&self.config_handler, $value) } {
@@ -361,7 +357,7 @@ impl cosmic::Application for AppState {
             AppMsg::ShowQrCode(e) => {
                 // todo: handle better this error
                 if e.content.len() < 700 {
-                    match qr_code::State::new(&e.content) {
+                    match qr_code::Data::new(&e.content) {
                         Ok(s) => {
                             self.qr_code.replace(Ok(s));
                         }
@@ -405,7 +401,7 @@ impl cosmic::Application for AppState {
                 });
             }
         }
-        Command::none()
+        Task::none()
     }
 
     fn view(&self) -> Element<Self::Message> {
@@ -433,14 +429,20 @@ impl cosmic::Application for AppState {
         self.core.applet.popup_container(view).into()
     }
     fn subscription(&self) -> Subscription<Self::Message> {
+        pub fn db_sub() -> Subscription<DbMessage> {
+            cosmic::iced::time::every(Duration::from_millis(1000)).map(|_| DbMessage::CheckUpdate)
+        }
+
         let mut subscriptions = vec![
             config::sub(),
             navigation::sub().map(AppMsg::Navigation),
-            db::sub().map(AppMsg::Db),
+            db_sub().map(AppMsg::Db),
         ];
 
         if !self.clipboard_state.is_error() {
-            subscriptions.push(clipboard::sub().map(AppMsg::ClipboardEvent));
+            subscriptions.push(Subscription::run(|| {
+                clipboard::sub().map(AppMsg::ClipboardEvent)
+            }));
         }
 
         Subscription::batch(subscriptions)
@@ -455,7 +457,7 @@ impl cosmic::Application for AppState {
         None
     }
 
-    fn style(&self) -> Option<<Theme as application::StyleSheet>::Style> {
+    fn style(&self) -> Option<iced::runtime::Appearance> {
         Some(cosmic::applet::style())
     }
 }

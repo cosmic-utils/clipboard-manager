@@ -15,7 +15,7 @@ pub enum EventMsg {
 
 #[allow(clippy::collapsible_match)]
 pub fn sub() -> Subscription<EventMsg> {
-    cosmic::iced_futures::event::listen_with(|event, status| {
+    cosmic::iced_futures::event::listen_with(|event, status, _| {
         match status {
             event::Status::Captured => None,
             event::Status::Ignored => {

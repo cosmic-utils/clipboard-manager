@@ -5,7 +5,8 @@ use std::{borrow::Cow, time::Duration};
 use std::{fs, io};
 
 use chrono::Utc;
-use cosmic::{app::Message, iced::Padding, iced_runtime::command::Action, Command};
+use cosmic::Task;
+use cosmic::{app::Message, iced::Padding};
 
 use crate::app::APPID;
 
@@ -73,10 +74,12 @@ pub fn vertical_padding(value: f32) -> Padding {
     }
 }
 
-pub fn command_message<M: Send + 'static>(message: M) -> Command<Message<M>> {
-    Command::single(Action::Future(Box::pin(async {
-        cosmic::app::Message::App(message)
-    })))
+pub fn command_message<M: Send + 'static>(message: M) -> Task<Message<M>> {
+    Task::future(async { cosmic::app::Message::App(message) })
+
+    // Command::single(Action::Future(Box::pin(async {
+    //     cosmic::app::Message::App(message)
+    // })))
 }
 
 pub fn now_millis() -> i64 {
