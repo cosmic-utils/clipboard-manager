@@ -47,9 +47,6 @@ features = [
     "tokio",
     "wayland",
     "qr_code",
-    #"multi-window",
-    #"winit",
-    #"wgpu",
 ]
 
 [dependencies.wl-clipboard-rs]
