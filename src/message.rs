@@ -13,6 +13,7 @@ pub enum AppMsg {
     ClosePopup,
     Search(String),
     ClipboardEvent(ClipboardMessage),
+    #[allow(dead_code)]
     RetryConnectingClipboard,
     Copy(Entry),
     Delete(Entry),

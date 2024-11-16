@@ -1,4 +1,9 @@
-use std::{path::PathBuf, thread::sleep, time::Duration};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    thread::sleep,
+    time::Duration,
+};
 
 use serial_test::serial;
 
@@ -7,7 +12,7 @@ use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, Env
 
 use crate::{
     config::Config,
-    utils::{self, remove_dir_contents},
+    utils::{self},
 };
 
 use crate::db::{Db, Entry};
@@ -280,4 +285,21 @@ async fn favorites() {
 
     assert_eq!(db.favorite_len(), 3);
     assert_eq!(db.favorites.fav(), &vec![now1, now2, now3]);
+}
+
+fn remove_dir_contents(dir: &Path) {
+    pub fn inner(dir: &Path) -> Result<(), std::io::Error> {
+        for entry in fs::read_dir(dir)?.flatten() {
+            let path = entry.path();
+
+            if path.is_dir() {
+                let _ = fs::remove_dir_all(&path);
+            } else {
+                let _ = fs::remove_file(&path);
+            }
+        }
+        Ok(())
+    }
+
+    let _ = inner(dir);
 }

@@ -23,7 +23,7 @@ use crate::config::{Config, PRIVATE_MODE};
 use crate::db::{self, Db, DbMessage};
 use crate::message::{AppMsg, ConfigMsg};
 use crate::navigation::EventMsg;
-use crate::utils::command_message;
+use crate::utils::task_message;
 use crate::{clipboard, config, navigation};
 
 use cosmic::cosmic_config;
@@ -217,7 +217,7 @@ impl cosmic::Application for AppState {
         };
 
         #[cfg(debug_assertions)]
-        let command = command_message(AppMsg::TogglePopup);
+        let command = task_message(AppMsg::TogglePopup);
 
         #[cfg(not(debug_assertions))]
         let command = Command::none();
@@ -324,7 +324,7 @@ impl cosmic::Application for AppState {
                         _ => EventMsg::None,
                     };
 
-                    return command_message(AppMsg::Navigation(message));
+                    return task_message(AppMsg::Navigation(message));
                 }
                 navigation::EventMsg::Next => {
                     self.focus_next();
