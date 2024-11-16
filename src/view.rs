@@ -2,16 +2,13 @@ use std::{borrow::Cow, cmp::min};
 
 use cosmic::{
     iced::{Alignment, Length, Padding},
-    iced_widget::{
-        scrollable::{Direction, Scrollbar},
-        Row, Scrollable,
-    },
+    iced_widget::scrollable::{Direction, Scrollbar},
     theme::Button,
     widget::{
         self,
         button::{self},
-        column, container, context_menu, image, menu, row, text, text_input, toggler, Column,
-        Space,
+        column, container, context_menu, horizontal_space, image, menu, row, scrollable, text,
+        text_input, toggler,
     },
     Element,
 };
@@ -39,14 +36,14 @@ impl AppState {
             value: bool,
             f: impl Fn(bool) -> AppMsg + 'a,
         ) -> Element<'a, AppMsg> {
-            Row::new()
+            row()
                 .push(text(info))
-                .push(Space::with_width(Length::Fill))
+                .push(horizontal_space())
                 .push(toggler(value).on_toggle(f))
                 .into()
         }
 
-        Column::new()
+        column()
             .width(Length::Fill)
             .spacing(20)
             .padding(10)
@@ -65,12 +62,12 @@ impl AppState {
                 self.config.unique_session,
                 |v| AppMsg::Config(ConfigMsg::UniqueSession(v)),
             ))
-            .push(widget::button::destructive(fl!("clear_entries")).on_press(AppMsg::Clear))
+            .push(button::destructive(fl!("clear_entries")).on_press(AppMsg::Clear))
             .into()
     }
 
     pub fn popup_view(&self) -> Element<'_, AppMsg> {
-        Column::new()
+        column()
             .push(self.top_bar())
             .push(self.content())
             .width(Length::Fill)
@@ -102,12 +99,9 @@ impl AppState {
                 .into(),
         };
 
-        let mut padding = Padding::new(10f32);
-        padding.bottom = 0f32;
-
-        let content = container(content).padding(padding);
-
-        content.into()
+        container(content)
+            .padding(Padding::new(10f32).bottom(0))
+            .into()
     }
 
     fn content(&self) -> Element<'_, AppMsg> {
@@ -177,7 +171,7 @@ impl AppState {
                         .spacing(5f32)
                         .padding(padding);
 
-                    Scrollable::new(column)
+                    scrollable(column)
                         .direction(Direction::Horizontal(Scrollbar::default()))
                         .into()
                 } else {
@@ -193,7 +187,7 @@ impl AppState {
                         .spacing(5f32)
                         .padding(padding);
 
-                    Scrollable::new(column)
+                    scrollable(column)
                         // XXX: why ?
                         .height(Length::FillPortion(2))
                         .into()
