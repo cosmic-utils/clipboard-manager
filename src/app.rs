@@ -220,7 +220,7 @@ impl cosmic::Application for AppState {
         let command = task_message(AppMsg::TogglePopup);
 
         #[cfg(not(debug_assertions))]
-        let command = Command::none();
+        let command = Task::none();
 
         (window, command)
     }
