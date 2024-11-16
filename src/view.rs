@@ -6,7 +6,6 @@ use cosmic::{
         scrollable::{Direction, Scrollbar},
         Row, Scrollable,
     },
-    prelude::CollectionWidget,
     theme::Button,
     widget::{
         self,
