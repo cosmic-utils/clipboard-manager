@@ -1,35 +1,24 @@
-use std::{borrow::Cow, cmp::min, path::PathBuf};
+use std::{borrow::Cow, cmp::min};
 
 use cosmic::{
     iced::{Alignment, Length, Padding},
-    iced_widget::{
-        graphics::image::image_rs::flat::View,
-        qr_code,
-        scrollable::{Direction, Properties},
-        QRCode, Row, Scrollable,
-    },
-    prelude::CollectionWidget,
-    theme::{self, Button},
+    iced_widget::scrollable::{Direction, Scrollbar},
+    theme::Button,
     widget::{
         self,
         button::{self},
-        column, container, context_menu, flex_row, grid,
-        icon::{self, Handle},
-        image, menu, mouse_area, row, text, text_input, toggler, Column, Container, Icon,
-        MouseArea, Space, Text, TextEditor,
+        column, container, context_menu, horizontal_space, image, menu, row, scrollable, text,
+        text_input, toggler,
     },
     Element,
 };
 
-use anyhow::{anyhow, bail, Result};
-
 use crate::{
-    app::{AppState, ClipboardState},
-    config::Config,
+    app::AppState,
     db::{Content, Entry},
     fl,
     message::{AppMsg, ConfigMsg},
-    utils::{formatted_value, horizontal_padding, vertical_padding},
+    utils::formatted_value,
 };
 
 #[macro_export]
@@ -47,14 +36,14 @@ impl AppState {
             value: bool,
             f: impl Fn(bool) -> AppMsg + 'a,
         ) -> Element<'a, AppMsg> {
-            Row::new()
+            row()
                 .push(text(info))
-                .push(Space::with_width(Length::Fill))
-                .push(toggler(None, value, f))
+                .push(horizontal_space())
+                .push(toggler(value).on_toggle(f))
                 .into()
         }
 
-        Column::new()
+        column()
             .width(Length::Fill)
             .spacing(20)
             .padding(10)
@@ -73,19 +62,29 @@ impl AppState {
                 self.config.unique_session,
                 |v| AppMsg::Config(ConfigMsg::UniqueSession(v)),
             ))
-            .push(widget::button::destructive(fl!("clear_entries")).on_press(AppMsg::Clear))
+            .push(button::destructive(fl!("clear_entries")).on_press(AppMsg::Clear))
             .into()
     }
 
     pub fn popup_view(&self) -> Element<'_, AppMsg> {
-        Column::new()
+        column()
             .push(self.top_bar())
             .push(self.content())
-            .width(Length::Fill)
-            .height(Length::Fill)
             .spacing(20)
             .padding(10)
-            .align_items(Alignment::Center)
+            .align_x(Alignment::Center)
+            // .width(Length::Fill)
+            // .height(Length::Fill)
+            .height(if self.config.horizontal {
+                Length::Fill
+            } else {
+                Length::Fixed(530f32)
+            })
+            .width(if self.config.horizontal {
+                Length::Fill
+            } else {
+                Length::Fixed(400f32)
+            })
             .into()
     }
 
@@ -110,28 +109,20 @@ impl AppState {
                 .into(),
         };
 
-        let mut padding = Padding::new(10f32);
-        padding.bottom = 0f32;
-
-        let content = container(content).padding(padding);
-
-        content.into()
+        container(content)
+            .padding(Padding::new(10f32).bottom(0))
+            .into()
     }
 
     fn content(&self) -> Element<'_, AppMsg> {
         match &self.qr_code {
             Some(qr_code) => {
                 let qr_code_content: Element<_> = match qr_code {
-                    Ok(c) => QRCode::new(c).into(),
+                    Ok(c) => widget::qr_code(c).into(),
                     Err(()) => text(fl!("qr_code_error")).into(),
                 };
 
-                return container(qr_code_content)
-                    .width(Length::Fill)
-                    .height(Length::Fill)
-                    .center_x()
-                    .center_y()
-                    .into();
+                return container(qr_code_content).center(Length::Fill).into();
             }
             None => {
                 let entries_view: Vec<_> = if self.db.query().is_empty() {
@@ -190,8 +181,8 @@ impl AppState {
                         .spacing(5f32)
                         .padding(padding);
 
-                    Scrollable::new(column)
-                        .direction(Direction::Horizontal(Properties::default()))
+                    scrollable(column)
+                        .direction(Direction::Horizontal(Scrollbar::default()))
                         .into()
                 } else {
                     // try to fix scroll bar
@@ -206,7 +197,7 @@ impl AppState {
                         .spacing(5f32)
                         .padding(padding);
 
-                    Scrollable::new(column)
+                    scrollable(column)
                         // XXX: why ?
                         .height(Length::FillPortion(2))
                         .into()
@@ -221,7 +212,7 @@ impl AppState {
         is_focused: bool,
         image_data: &'a [u8],
     ) -> Option<Element<'a, AppMsg>> {
-        let handle = image::Handle::from_memory(image_data.to_owned());
+        let handle = image::Handle::from_bytes(image_data.to_owned());
 
         Some(self.base_entry(entry, is_focused, image(handle).width(Length::Fill)))
     }
@@ -291,17 +282,17 @@ impl AppState {
         let btn = button::custom(content)
             .on_press(AppMsg::Copy(entry.clone()))
             .padding([8, 16])
-            .style(Button::Custom {
+            .class(Button::Custom {
                 active: Box::new(move |focused, theme| {
                     let rad_s = theme.cosmic().corner_radii.radius_s;
                     let focused = is_focused || focused;
 
                     let a = if focused {
-                        button::StyleSheet::hovered(theme, focused, focused, &Button::Text)
+                        button::Catalog::hovered(theme, focused, focused, &Button::Text)
                     } else {
-                        button::StyleSheet::active(theme, focused, focused, &Button::Standard)
+                        button::Catalog::active(theme, focused, focused, &Button::Standard)
                     };
-                    button::Appearance {
+                    button::Style {
                         border_radius: rad_s.into(),
                         outline_width: 0.0,
                         ..a
@@ -311,20 +302,20 @@ impl AppState {
                     let focused = is_focused || focused;
                     let rad_s = theme.cosmic().corner_radii.radius_s;
 
-                    let text = button::StyleSheet::hovered(theme, focused, focused, &Button::Text);
-                    button::Appearance {
+                    let text = button::Catalog::hovered(theme, focused, focused, &Button::Text);
+                    button::Style {
                         border_radius: rad_s.into(),
                         outline_width: 0.0,
                         ..text
                     }
                 }),
-                disabled: Box::new(|theme| button::StyleSheet::disabled(theme, &Button::Text)),
+                disabled: Box::new(|theme| button::Catalog::disabled(theme, &Button::Text)),
                 pressed: Box::new(move |focused, theme| {
                     let focused = is_focused || focused;
                     let rad_s = theme.cosmic().corner_radii.radius_s;
 
-                    let text = button::StyleSheet::pressed(theme, focused, focused, &Button::Text);
-                    button::Appearance {
+                    let text = button::Catalog::pressed(theme, focused, focused, &Button::Text);
+                    button::Style {
                         border_radius: rad_s.into(),
                         outline_width: 0.0,
                         ..text
@@ -347,7 +338,7 @@ impl AppState {
                     button::text(fl!("delete_entry"))
                         .on_press(AppMsg::Delete(entry.clone()))
                         .width(Length::Fill)
-                        .style(Button::Destructive),
+                        .class(Button::Destructive),
                 ),
                 menu::Tree::new(
                     button::text(fl!("show_qr_code"))

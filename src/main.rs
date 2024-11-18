@@ -1,6 +1,6 @@
-#![allow(dead_code)]
-#![allow(unused_macros)]
-#![allow(unused_imports)]
+// #![allow(dead_code)]
+// #![allow(unused_macros)]
+// #![allow(unused_imports)]
 
 use app::{AppState, Flags};
 use config::{Config, CONFIG_VERSION};
@@ -69,5 +69,5 @@ fn main() -> cosmic::iced::Result {
         config_handler,
         config,
     };
-    cosmic::applet::run::<AppState>(true, flags)
+    cosmic::applet::run::<AppState>(flags)
 }

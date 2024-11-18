@@ -1,9 +1,7 @@
-use cosmic::iced::window::Id;
-
 use crate::{
-    clipboard::{self, ClipboardMessage},
+    clipboard::ClipboardMessage,
     config::Config,
-    db::{self, DbMessage, Entry},
+    db::{DbMessage, Entry},
     navigation::EventMsg,
 };
 
@@ -15,6 +13,7 @@ pub enum AppMsg {
     ClosePopup,
     Search(String),
     ClipboardEvent(ClipboardMessage),
+    #[allow(dead_code)]
     RetryConnectingClipboard,
     Copy(Entry),
     Delete(Entry),

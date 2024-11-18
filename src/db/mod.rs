@@ -1,26 +1,12 @@
-use cosmic::{
-    cosmic_theme::palette::cast::ComponentsInto,
-    iced::{subscription, Subscription},
-    iced_sctk::util,
-};
 use derivative::Derivative;
-use futures::{future::BoxFuture, FutureExt, SinkExt};
-use sqlx::{
-    migrate::MigrateDatabase, prelude::*, sqlite::SqliteExecutor, sqlite::SqliteRow, Sqlite,
-    SqliteConnection, SqlitePool,
-};
+use futures::{future::BoxFuture, FutureExt};
+use sqlx::{migrate::MigrateDatabase, prelude::*, sqlite::SqliteRow, Sqlite, SqliteConnection};
 use std::{
-    borrow::Cow,
     collections::{BTreeMap, HashMap, HashSet},
-    fmt::{Debug, Display},
-    fs::{self, DirBuilder, File},
+    fmt::Debug,
     hash::{DefaultHasher, Hash, Hasher},
-    io::{self, Read, Write},
-    path::{Path, PathBuf},
-    thread::sleep,
-    time::Duration,
+    path::Path,
 };
-use tokio::sync::mpsc;
 
 use anyhow::{anyhow, bail, Result};
 use nucleo::{
@@ -29,13 +15,11 @@ use nucleo::{
 };
 
 use chrono::Utc;
-use mime::Mime;
 
 use crate::{
     app::{APP, APPID, ORG, QUALIFIER},
     config::Config,
-    message::AppMsg,
-    utils::{self, now_millis},
+    utils::{self},
 };
 
 #[cfg(test)]
@@ -775,8 +759,4 @@ async fn fetch_data_version(conn: &mut SqliteConnection) -> Result<i64> {
 #[derive(Clone, Debug)]
 pub enum DbMessage {
     CheckUpdate,
-}
-
-pub fn sub() -> Subscription<DbMessage> {
-    cosmic::iced::time::every(Duration::from_millis(1000)).map(|_| DbMessage::CheckUpdate)
 }

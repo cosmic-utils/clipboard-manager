@@ -1,13 +1,9 @@
+use std::borrow::Cow;
 use std::cmp::min;
-use std::path::Path;
-use std::time::{SystemTime, UNIX_EPOCH};
-use std::{borrow::Cow, time::Duration};
-use std::{fs, io};
 
 use chrono::Utc;
-use cosmic::{app::Message, iced::Padding, iced_runtime::command::Action, Command};
-
-use crate::app::APPID;
+use cosmic::app::Message;
+use cosmic::Task;
 
 pub fn formatted_value(value: &str, max_lines: usize, max_chars: usize) -> Cow<str> {
     let value = value.trim();
@@ -55,47 +51,10 @@ fn split_at(str: &str, n: usize) -> &str {
     }
 }
 
-pub fn horizontal_padding(value: f32) -> Padding {
-    Padding {
-        top: 0f32,
-        right: value,
-        bottom: 0f32,
-        left: value,
-    }
-}
-
-pub fn vertical_padding(value: f32) -> Padding {
-    Padding {
-        top: value,
-        right: 0f32,
-        bottom: value,
-        left: 0f32,
-    }
-}
-
-pub fn command_message<M: Send + 'static>(message: M) -> Command<Message<M>> {
-    Command::single(Action::Future(Box::pin(async {
-        cosmic::app::Message::App(message)
-    })))
+pub fn task_message<M: Send + 'static>(message: M) -> Task<Message<M>> {
+    Task::done(cosmic::app::Message::App(message))
 }
 
 pub fn now_millis() -> i64 {
     Utc::now().timestamp_millis()
-}
-
-pub fn remove_dir_contents(dir: &Path) {
-    pub fn inner(dir: &Path) -> Result<(), io::Error> {
-        for entry in fs::read_dir(dir)?.flatten() {
-            let path = entry.path();
-
-            if path.is_dir() {
-                let _ = fs::remove_dir_all(&path);
-            } else {
-                let _ = fs::remove_file(&path);
-            }
-        }
-        Ok(())
-    }
-
-    let _ = inner(dir);
 }

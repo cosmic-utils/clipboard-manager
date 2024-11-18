@@ -38,6 +38,6 @@
       "type": "boolean"
     }
   },
-  "X_CONFIGURATOR_SOURCE_HOME_PATH": ".config/cosmic/io.github.wiiznokes.cosmic-ext-applet-clipboard-manager/v2",
+  "X_CONFIGURATOR_SOURCE_HOME_PATH": ".config/cosmic/io.github.wiiznokes.cosmic-ext-applet-clipboard-manager/v3",
   "X_CONFIGURATOR_FORMAT": "cosmic_ron"
 }

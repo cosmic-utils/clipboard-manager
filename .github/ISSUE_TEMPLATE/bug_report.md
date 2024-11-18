@@ -10,8 +10,6 @@ labels: bug
 
 #### Steps to Reproduce
 
-#### Possible Solutions (optional)
+#### Additional Information
 
-#### Possible Additional Information (optional)
-
-#### Logs (optional)
+#### Logs
