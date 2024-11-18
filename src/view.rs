@@ -70,11 +70,21 @@ impl AppState {
         column()
             .push(self.top_bar())
             .push(self.content())
-            .width(Length::Fill)
-            .height(Length::Fill)
             .spacing(20)
             .padding(10)
             .align_x(Alignment::Center)
+            // .width(Length::Fill)
+            // .height(Length::Fill)
+            .height(if self.config.horizontal {
+                Length::Fill
+            } else {
+                Length::Fixed(530f32)
+            })
+            .width(if self.config.horizontal {
+                Length::Fill
+            } else {
+                Length::Fixed(400f32)
+            })
             .into()
     }
 

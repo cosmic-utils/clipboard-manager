@@ -246,7 +246,7 @@ version = "0.38.0+1.3.281"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0bb44936d800fea8f016d7f2311c6a4f97aebd5dc86f09906139ec848cf3a46f"
 dependencies = [
- "libloading 0.8.5",
+ "libloading",
 ]
 
 [[package]]
@@ -1117,7 +1117,7 @@ dependencies = [
 [[package]]
 name = "cosmic-config"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/libcosmic#a355a049d917823dafcd6669cad6afa6983bc6c6"
+source = "git+https://github.com/pop-os/libcosmic#62b0c8a401c175ab956229b2901f2fdb8b96aeab"
 dependencies = [
  "atomicwrites",
  "cosmic-config-derive 0.1.0 (git+https://github.com/pop-os/libcosmic)",
@@ -1144,7 +1144,7 @@ dependencies = [
 [[package]]
 name = "cosmic-config-derive"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/libcosmic#a355a049d917823dafcd6669cad6afa6983bc6c6"
+source = "git+https://github.com/pop-os/libcosmic#62b0c8a401c175ab956229b2901f2fdb8b96aeab"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -1377,7 +1377,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bdbd1f579714e3c809ebd822c81ef148b1ceaeb3d535352afc73fd0c4c6a0017"
 dependencies = [
  "bitflags 2.6.0",
- "libloading 0.7.4",
+ "libloading",
  "winapi",
 ]
 
@@ -1535,7 +1535,7 @@ version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "330c60081dcc4c72131f8eb70510f1ac07223e5d4163db481a04a0befcffa412"
 dependencies = [
- "libloading 0.8.5",
+ "libloading",
 ]
 
 [[package]]
@@ -2357,7 +2357,7 @@ dependencies = [
  "bitflags 2.6.0",
  "com",
  "libc",
- "libloading 0.8.5",
+ "libloading",
  "thiserror 1.0.69",
  "widestring",
  "winapi",
@@ -2573,7 +2573,7 @@ dependencies = [
 [[package]]
 name = "iced_core"
 version = "0.14.0-dev"
-source = "git+https://github.com/pop-os/libcosmic#a355a049d917823dafcd6669cad6afa6983bc6c6"
+source = "git+https://github.com/pop-os/libcosmic#62b0c8a401c175ab956229b2901f2fdb8b96aeab"
 dependencies = [
  "bitflags 2.6.0",
  "bytes",
@@ -2609,7 +2609,7 @@ dependencies = [
 [[package]]
 name = "iced_futures"
 version = "0.14.0-dev"
-source = "git+https://github.com/pop-os/libcosmic#a355a049d917823dafcd6669cad6afa6983bc6c6"
+source = "git+https://github.com/pop-os/libcosmic#62b0c8a401c175ab956229b2901f2fdb8b96aeab"
 dependencies = [
  "futures",
  "iced_core 0.14.0-dev (git+https://github.com/pop-os/libcosmic)",
@@ -3136,7 +3136,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6aae1df220ece3c0ada96b8153459b67eebe9ae9212258bb0134ae60416fdf76"
 dependencies = [
  "libc",
- "libloading 0.8.5",
+ "libloading",
  "pkg-config",
 ]
 
@@ -3254,16 +3254,6 @@ dependencies = [
  "url",
  "ustr",
  "zbus 4.4.0",
-]
-
-[[package]]
-name = "libloading"
-version = "0.7.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b67380fd3b2fbe7527a606e18729d21c6f3951633d0500574c4dc22d2d638b9f"
-dependencies = [
- "cfg-if",
- "winapi",
 ]
 
 [[package]]
@@ -3827,7 +3817,7 @@ version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af1844ef2428cc3e1cb900be36181049ef3d3193c63e43026cfe202983b27a56"
 dependencies = [
- "proc-macro-crate 1.3.1",
+ "proc-macro-crate 3.2.0",
  "proc-macro2",
  "quote",
  "syn 2.0.87",
@@ -5052,9 +5042,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.132"
+version = "1.0.133"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d726bfaff4b320266d395898905d0eba0345aae23b54aee3a737e260fd46db03"
+checksum = "c7fceb2473b9166b2294ef05efcb65a3db80803f0b03ef86a5fc88a2b85ee377"
 dependencies = [
  "indexmap 2.6.0",
  "itoa",
@@ -5838,7 +5828,7 @@ checksum = "1d52f22673960ad13af14ff4025997312def1223bfa7c8e4949d099e6b3d5d1c"
 dependencies = [
  "as-raw-xcb-connection",
  "ctor-lite",
- "libloading 0.8.5",
+ "libloading",
  "pkg-config",
  "tracing",
 ]
@@ -6562,7 +6552,7 @@ dependencies = [
  "js-sys",
  "log",
  "naga",
- "parking_lot 0.11.2",
+ "parking_lot 0.12.3",
  "profiling",
  "raw-window-handle",
  "smallvec",
@@ -6590,7 +6580,7 @@ dependencies = [
  "log",
  "naga",
  "once_cell",
- "parking_lot 0.11.2",
+ "parking_lot 0.12.3",
  "profiling",
  "raw-window-handle",
  "rustc-hash 1.1.0",
@@ -6624,14 +6614,14 @@ dependencies = [
  "js-sys",
  "khronos-egl",
  "libc",
- "libloading 0.7.4",
+ "libloading",
  "log",
  "metal",
  "naga",
  "ndk-sys 0.5.0+25.2.9519653",
  "objc",
  "once_cell",
- "parking_lot 0.11.2",
+ "parking_lot 0.12.3",
  "profiling",
  "range-alloc",
  "raw-window-handle",
@@ -7123,7 +7113,7 @@ dependencies = [
  "as-raw-xcb-connection",
  "gethostname",
  "libc",
- "libloading 0.8.5",
+ "libloading",
  "once_cell",
  "rustix 0.38.40",
  "x11rb-protocol",

@@ -153,10 +153,13 @@ impl AppState {
                         ..Default::default()
                     })
                 } else {
-                    let mut popup_settings =
-                        self.core
-                            .applet
-                            .get_popup_settings(Id::RESERVED, new_id, None, None, None);
+                    let mut popup_settings = self.core.applet.get_popup_settings(
+                        self.core.main_window_id().unwrap(),
+                        new_id,
+                        None,
+                        None,
+                        None,
+                    );
 
                     popup_settings.positioner.size_limits = Limits::NONE
                         .max_width(400.0)
@@ -167,10 +170,13 @@ impl AppState {
                 }
             }
             PopupKind::QuickSettings => {
-                let mut popup_settings =
-                    self.core
-                        .applet
-                        .get_popup_settings(Id::RESERVED, new_id, None, None, None);
+                let mut popup_settings = self.core.applet.get_popup_settings(
+                    self.core.main_window_id().unwrap(),
+                    new_id,
+                    None,
+                    None,
+                    None,
+                );
 
                 popup_settings.positioner.size_limits = Limits::NONE
                     .max_width(250.0)
