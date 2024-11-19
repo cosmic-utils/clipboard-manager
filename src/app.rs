@@ -15,7 +15,7 @@ use cosmic::iced_winit::commands::layer_surface::{
 use cosmic::iced_winit::commands::popup::{destroy_popup, get_popup};
 use cosmic::widget::{MouseArea, Space};
 
-use cosmic::{Element, Task};
+use cosmic::{app::Task, Element};
 use futures::executor::block_on;
 use futures::StreamExt;
 
@@ -89,7 +89,7 @@ enum PopupKind {
 }
 
 impl AppState {
-    fn toggle_popup(&mut self, kind: PopupKind) -> Task<cosmic::app::Message<AppMsg>> {
+    fn toggle_popup(&mut self, kind: PopupKind) -> Task<AppMsg> {
         self.qr_code.take();
         match &self.popup {
             Some(popup) => {
@@ -103,7 +103,7 @@ impl AppState {
         }
     }
 
-    fn close_popup(&mut self) -> Task<cosmic::app::Message<AppMsg>> {
+    fn close_popup(&mut self) -> Task<AppMsg> {
         self.focused = 0;
         self.db.set_query_and_search("".into());
 
@@ -122,7 +122,7 @@ impl AppState {
         }
     }
 
-    fn open_popup(&mut self, kind: PopupKind) -> Task<cosmic::app::Message<AppMsg>> {
+    fn open_popup(&mut self, kind: PopupKind) -> Task<AppMsg> {
         // handle the case where the popup was closed by clicking the icon
         if self
             .last_quit
@@ -162,8 +162,8 @@ impl AppState {
                     );
 
                     popup_settings.positioner.size_limits = Limits::NONE
-                        .max_width(400.0)
                         .min_width(300.0)
+                        .max_width(400.0)
                         .min_height(200.0)
                         .max_height(500.0);
                     get_popup(popup_settings)
@@ -179,8 +179,8 @@ impl AppState {
                 );
 
                 popup_settings.positioner.size_limits = Limits::NONE
-                    .max_width(250.0)
                     .min_width(200.0)
+                    .max_width(250.0)
                     .min_height(200.0)
                     .max_height(550.0);
 
@@ -204,7 +204,7 @@ impl cosmic::Application for AppState {
         &mut self.core
     }
 
-    fn init(core: Core, flags: Self::Flags) -> (Self, Task<cosmic::app::Message<Self::Message>>) {
+    fn init(core: Core, flags: Self::Flags) -> (Self, Task<Self::Message>) {
         let config = flags.config;
         PRIVATE_MODE.store(config.private_mode, atomic::Ordering::Relaxed);
 
@@ -242,7 +242,7 @@ impl cosmic::Application for AppState {
         None
     }
 
-    fn update(&mut self, message: Self::Message) -> Task<cosmic::app::Message<Self::Message>> {
+    fn update(&mut self, message: Self::Message) -> Task<Self::Message> {
         macro_rules! config_set {
             ($name: ident, $value: expr) => {
                 match paste::paste! { self.config.[<set_ $name>](&self.config_handler, $value) } {
@@ -319,7 +319,7 @@ impl cosmic::Application for AppState {
                 self.clipboard_state = ClipboardState::Init;
             }
             AppMsg::Navigation(message) => match message {
-                navigation::EventMsg::Event(e) => {
+                EventMsg::Event(e) => {
                     let message = match e {
                         Named::Enter => EventMsg::Enter,
                         Named::Escape => EventMsg::Quit,
@@ -332,13 +332,13 @@ impl cosmic::Application for AppState {
 
                     return task_message(AppMsg::Navigation(message));
                 }
-                navigation::EventMsg::Next => {
+                EventMsg::Next => {
                     self.focus_next();
                 }
-                navigation::EventMsg::Previous => {
+                EventMsg::Previous => {
                     self.focus_previous();
                 }
-                navigation::EventMsg::Enter => {
+                EventMsg::Enter => {
                     if let Some(data) = self.db.get(self.focused) {
                         if let Err(e) = clipboard::copy(data.clone()) {
                             error!("can't copy: {e}");
@@ -346,7 +346,7 @@ impl cosmic::Application for AppState {
                         return self.close_popup();
                     }
                 }
-                navigation::EventMsg::Quit => {
+                EventMsg::Quit => {
                     return self.close_popup();
                 }
                 EventMsg::None => {}
