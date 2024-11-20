@@ -49,11 +49,15 @@ pub struct AppState {
 
 impl AppState {
     fn focus_next(&mut self) {
-        self.focused = (self.focused + 1) % self.db.len();
+        if self.db.len() > 0 {
+            self.focused = (self.focused + 1) % self.db.len();
+        }
     }
 
     fn focus_previous(&mut self) {
-        self.focused = (self.focused + self.db.len() - 1) % self.db.len();
+        if self.db.len() > 0 {
+            self.focused = (self.focused + self.db.len() - 1) % self.db.len();
+        }
     }
 }
 
@@ -277,11 +281,9 @@ impl cosmic::Application for AppState {
                     self.clipboard_state = ClipboardState::Connected;
                 }
                 clipboard::ClipboardMessage::Data(data) => {
-                    block_on(async {
-                        if let Err(e) = self.db.insert(data).await {
-                            error!("can't insert data: {e}");
-                        }
-                    });
+                    if let Err(e) = block_on(self.db.insert(data)) {
+                        error!("can't insert data: {e}");
+                    }
                 }
                 clipboard::ClipboardMessage::Error(e) => {
                     error!("{e}");
@@ -302,18 +304,14 @@ impl cosmic::Application for AppState {
                 return self.close_popup();
             }
             AppMsg::Delete(data) => {
-                block_on(async {
-                    if let Err(e) = self.db.delete(&data).await {
-                        error!("can't delete {:?}: {}", data.get_content(), e);
-                    }
-                });
+                if let Err(e) = block_on(self.db.delete(&data)) {
+                    error!("can't delete {:?}: {}", data.get_content(), e);
+                }
             }
             AppMsg::Clear => {
-                block_on(async {
-                    if let Err(e) = self.db.clear().await {
-                        error!("can't clear db: {e}");
-                    }
-                });
+                if let Err(e) = block_on(self.db.clear()) {
+                    error!("can't clear db: {e}");
+                }
             }
             AppMsg::RetryConnectingClipboard => {
                 self.clipboard_state = ClipboardState::Init;
@@ -352,11 +350,9 @@ impl cosmic::Application for AppState {
                 EventMsg::None => {}
             },
             AppMsg::Db(inner) => {
-                block_on(async {
-                    if let Err(err) = self.db.handle_message(inner).await {
-                        error!("{err}");
-                    }
-                });
+                if let Err(err) = block_on(self.db.handle_message(inner)) {
+                    error!("{err}");
+                }
             }
             AppMsg::ShowQrCode(e) => {
                 // todo: handle better this error
@@ -391,18 +387,14 @@ impl cosmic::Application for AppState {
                 }
             },
             AppMsg::AddFavorite(entry) => {
-                block_on(async {
-                    if let Err(err) = self.db.add_favorite(&entry, None).await {
-                        error!("{err}");
-                    }
-                });
+                if let Err(err) = block_on(self.db.add_favorite(&entry, None)) {
+                    error!("{err}");
+                }
             }
             AppMsg::RemoveFavorite(entry) => {
-                block_on(async {
-                    if let Err(err) = self.db.remove_favorite(&entry).await {
-                        error!("{err}");
-                    }
-                });
+                if let Err(err) = block_on(self.db.remove_favorite(&entry)) {
+                    error!("{err}");
+                }
             }
         }
         Task::none()
@@ -453,11 +445,11 @@ impl cosmic::Application for AppState {
     }
 
     fn on_app_exit(&mut self) -> Option<Self::Message> {
-        block_on(async {
-            if let Err(err) = self.db.clear().await {
+        if self.config.unique_session {
+            if let Err(err) = block_on(self.db.clear()) {
                 error!("{err}");
             }
-        });
+        }
         None
     }
 
