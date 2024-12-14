@@ -165,10 +165,11 @@ impl AppState {
                         })
                         .collect()
                 } else {
-                    let mut vec = Vec::with_capacity(maximum_entries_by_page + 1);
-
-                    vec.extend(self.db.search_iter().enumerate().get(range).filter_map(
-                        |(pos, (data, indices))| match data.get_content() {
+                    self.db
+                        .search_iter()
+                        .enumerate()
+                        .get(range)
+                        .filter_map(|(pos, (data, indices))| match data.get_content() {
                             Ok(c) => match c {
                                 Content::Text(text) => self.text_entry_with_indices(
                                     data,
@@ -184,9 +185,8 @@ impl AppState {
                                 }
                             },
                             Err(_) => None,
-                        },
-                    ));
-                    vec
+                        })
+                        .collect()
                 };
 
                 if self.config.horizontal {
