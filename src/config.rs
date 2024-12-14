@@ -1,4 +1,8 @@
-use std::{sync::atomic::AtomicBool, time::Duration};
+use std::{
+    num::{NonZero, NonZeroU32},
+    sync::atomic::AtomicBool,
+    time::Duration,
+};
 
 #[cfg(test)]
 use configurator_schema::schemars;
@@ -29,6 +33,7 @@ pub struct Config {
     pub horizontal: bool,
     /// Reset the database at each login
     pub unique_session: bool,
+    pub maximum_entries_by_page: NonZeroU32,
 }
 
 impl Config {
@@ -46,6 +51,7 @@ impl Default for Config {
             maximum_entries_number: Some(500),
             horizontal: false,
             unique_session: false,
+            maximum_entries_by_page: NonZero::new(50).unwrap(),
         }
     }
 }

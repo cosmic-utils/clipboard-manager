@@ -25,6 +25,8 @@ pub enum AppMsg {
     Config(ConfigMsg),
     AddFavorite(Entry),
     RemoveFavorite(Entry),
+    NextPage,
+    PreviousPage,
 }
 
 #[derive(Clone, Debug)]

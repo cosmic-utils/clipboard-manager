@@ -39,6 +39,7 @@ constcat = "0.5"
 nucleo = "0.5"
 futures = "0.3"
 include_dir = "0.7"
+itertools = "0.13.0"
 [dependencies.libcosmic]
 git = "https://github.com/pop-os/libcosmic"
 default-features = false

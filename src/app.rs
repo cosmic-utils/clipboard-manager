@@ -43,6 +43,7 @@ pub struct AppState {
     pub db: Db,
     pub clipboard_state: ClipboardState,
     pub focused: usize,
+    pub page: usize,
     pub qr_code: Option<Result<qr_code::Data, ()>>,
     last_quit: Option<(i64, PopupKind)>,
 }
@@ -109,6 +110,7 @@ impl AppState {
 
     fn close_popup(&mut self) -> Task<AppMsg> {
         self.focused = 0;
+        self.page = 0;
         self.db.set_query_and_search("".into());
 
         if let Some(popup) = self.popup.take() {
@@ -224,6 +226,7 @@ impl cosmic::Application for AppState {
             qr_code: None,
             config,
             last_quit: None,
+            page: 0,
         };
 
         #[cfg(debug_assertions)]
@@ -395,6 +398,14 @@ impl cosmic::Application for AppState {
                 if let Err(err) = block_on(self.db.remove_favorite(&entry)) {
                     error!("{err}");
                 }
+            }
+            AppMsg::NextPage => {
+                self.page += 1;
+                self.focused = self.page * self.config.maximum_entries_by_page.get() as usize;
+            }
+            AppMsg::PreviousPage => {
+                self.page -= 1;
+                self.focused = self.page * self.config.maximum_entries_by_page.get() as usize;
             }
         }
         Task::none()
