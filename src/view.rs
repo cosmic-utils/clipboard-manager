@@ -1,7 +1,7 @@
 use std::{borrow::Cow, cmp::min};
 
 use cosmic::{
-    iced::{Alignment, Length, Padding},
+    iced::{padding, Alignment, Length, Padding},
     iced_widget::scrollable::{Direction, Scrollbar},
     theme::Button,
     widget::{
@@ -12,22 +12,15 @@ use cosmic::{
     },
     Element,
 };
+use itertools::Itertools;
 
 use crate::{
     app::AppState,
     db::{Content, Entry},
-    fl,
+    fl, icon_button,
     message::{AppMsg, ConfigMsg},
     utils::formatted_value,
 };
-
-#[macro_export]
-macro_rules! icon {
-    ($name:literal) => {{
-        let bytes = include_bytes!(concat!("../../res/icons/", $name, "px.svg"));
-        cosmic::widget::icon::from_svg_bytes(bytes)
-    }};
-}
 
 impl AppState {
     pub fn quick_settings_view(&self) -> Element<'_, AppMsg> {
@@ -70,8 +63,9 @@ impl AppState {
         column()
             .push(self.top_bar())
             .push(self.content())
+            // .push(self.page_actions())
             .spacing(20)
-            .padding(10)
+            // .padding(10)
             .align_x(Alignment::Center)
             // .width(Length::Fill)
             // .height(Length::Fill)
@@ -87,18 +81,39 @@ impl AppState {
             })
             .into()
     }
+    pub fn page_count(&self) -> usize {
+        self.db.len() / self.config.maximum_entries_by_page.get() as usize
+    }
 
     fn top_bar(&self) -> Element<'_, AppMsg> {
         let content: Element<_> = match self.qr_code.is_none() {
-            true => text_input::search_input(fl!("search_entries"), self.db.query())
-                .always_active()
-                .on_input(AppMsg::Search)
-                .on_paste(AppMsg::Search)
-                .on_clear(AppMsg::Search("".into()))
-                .width(match self.config.horizontal {
-                    true => Length::Fixed(250f32),
-                    false => Length::Fill,
-                })
+            true => row()
+                .push(
+                    text_input::search_input(fl!("search_entries"), self.db.query())
+                        .always_active()
+                        .on_input(AppMsg::Search)
+                        .on_paste(AppMsg::Search)
+                        .on_clear(AppMsg::Search("".into()))
+                        .width(match self.config.horizontal {
+                            true => Length::Fixed(250f32),
+                            false => Length::Fill,
+                        }),
+                )
+                .push(horizontal_space().width(5))
+                .push(
+                    icon_button!("arrow_back_ios_new24").on_press_maybe(if self.page > 0 {
+                        Some(AppMsg::PreviousPage)
+                    } else {
+                        None
+                    }),
+                )
+                .push(icon_button!("arrow_forward_ios24").on_press_maybe(
+                    if self.page < self.page_count() {
+                        Some(AppMsg::NextPage)
+                    } else {
+                        None
+                    },
+                ))
                 .into(),
             false => button::text(fl!("return_to_clipboard"))
                 .on_press(AppMsg::ReturnToClipboard)
@@ -110,25 +125,30 @@ impl AppState {
         };
 
         container(content)
-            .padding(Padding::new(10f32).bottom(0))
+            .padding(Padding::new(15f32).bottom(0))
             .into()
     }
 
     fn content(&self) -> Element<'_, AppMsg> {
-        match &self.qr_code {
+        let content: Element<_> = match &self.qr_code {
             Some(qr_code) => {
                 let qr_code_content: Element<_> = match qr_code {
                     Ok(c) => widget::qr_code(c).into(),
                     Err(()) => text(fl!("qr_code_error")).into(),
                 };
 
-                return container(qr_code_content).center(Length::Fill).into();
+                container(qr_code_content).center(Length::Fill).into()
             }
             None => {
+                let maximum_entries_by_page = self.config.maximum_entries_by_page.get() as usize;
+                let range =
+                    self.page * maximum_entries_by_page..(self.page + 1) * maximum_entries_by_page;
+
                 let entries_view: Vec<_> = if self.db.query().is_empty() {
                     self.db
                         .iter()
                         .enumerate()
+                        .get(range)
                         .filter_map(|(pos, data)| match data.get_content() {
                             Ok(c) => match c {
                                 Content::Text(text) => {
@@ -148,6 +168,7 @@ impl AppState {
                     self.db
                         .search_iter()
                         .enumerate()
+                        .get(range)
                         .filter_map(|(pos, (data, indices))| match data.get_content() {
                             Ok(c) => match c {
                                 Content::Text(text) => self.text_entry_with_indices(
@@ -169,33 +190,17 @@ impl AppState {
                 };
 
                 if self.config.horizontal {
-                    // try to fix scroll bar
-                    let padding = Padding {
-                        top: 0f32,
-                        right: 10f32,
-                        bottom: 20f32,
-                        left: 10f32,
-                    };
-
                     let column = row::with_children(entries_view)
                         .spacing(5f32)
-                        .padding(padding);
+                        .padding(padding::bottom(10));
 
                     scrollable(column)
                         .direction(Direction::Horizontal(Scrollbar::default()))
                         .into()
                 } else {
-                    // try to fix scroll bar
-                    let padding = Padding {
-                        top: 0f32,
-                        right: 20f32,
-                        bottom: 0f32,
-                        left: 10f32,
-                    };
-
                     let column = column::with_children(entries_view)
                         .spacing(5f32)
-                        .padding(padding);
+                        .padding(padding::right(10));
 
                     scrollable(column)
                         // XXX: why ?
@@ -203,7 +208,9 @@ impl AppState {
                         .into()
                 }
             }
-        }
+        };
+
+        container(content).padding(padding::all(20).top(0)).into()
     }
 
     fn image_entry<'a>(

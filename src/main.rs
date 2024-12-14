@@ -12,6 +12,7 @@ mod app;
 mod clipboard;
 mod config;
 mod db;
+mod icon;
 mod localize;
 mod message;
 mod navigation;

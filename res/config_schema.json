@@ -36,6 +36,12 @@
       "description": "Reset the database at each login",
       "default": false,
       "type": "boolean"
+    },
+    "maximum_entries_by_page": {
+      "default": 50,
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 1.0
     }
   },
   "X_CONFIGURATOR_SOURCE_HOME_PATH": ".config/cosmic/io.github.wiiznokes.cosmic-ext-applet-clipboard-manager/v3",
