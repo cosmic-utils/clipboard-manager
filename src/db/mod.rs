@@ -27,23 +27,23 @@ pub mod test;
 
 type TimeId = i64;
 
-const DB_VERSION: &str = "4";
+const DB_VERSION: &str = "5";
 const DB_PATH: &str = constcat::concat!(APPID, "-db-", DB_VERSION, ".sqlite");
 
 #[derive(Clone, Eq, Derivative)]
 pub struct Entry {
     pub creation: TimeId,
-    pub mime: String,
     // todo: lazelly load image in memory, since we can't search them anyways
-    pub content: Vec<u8>,
     /// (Mime, Content)
-    pub metadata: Option<EntryMetadata>,
+    pub content: HashMap<String, Vec<u8>>,
     pub is_favorite: bool,
 }
 
 impl Hash for Entry {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.content.hash(state);
+        for e in self.content.values() {
+            e.hash(state);
+        }
     }
 }
 
@@ -68,31 +68,23 @@ impl Entry {
 
     pub fn new(
         creation: i64,
-        mime: String,
-        content: Vec<u8>,
-        metadata: Option<EntryMetadata>,
+        content: HashMap<String, Vec<u8>>,
         is_favorite: bool,
     ) -> Self {
         Self {
             creation,
-            mime,
             content,
-            metadata,
             is_favorite,
         }
     }
 
     pub fn new_now(
-        mime: String,
-        content: Vec<u8>,
-        metadata: Option<EntryMetadata>,
+        content: HashMap<String, Vec<u8>>,
         is_favorite: bool,
     ) -> Self {
         Self::new(
             Utc::now().timestamp_millis(),
-            mime,
             content,
-            metadata,
             is_favorite,
         )
     }
@@ -394,11 +386,16 @@ impl Db {
             let query_load_table = r#"
                 SELECT creation, mime, content, metadataMime, metadata
                 FROM ClipboardEntries
+                JOIN ClipboardContents ON (id = creation)
+                GROUP BY
             "#;
 
             let rows = sqlx::query(query_load_table)
                 .fetch_all(&mut self.conn)
                 .await?;
+
+                sqlx::query(query_load_table)
+                    .fetch(executor)
 
             for row in &rows {
                 let data = Entry::from_row(row, &self.favorites)?;
