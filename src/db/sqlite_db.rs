@@ -1,6 +1,6 @@
 use alive_lock_file::LockResult;
 use derivative::Derivative;
-use futures::{future::BoxFuture, FutureExt, StreamExt};
+use futures::StreamExt;
 use sqlx::{migrate::MigrateDatabase, prelude::*, Sqlite, SqliteConnection};
 use std::{
     cell::RefCell,
@@ -44,21 +44,21 @@ pub struct DbSqlite {
     needle: Option<Atom>,
     matcher: RefCell<Matcher>,
     data_version: i64,
-    favorites: Favorites,
+    pub(super) favorites: Favorites,
 }
 
 #[derive(Clone, Eq, Derivative)]
 pub struct Entry {
-    id: EntryId,
-    creation: Time,
+    pub id: EntryId,
+    pub creation: Time,
     // todo: lazelly load image in memory, since we can't search them anyways
     /// (Mime, Content)
-    raw_content: MimeDataMap,
-    is_favorite: bool,
+    pub raw_content: MimeDataMap,
+    pub is_favorite: bool,
 }
 
 #[derive(Default)]
-struct Favorites {
+pub(super) struct Favorites {
     favorites: Vec<EntryId>,
     favorites_hash_set: HashSet<EntryId>,
 }
@@ -87,7 +87,7 @@ impl Favorites {
         })
     }
 
-    fn fav(&self) -> &Vec<EntryId> {
+    pub(super) fn fav(&self) -> &Vec<EntryId> {
         &self.favorites
     }
 
@@ -97,6 +97,10 @@ impl Favorites {
         self.favorites[pos] = new;
         self.favorites_hash_set.remove(prev);
         self.favorites_hash_set.insert(new);
+    }
+
+    pub(super) fn len(&self) -> usize {
+        self.favorites.len()
     }
 }
 
@@ -382,82 +386,79 @@ impl DbTrait for DbSqlite {
         self.entries.get(&id)
     }
 
-    // the <= 200 condition, is to unsure we reuse the same timestamp
-    // of the first process that inserted the data.
-    fn insert<'a: 'b, 'b>(&'a mut self, data: MimeDataMap) -> BoxFuture<'b, Result<()>> {
-        async move {
-            match alive_lock_file::try_lock(LOCK_FILE)? {
-                LockResult::Success => {}
-                LockResult::AlreadyLocked => {
-                    info!("db already locked");
-                    return Ok(());
-                }
+    async fn insert(&mut self, data: MimeDataMap) -> Result<()> {
+        self.insert_with_time(data, now()).await
+    }
+    async fn insert_with_time(&mut self, data: MimeDataMap, now: i64) -> Result<()> {
+        match alive_lock_file::try_lock(LOCK_FILE)? {
+            LockResult::Success => {}
+            LockResult::AlreadyLocked => {
+                info!("db already locked");
+                return Ok(());
             }
-
-            let hash = get_hash_entry_content(&data);
-            let now = now();
-
-            if let Some(id) = self.hashs.get(&hash) {
-                let entry = self.entries.get_mut(id).unwrap();
-                entry.creation = now;
-                self.times.remove(&entry.creation);
-                self.times.insert(now, *id);
-
-                let query_update_creation = r#"
-                    UPDATE ClipboardEntries
-                    SET creation = $1
-                    WHERE id = $2;
-                "#;
-
-                sqlx::query(query_update_creation)
-                    .bind(now)
-                    .bind(id)
-                    .execute(&mut self.conn)
-                    .await?;
-            } else {
-                let id = now;
-
-                let query_insert_new_entry = r#"
-                    INSERT INTO ClipboardEntries (id, creation)
-                    SELECT $1, $2
-                "#;
-
-                sqlx::query(query_insert_new_entry)
-                    .bind(id)
-                    .bind(now)
-                    .execute(&mut self.conn)
-                    .await?;
-
-                for (mime, content) in &data {
-                    let query_insert_content = r#"
-                        INSERT INTO ClipboardContents (id, mime, content)
-                        SELECT $1, $2, $3
-                    "#;
-
-                    sqlx::query(query_insert_content)
-                        .bind(id)
-                        .bind(mime)
-                        .bind(content)
-                        .execute(&mut self.conn)
-                        .await?;
-                }
-
-                let entry = Entry {
-                    id,
-                    creation: now,
-                    raw_content: data,
-                    is_favorite: false,
-                };
-
-                self.times.insert(now, id);
-                self.hashs.insert(hash, id);
-                self.entries.insert(id, entry);
-            }
-
-            self.search();
-            Ok(())
         }
-        .boxed()
+
+        let hash = get_hash_entry_content(&data);
+
+        if let Some(id) = self.hashs.get(&hash) {
+            let entry = self.entries.get_mut(id).unwrap();
+            entry.creation = now;
+            self.times.remove(&entry.creation);
+            self.times.insert(now, *id);
+
+            let query_update_creation = r#"
+                UPDATE ClipboardEntries
+                SET creation = $1
+                WHERE id = $2;
+            "#;
+
+            sqlx::query(query_update_creation)
+                .bind(now)
+                .bind(id)
+                .execute(&mut self.conn)
+                .await?;
+        } else {
+            let id = now;
+
+            let query_insert_new_entry = r#"
+                INSERT INTO ClipboardEntries (id, creation)
+                SELECT $1, $2
+            "#;
+
+            sqlx::query(query_insert_new_entry)
+                .bind(id)
+                .bind(now)
+                .execute(&mut self.conn)
+                .await?;
+
+            for (mime, content) in &data {
+                let query_insert_content = r#"
+                    INSERT INTO ClipboardContents (id, mime, content)
+                    SELECT $1, $2, $3
+                "#;
+
+                sqlx::query(query_insert_content)
+                    .bind(id)
+                    .bind(mime)
+                    .bind(content)
+                    .execute(&mut self.conn)
+                    .await?;
+            }
+
+            let entry = Entry {
+                id,
+                creation: now,
+                raw_content: data,
+                is_favorite: false,
+            };
+
+            self.times.insert(now, id);
+            self.hashs.insert(hash, id);
+            self.entries.insert(id, entry);
+        }
+
+        self.search();
+        Ok(())
     }
 
     async fn delete(&mut self, id: EntryId) -> Result<()> {
@@ -520,7 +521,7 @@ impl DbTrait for DbSqlite {
                 .unwrap();
         }
 
-        let index = index.unwrap_or(self.favorite_len() - 1);
+        let index = index.unwrap_or(self.favorites.len() - 1);
 
         {
             let query = r#"
@@ -571,10 +572,6 @@ impl DbTrait for DbSqlite {
         }
 
         Ok(())
-    }
-
-    fn favorite_len(&self) -> usize {
-        self.favorites.favorites.len()
     }
 
     fn search(&mut self) {

@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS ClipboardEntries (
     id INTEGER PRIMARY KEY,
-    creation INTEGER PRIMARY KEY,
+    creation INTEGER,
     CREATE INDEX index_creation ON ClipboardEntries (creation)
 );
 

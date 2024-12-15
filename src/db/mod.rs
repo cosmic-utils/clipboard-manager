@@ -1,4 +1,3 @@
-use futures::future::BoxFuture;
 use std::{collections::HashMap, fmt::Debug, path::Path};
 
 use anyhow::{bail, Result};
@@ -7,8 +6,8 @@ use chrono::Utc;
 
 use crate::config::Config;
 
-// #[cfg(test)]
-// pub mod test;
+#[cfg(test)]
+pub mod test;
 
 mod sqlite_db;
 pub use sqlite_db::DbSqlite;
@@ -107,7 +106,9 @@ pub trait DbTrait: Sized {
 
     async fn reload(&mut self) -> Result<()>;
 
-    fn insert<'a: 'b, 'b>(&'a mut self, data: MimeDataMap) -> BoxFuture<'b, Result<()>>;
+    async fn insert(&mut self, data: MimeDataMap) -> Result<()>;
+
+    async fn insert_with_time(&mut self, data: MimeDataMap, time: i64) -> Result<()>;
 
     async fn delete(&mut self, data: EntryId) -> Result<()>;
 
@@ -116,8 +117,6 @@ pub trait DbTrait: Sized {
     async fn add_favorite(&mut self, entry: EntryId, index: Option<usize>) -> Result<()>;
 
     async fn remove_favorite(&mut self, entry: EntryId) -> Result<()>;
-
-    fn favorite_len(&self) -> usize;
 
     fn search(&mut self);
 

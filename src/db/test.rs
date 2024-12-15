@@ -12,10 +12,10 @@ use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, Env
 
 use crate::{
     config::Config,
-    utils::{self},
+    db::{DbSqlite, DbTrait},
 };
 
-use crate::db::{Db, Entry};
+use super::MimeDataMap;
 
 fn prepare_db_dir() -> PathBuf {
     let fmt_layer = fmt::layer().with_target(false);
@@ -39,7 +39,7 @@ fn prepare_db_dir() -> PathBuf {
 async fn test() -> Result<()> {
     let db_dir = prepare_db_dir();
 
-    let mut db = Db::inner_new(&Config::default(), &db_dir).await?;
+    let mut db = DbSqlite::with_path(&Config::default(), &db_dir).await?;
 
     test_db(&mut db).await.unwrap();
 
@@ -50,15 +50,17 @@ async fn test() -> Result<()> {
     Ok(())
 }
 
-async fn test_db(db: &mut Db) -> Result<()> {
+fn build_content(content: &[(&str, &str)]) -> MimeDataMap {
+    content
+        .iter()
+        .map(|(mime, content)| (mime.to_string(), content.as_bytes().into()))
+        .collect()
+}
+
+async fn test_db(db: &mut DbSqlite) -> Result<()> {
     assert!(db.len() == 0);
 
-    let data = Entry::new_now(
-        "text/plain".into(),
-        "content".as_bytes().into(),
-        None,
-        false,
-    );
+    let data = build_content(&[("text/plain", "content")]);
 
     db.insert(data).await.unwrap();
 
@@ -66,12 +68,7 @@ async fn test_db(db: &mut Db) -> Result<()> {
 
     sleep(Duration::from_millis(1000));
 
-    let data = Entry::new_now(
-        "text/plain".into(),
-        "content".as_bytes().into(),
-        None,
-        false,
-    );
+    let data = build_content(&[("text/plain", "content")]);
 
     db.insert(data).await.unwrap();
 
@@ -79,12 +76,7 @@ async fn test_db(db: &mut Db) -> Result<()> {
 
     sleep(Duration::from_millis(1000));
 
-    let data = Entry::new_now(
-        "text/plain".into(),
-        "content2".as_bytes().into(),
-        None,
-        false,
-    );
+    let data = build_content(&[("text/plain", "content2")]);
 
     db.insert(data.clone()).await.unwrap();
 
@@ -92,8 +84,7 @@ async fn test_db(db: &mut Db) -> Result<()> {
 
     let next = db.iter().next().unwrap();
 
-    assert!(next.creation == data.creation);
-    assert!(next.content == data.content);
+    assert!(next.raw_content == data);
 
     Ok(())
 }
@@ -103,29 +94,25 @@ async fn test_db(db: &mut Db) -> Result<()> {
 async fn test_delete_old_one() {
     let db_path = prepare_db_dir();
 
-    let mut db = Db::inner_new(&Config::default(), &db_path).await.unwrap();
+    let mut db = DbSqlite::with_path(&Config::default(), &db_path)
+        .await
+        .unwrap();
 
-    let data = Entry::new_now(
-        "text/plain".into(),
-        "content".as_bytes().into(),
-        None,
-        false,
-    );
+    let data = build_content(&[("text/plain", "content")]);
+
     db.insert(data).await.unwrap();
 
     sleep(Duration::from_millis(100));
 
-    let data = Entry::new_now(
-        "text/plain".into(),
-        "content2".as_bytes().into(),
-        None,
-        false,
-    );
+    let data = build_content(&[("text/plain", "content2")]);
+
     db.insert(data).await.unwrap();
 
     assert!(db.len() == 2);
 
-    let db = Db::inner_new(&Config::default(), &db_path).await.unwrap();
+    let db = DbSqlite::with_path(&Config::default(), &db_path)
+        .await
+        .unwrap();
 
     assert!(db.len() == 2);
 
@@ -133,7 +120,7 @@ async fn test_delete_old_one() {
         maximum_entries_lifetime: Some(0),
         ..Default::default()
     };
-    let db = Db::inner_new(&config, &db_path).await.unwrap();
+    let db = DbSqlite::with_path(&config, &db_path).await.unwrap();
 
     assert!(db.len() == 0);
 }
@@ -143,61 +130,15 @@ async fn test_delete_old_one() {
 async fn same() {
     let db_path = prepare_db_dir();
 
-    let mut db = Db::inner_new(&Config::default(), &db_path).await.unwrap();
+    let mut db = DbSqlite::with_path(&Config::default(), &db_path)
+        .await
+        .unwrap();
 
-    let now = utils::now_millis();
+    let data = build_content(&[("text/plain", "content")]);
 
-    let data = Entry::new(
-        now,
-        "text/plain".into(),
-        "content".as_bytes().into(),
-        None,
-        false,
-    );
-
-    db.insert(data).await.unwrap();
-
-    let data = Entry::new(
-        now,
-        "text/plain".into(),
-        "content".as_bytes().into(),
-        None,
-        false,
-    );
-
-    db.insert(data).await.unwrap();
+    db.insert(data.clone()).await.unwrap();
+    db.insert(data.clone()).await.unwrap();
     assert!(db.len() == 1);
-}
-
-#[tokio::test]
-#[serial]
-async fn different_content_same_time() {
-    let db_path = prepare_db_dir();
-
-    let mut db = Db::inner_new(&Config::default(), &db_path).await.unwrap();
-
-    let now = utils::now_millis();
-
-    let data = Entry::new(
-        now,
-        "text/plain".into(),
-        "content".as_bytes().into(),
-        None,
-        false,
-    );
-
-    db.insert(data).await.unwrap();
-
-    let data = Entry::new(
-        now,
-        "text/plain".into(),
-        "content2".as_bytes().into(),
-        None,
-        false,
-    );
-
-    db.insert(data).await.unwrap();
-    assert!(db.len() == 2);
 }
 
 #[tokio::test]
@@ -205,75 +146,48 @@ async fn different_content_same_time() {
 async fn favorites() {
     let db_path = prepare_db_dir();
 
-    let mut db = Db::inner_new(&Config::default(), &db_path).await.unwrap();
+    let mut db = DbSqlite::with_path(&Config::default(), &db_path)
+        .await
+        .unwrap();
 
     let now1 = 1000;
-
-    let data1 = Entry::new(
-        now1,
-        "text/plain".into(),
-        "content1".as_bytes().into(),
-        None,
-        false,
-    );
-
-    db.insert(data1).await.unwrap();
+    let data1 = build_content(&[("text/plain", "content1")]);
+    db.insert_with_time(data1, now1).await.unwrap();
 
     let now2 = 2000;
-
-    let data2 = Entry::new(
-        now2,
-        "text/plain".into(),
-        "content2".as_bytes().into(),
-        None,
-        false,
-    );
-
-    db.insert(data2).await.unwrap();
+    let data2 = build_content(&[("text/plain", "content2")]);
+    db.insert_with_time(data2, now2).await.unwrap();
 
     let now3 = 3000;
+    let data3 = build_content(&[("text/plain", "content3")]);
+    db.insert_with_time(data3.clone(), now3).await.unwrap();
 
-    let data3 = Entry::new(
-        now3,
-        "text/plain".into(),
-        "content3".as_bytes().into(),
-        None,
-        false,
-    );
+    db.add_favorite(now3, None).await.unwrap();
 
-    db.insert(data3.clone()).await.unwrap();
+    assert!(db.get_from_id(now3).unwrap().is_favorite);
+    assert_eq!(db.favorites.len(), 1);
 
-    db.add_favorite(&db.state.get(&now3).unwrap().clone(), None)
-        .await
-        .unwrap();
+    db.delete(now3).await.unwrap();
 
-    db.delete(&db.state.get(&now3).unwrap().clone())
-        .await
-        .unwrap();
-
-    assert_eq!(db.favorite_len(), 0);
+    assert_eq!(db.favorites.len(), 0);
 
     db.insert(data3).await.unwrap();
 
-    db.add_favorite(&db.state.get(&now1).unwrap().clone(), None)
-        .await
-        .unwrap();
+    db.add_favorite(now1, None).await.unwrap();
 
-    db.add_favorite(&db.state.get(&now3).unwrap().clone(), None)
-        .await
-        .unwrap();
+    db.add_favorite(now3, None).await.unwrap();
 
-    db.add_favorite(&db.state.get(&now2).unwrap().clone(), Some(1))
-        .await
-        .unwrap();
+    db.add_favorite(now2, Some(1)).await.unwrap();
 
-    assert_eq!(db.favorite_len(), 3);
+    assert_eq!(db.favorites.len(), 3);
 
     assert_eq!(db.favorites.fav(), &vec![now1, now2, now3]);
 
-    let db = Db::inner_new(
+    db.remove_favorite(now2).await.unwrap();
+
+    let db = DbSqlite::with_path(
         &Config {
-            maximum_entries_lifetime: None,
+            maximum_entries_lifetime: Some(0),
             ..Default::default()
         },
         &db_path,
@@ -283,8 +197,8 @@ async fn favorites() {
 
     assert_eq!(db.len(), 3);
 
-    assert_eq!(db.favorite_len(), 3);
-    assert_eq!(db.favorites.fav(), &vec![now1, now2, now3]);
+    assert_eq!(db.favorites.len(), 2);
+    assert_eq!(db.favorites.fav(), &vec![now1, now3]);
 }
 
 fn remove_dir_contents(dir: &Path) {
