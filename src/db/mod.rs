@@ -21,7 +21,7 @@ pub type MimeDataMap = HashMap<String, Vec<u8>>;
 
 pub enum Content<'a> {
     Text(&'a str),
-    Image(&'a Vec<u8>),
+    Image(&'a [u8]),
     UriList(Vec<&'a str>),
 }
 
@@ -34,6 +34,8 @@ impl Debug for Content<'_> {
         }
     }
 }
+
+const PREFERRED_MIME_TYPES: &[&str] = &["text/plain"];
 
 pub trait EntryTrait: Debug + Clone + Send {
     fn is_favorite(&self) -> bool;
@@ -49,9 +51,8 @@ pub trait EntryTrait: Debug + Clone + Send {
         self.raw_content().iter().next().unwrap().1
     }
 
-    // todo: prioritize certain mime types
     fn viewable_content(&self) -> Result<Content<'_>> {
-        for (mime, content) in self.raw_content() {
+        fn try_get_content<'a>(mime: &str, content: &'a [u8]) -> Result<Option<Content<'a>>> {
             if mime == "text/uri-list" {
                 let text = core::str::from_utf8(content)?;
 
@@ -60,15 +61,39 @@ pub trait EntryTrait: Debug + Clone + Send {
                     .filter(|l| !l.is_empty() && !l.starts_with('#'))
                     .collect();
 
-                return Ok(Content::UriList(uris));
+                return Ok(Some(Content::UriList(uris)));
             }
 
             if mime.starts_with("text/") {
-                return Ok(Content::Text(core::str::from_utf8(content)?));
+                return Ok(Some(Content::Text(core::str::from_utf8(content)?)));
             }
 
             if mime.starts_with("image/") {
-                return Ok(Content::Image(content));
+                return Ok(Some(Content::Image(content)));
+            }
+
+            Ok(None)
+        }
+
+        for pref_mime in PREFERRED_MIME_TYPES {
+            if let Some(content) = self.raw_content().get(*pref_mime) {
+                match try_get_content(pref_mime, content) {
+                    Ok(Some(content)) => return Ok(content),
+                    Ok(None) => error!("unsupported mime type {}", pref_mime),
+                    Err(e) => {
+                        error!("{e}");
+                    }
+                }
+            }
+        }
+
+        for (mime, content) in self.raw_content() {
+            match try_get_content(mime, content) {
+                Ok(Some(content)) => return Ok(content),
+                Ok(None) => {}
+                Err(e) => {
+                    error!("{e}");
+                }
             }
         }
 
