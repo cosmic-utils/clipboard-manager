@@ -142,6 +142,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "250f629c0161ad8107cf89319e990051fae62832fd343083bea452d93e2205fd"
 
 [[package]]
+name = "alive_lock_file"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
+ "dirs",
+ "log",
+]
+
+[[package]]
 name = "allocator-api2"
 version = "0.2.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1128,6 +1137,7 @@ dependencies = [
 name = "cosmic-ext-applet-clipboard-manager"
 version = "0.1.0"
 dependencies = [
+ "alive_lock_file",
  "anyhow",
  "chrono",
  "configurator_schema",
