@@ -62,29 +62,27 @@ async fn test_db(db: &mut DbSqlite) -> Result<()> {
 
     let data = build_content(&[("text/plain", "content")]);
 
-    db.insert(data).await.unwrap();
+    db.insert_with_time(data.clone(), 10).await.unwrap();
 
     assert!(db.len() == 1);
 
     sleep(Duration::from_millis(1000));
 
-    let data = build_content(&[("text/plain", "content")]);
-
-    db.insert(data).await.unwrap();
+    db.insert_with_time(data.clone(), 20).await.unwrap();
 
     assert!(db.len() == 1);
 
     sleep(Duration::from_millis(1000));
 
-    let data = build_content(&[("text/plain", "content2")]);
+    let data2 = build_content(&[("text/plain", "content2")]);
 
-    db.insert(data.clone()).await.unwrap();
+    db.insert_with_time(data2.clone(), 30).await.unwrap();
 
-    assert!(db.len() == 2);
+    assert_eq!(db.len(), 2);
 
     let next = db.iter().next().unwrap();
 
-    assert!(next.raw_content == data);
+    assert!(next.raw_content == data2);
 
     Ok(())
 }
@@ -108,13 +106,13 @@ async fn test_delete_old_one() {
 
     db.insert(data).await.unwrap();
 
-    assert!(db.len() == 2);
+    assert_eq!(db.len(), 2);
 
     let db = DbSqlite::with_path(&Config::default(), &db_path)
         .await
         .unwrap();
 
-    assert!(db.len() == 2);
+    assert_eq!(db.len(), 2);
 
     let config = Config {
         maximum_entries_lifetime: Some(0),
@@ -122,7 +120,7 @@ async fn test_delete_old_one() {
     };
     let db = DbSqlite::with_path(&config, &db_path).await.unwrap();
 
-    assert!(db.len() == 0);
+    assert_eq!(db.len(), 0);
 }
 
 #[tokio::test]
@@ -171,7 +169,7 @@ async fn favorites() {
 
     assert_eq!(db.favorites.len(), 0);
 
-    db.insert(data3).await.unwrap();
+    db.insert_with_time(data3.clone(), now3).await.unwrap();
 
     db.add_favorite(now1, None).await.unwrap();
 
@@ -185,6 +183,8 @@ async fn favorites() {
 
     db.remove_favorite(now2).await.unwrap();
 
+    assert_eq!(db.len(), 3);
+
     let db = DbSqlite::with_path(
         &Config {
             maximum_entries_lifetime: Some(0),
@@ -195,7 +195,7 @@ async fn favorites() {
     .await
     .unwrap();
 
-    assert_eq!(db.len(), 3);
+    assert_eq!(db.len(), 2);
 
     assert_eq!(db.favorites.len(), 2);
     assert_eq!(db.favorites.fav(), &vec![now1, now3]);

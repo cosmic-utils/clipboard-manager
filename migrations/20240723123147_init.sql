@@ -1,8 +1,9 @@
 CREATE TABLE IF NOT EXISTS ClipboardEntries (
     id INTEGER PRIMARY KEY,
-    creation INTEGER,
-    CREATE INDEX index_creation ON ClipboardEntries (creation)
+    creation INTEGER
 );
+
+CREATE INDEX IF NOT EXISTS index_creation ON ClipboardEntries (creation);
 
 CREATE TABLE IF NOT EXISTS ClipboardContents (
     id INTEGER PRIMARY KEY,

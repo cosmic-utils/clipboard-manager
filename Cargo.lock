@@ -144,6 +144,8 @@ checksum = "250f629c0161ad8107cf89319e990051fae62832fd343083bea452d93e2205fd"
 [[package]]
 name = "alive_lock_file"
 version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b5639bdca4a334142d2efc8a192cff12ae003e42cf19e8a45f24246eb244f3cc"
 dependencies = [
  "anyhow",
  "dirs",

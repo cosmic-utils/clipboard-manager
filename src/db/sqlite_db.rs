@@ -1,4 +1,4 @@
-use alive_lock_file::LockResult;
+use alive_lock_file::LockResultWithDrop;
 use derivative::Derivative;
 use futures::StreamExt;
 use sqlx::{migrate::MigrateDatabase, prelude::*, Sqlite, SqliteConnection};
@@ -45,6 +45,7 @@ pub struct DbSqlite {
     matcher: RefCell<Matcher>,
     data_version: i64,
     pub(super) favorites: Favorites,
+    lock: Option<LockResultWithDrop>,
 }
 
 #[derive(Clone, Eq, Derivative)]
@@ -277,6 +278,7 @@ impl DbTrait for DbSqlite {
             needle: None,
             matcher: Matcher::new(nucleo::Config::DEFAULT).into(),
             favorites: Favorites::default(),
+            lock: None,
         };
 
         db.reload().await?;
@@ -390,12 +392,23 @@ impl DbTrait for DbSqlite {
         self.insert_with_time(data, now()).await
     }
     async fn insert_with_time(&mut self, data: MimeDataMap, now: i64) -> Result<()> {
-        match alive_lock_file::try_lock(LOCK_FILE)? {
-            LockResult::Success => {}
-            LockResult::AlreadyLocked => {
-                info!("db already locked");
-                return Ok(());
+        match &self.lock {
+            Some(lock) => {
+                if !lock.has_lock() {
+                    info!("db already locked");
+                    return Ok(());
+                }
             }
+            None => match alive_lock_file::try_lock_until_dropped(LOCK_FILE)? {
+                LockResultWithDrop::Locked(lock) => {
+                    self.lock = Some(LockResultWithDrop::Locked(lock));
+                }
+                LockResultWithDrop::AlreadyLocked => {
+                    info!("db already locked");
+                    self.lock = Some(LockResultWithDrop::AlreadyLocked);
+                    return Ok(());
+                }
+            },
         }
 
         let hash = get_hash_entry_content(&data);
