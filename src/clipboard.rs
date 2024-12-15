@@ -47,7 +47,7 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
                         // 1.the main one
                         // optional 2. metadata
                         let mime_type_filter = |mut mime_types: HashSet<String>| {
-                            debug!("mime type {:?}", mime_types);
+                            info!("mime type {:#?}", mime_types);
 
                             let mut request = Vec::new();
 
@@ -141,7 +141,7 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
 
                                 let data = Entry::new_now(mime_type, contents, metadata, false);
 
-                                info!("sending data to database: {:?}", data);
+                                debug!("sending data to database: {:?}", data);
                                 output.send(ClipboardMessage::Data(data)).await.unwrap();
                             }
 

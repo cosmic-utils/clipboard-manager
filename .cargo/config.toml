@@ -1,4 +1,4 @@
 [env]
-RUST_LOG = "warn,cosmic_ext_applet_clipboard_manager=debug"
+RUST_LOG = "warn,cosmic_ext_applet_clipboard_manager=info"
 # RUST_BACKTRACE = "full"
 
