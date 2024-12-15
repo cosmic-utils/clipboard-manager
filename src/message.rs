@@ -1,7 +1,7 @@
 use crate::{
     clipboard::ClipboardMessage,
     config::Config,
-    db::{DbMessage, EntryId, EntryTrait},
+    db::{DbMessage, EntryId},
     navigation::EventMsg,
 };
 

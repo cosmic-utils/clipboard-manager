@@ -20,7 +20,7 @@ use futures::executor::block_on;
 use futures::StreamExt;
 
 use crate::config::{Config, PRIVATE_MODE};
-use crate::db::{self, DbMessage, DbTrait, EntryTrait};
+use crate::db::{DbMessage, DbTrait, EntryTrait};
 use crate::message::{AppMsg, ConfigMsg};
 use crate::navigation::EventMsg;
 use crate::utils::task_message;

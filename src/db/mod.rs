@@ -1,34 +1,17 @@
-use alive_lock_file::LockResult;
-use derivative::Derivative;
-use futures::{future::BoxFuture, FutureExt};
-use sqlx::{migrate::MigrateDatabase, prelude::*, sqlite::SqliteRow, Sqlite, SqliteConnection};
-use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    fmt::Debug,
-    hash::{DefaultHasher, Hash, Hasher},
-    path::Path,
-};
+use futures::future::BoxFuture;
+use std::{collections::HashMap, fmt::Debug, path::Path};
 
-use anyhow::{anyhow, bail, Result};
-use nucleo::{
-    pattern::{Atom, AtomKind, CaseMatching, Normalization},
-    Matcher, Utf32Str,
-};
+use anyhow::{bail, Result};
 
 use chrono::Utc;
 
-use crate::{
-    app::{APP, APPID, ORG, QUALIFIER},
-    config::Config,
-    utils::{self},
-};
+use crate::config::Config;
 
 // #[cfg(test)]
 // pub mod test;
 
 mod sqlite_db;
 pub use sqlite_db::DbSqlite;
-
 
 fn now() -> i64 {
     Utc::now().timestamp_millis()
@@ -53,84 +36,69 @@ impl Debug for Content<'_> {
     }
 }
 
-
-
-// currently best effort
-fn find_alt(html: &str) -> Option<&str> {
-    const DEB: &str = "alt=\"";
-
-    if let Some(pos) = html.find(DEB) {
-        const OFFSET: usize = DEB.as_bytes().len();
-
-        if let Some(pos_end) = html[pos + OFFSET..].find('"') {
-            return Some(&html[pos + OFFSET..pos + pos_end + OFFSET]);
-        }
-    }
-
-    None
-}
-
-
-
 pub trait EntryTrait: Debug + Clone + Send {
-
     fn is_favorite(&self) -> bool;
 
-    fn content(&self) -> MimeDataMap;
+    fn raw_content(&self) -> &MimeDataMap;
+
+    fn into_raw_content(self) -> MimeDataMap;
 
     fn id(&self) -> EntryId;
 
-    fn qr_code_content(&self) -> &[u8];
-
-
-     fn get_content(&self) -> Result<Content<'_>> {
-        if self.mime == "text/uri-list" {
-            let text = if let Some(metadata) = &self.metadata {
-                &metadata.value
-            } else {
-                core::str::from_utf8(&self.content)?
-            };
-
-            let uris = text
-                .lines()
-                .filter(|l| !l.is_empty() && !l.starts_with('#'))
-                .collect();
-
-            return Ok(Content::UriList(uris));
-        }
-        if self.mime.starts_with("text/") {
-            return Ok(Content::Text(core::str::from_utf8(&self.content)?));
-        }
-
-        if self.mime.starts_with("image/") {
-            return Ok(Content::Image(&self.content));
-        }
-
-        bail!("unsupported mime type {}", self.mime)
+    // todo: prioritize certain mime types
+    fn qr_code_content(&self) -> &[u8] {
+        self.raw_content().iter().next().unwrap().1
     }
 
-    fn get_searchable_text(&self) -> Option<&str> {
-        if self.mime.starts_with("text/") {
-            return core::str::from_utf8(&self.content).ok();
-        }
+    // todo: prioritize certain mime types
+    fn viewable_content(&self) -> Result<Content<'_>> {
+        for (mime, content) in self.raw_content() {
+            if mime == "text/uri-list" {
+                let text = core::str::from_utf8(content)?;
 
-        if let Some(metadata) = &self.metadata {
-            #[allow(clippy::assigning_clones)]
-            if metadata.mime == "text/html" {
-                if let Some(alt) = find_alt(&metadata.value) {
-                    return Some(alt);
-                }
+                let uris = text
+                    .lines()
+                    .filter(|l| !l.is_empty() && !l.starts_with('#'))
+                    .collect();
+
+                return Ok(Content::UriList(uris));
             }
-            return Some(&metadata.value);
+
+            if mime.starts_with("text/") {
+                return Ok(Content::Text(core::str::from_utf8(content)?));
+            }
+
+            if mime.starts_with("image/") {
+                return Ok(Content::Image(content));
+            }
         }
 
-        None
+        bail!(
+            "unsupported mime types {:#?}",
+            self.raw_content().keys().collect::<Vec<_>>()
+        )
     }
 
+    fn searchable_content(&self) -> impl Iterator<Item = &str> {
+        self.raw_content().iter().filter_map(|(mime, content)| {
+            if mime.starts_with("text/") {
+                let text = core::str::from_utf8(content).ok()?;
+
+                if mime == "text/html" {
+                    if let Some(alt) = find_alt(text) {
+                        return Some(alt);
+                    }
+                }
+
+                return Some(text);
+            }
+
+            None
+        })
+    }
 }
 
 pub trait DbTrait: Sized {
-
     type Entry: EntryTrait;
 
     async fn new(config: &Config) -> Result<Self>;
@@ -155,22 +123,38 @@ pub trait DbTrait: Sized {
 
     fn set_query_and_search(&mut self, query: String);
 
-    fn query(&self) -> &str;
+    fn get_query(&self) -> &str;
 
     fn get(&self, index: usize) -> Option<&Self::Entry>;
 
     fn get_from_id(&self, id: EntryId) -> Option<&Self::Entry>;
 
-    fn iter(&self) -> impl Iterator<Item = &'_ Self::Entry>;
-
-    fn search_iter(&self) -> impl Iterator<Item = (&'_ Self::Entry, &'_ Vec<u32>)>;
+    fn iter(&self) -> Box<dyn Iterator<Item = &'_ Self::Entry> + '_>;
 
     fn len(&self) -> usize;
 
     async fn handle_message(&mut self, message: DbMessage) -> Result<()>;
+
+    fn is_search_active(&self) -> bool {
+        !self.get_query().is_empty()
+    }
 }
 
 #[derive(Clone, Debug)]
 pub enum DbMessage {
     CheckUpdate,
+}
+// currently best effort
+fn find_alt(html: &str) -> Option<&str> {
+    const DEB: &str = "alt=\"";
+
+    if let Some(pos) = html.find(DEB) {
+        const OFFSET: usize = DEB.as_bytes().len();
+
+        if let Some(pos_end) = html[pos + OFFSET..].find('"') {
+            return Some(&html[pos + OFFSET..pos + pos_end + OFFSET]);
+        }
+    }
+
+    None
 }

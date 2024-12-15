@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     io::Read,
     sync::atomic::{self},
 };
@@ -12,16 +12,11 @@ use wl_clipboard_rs::{
     paste_watch,
 };
 
-use crate::{config::PRIVATE_MODE, db::{EntryTrait, MimeDataMap}};
+use crate::{
+    config::PRIVATE_MODE,
+    db::{EntryTrait, MimeDataMap},
+};
 use os_pipe::PipeReader;
-
-// prefer popular formats
-// orderer by priority
-const IMAGE_MIME_TYPES: [&str; 3] = ["image/png", "image/jpeg", "image/ico"];
-
-// prefer popular formats
-// orderer by priority
-const TEXT_MIME_TYPES: [&str; 3] = ["text/plain;charset=utf-8", "UTF8_STRING", "text/plain"];
 
 #[derive(Debug, Clone)]
 pub enum ClipboardMessage {
@@ -117,9 +112,9 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
 pub fn copy<Entry: EntryTrait>(data: Entry) -> Result<(), copy::Error> {
     debug!("copy {:?}", data);
 
-    let mut sources = Vec::with_capacity(data.content().len());
+    let mut sources = Vec::with_capacity(data.raw_content().len());
 
-    for (mime, content) in data.content() {
+    for (mime, content) in data.into_raw_content() {
         let source = MimeSource {
             source: copy::Source::Bytes(content.into_boxed_slice()),
             mime_type: copy::MimeType::Specific(mime),

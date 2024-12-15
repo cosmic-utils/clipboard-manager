@@ -22,7 +22,7 @@ use crate::{
     utils::formatted_value,
 };
 
-impl <Db: DbTrait>AppState<Db> {
+impl<Db: DbTrait> AppState<Db> {
     pub fn quick_settings_view(&self) -> Element<'_, AppMsg> {
         fn toggle_settings<'a>(
             info: impl Into<Cow<'a, str>> + 'a,
@@ -89,7 +89,7 @@ impl <Db: DbTrait>AppState<Db> {
         let content: Element<_> = match self.qr_code.is_none() {
             true => row()
                 .push(
-                    text_input::search_input(fl!("search_entries"), self.db.query())
+                    text_input::search_input(fl!("search_entries"), self.db.get_query())
                         .always_active()
                         .on_input(AppMsg::Search)
                         .on_paste(AppMsg::Search)
@@ -144,50 +144,24 @@ impl <Db: DbTrait>AppState<Db> {
                 let range =
                     self.page * maximum_entries_by_page..(self.page + 1) * maximum_entries_by_page;
 
-                let entries_view: Vec<_> = if self.db.query().is_empty() {
-                    self.db
-                        .iter()
-                        .enumerate()
-                        .get(range)
-                        .filter_map(|(pos, data)| match data.get_content() {
-                            Ok(c) => match c {
-                                Content::Text(text) => {
-                                    self.text_entry(data, pos == self.focused, text)
-                                }
-                                Content::Image(image) => {
-                                    self.image_entry(data, pos == self.focused, image)
-                                }
-                                Content::UriList(uris) => {
-                                    self.uris_entry(data, pos == self.focused, &uris)
-                                }
-                            },
-                            Err(_) => None,
-                        })
-                        .collect()
-                } else {
-                    self.db
-                        .search_iter()
-                        .enumerate()
-                        .get(range)
-                        .filter_map(|(pos, (data, indices))| match data.get_content() {
-                            Ok(c) => match c {
-                                Content::Text(text) => self.text_entry_with_indices(
-                                    data,
-                                    pos == self.focused,
-                                    text,
-                                    indices,
-                                ),
-                                Content::Image(image) => {
-                                    self.image_entry(data, pos == self.focused, image)
-                                }
-                                Content::UriList(uris) => {
-                                    self.uris_entry(data, pos == self.focused, &uris)
-                                }
-                            },
-                            Err(_) => None,
-                        })
-                        .collect()
-                };
+                let entries_view: Vec<_> = self
+                    .db
+                    .iter()
+                    .enumerate()
+                    .get(range)
+                    .filter_map(|(pos, data)| match data.viewable_content() {
+                        Ok(c) => match c {
+                            Content::Text(text) => self.text_entry(data, pos == self.focused, text),
+                            Content::Image(image) => {
+                                self.image_entry(data, pos == self.focused, image)
+                            }
+                            Content::UriList(uris) => {
+                                self.uris_entry(data, pos == self.focused, &uris)
+                            }
+                        },
+                        Err(_) => None,
+                    })
+                    .collect();
 
                 if self.config.horizontal {
                     let column = row::with_children(entries_view)
@@ -251,16 +225,6 @@ impl <Db: DbTrait>AppState<Db> {
             is_focused,
             column::with_children(lines).width(Length::Fill),
         ))
-    }
-
-    fn text_entry_with_indices<'a>(
-        &'a self,
-        entry: &'a Db::Entry,
-        is_focused: bool,
-        content: &'a str,
-        _indices: &'a [u32],
-    ) -> Option<Element<'a, AppMsg>> {
-        self.text_entry(entry, is_focused, content)
     }
 
     fn text_entry<'a>(

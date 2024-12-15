@@ -1,21 +1,20 @@
 use alive_lock_file::LockResult;
 use derivative::Derivative;
-use futures::{future::BoxFuture, FutureExt};
-use sqlx::{migrate::MigrateDatabase, prelude::*, sqlite::SqliteRow, Sqlite, SqliteConnection};
+use futures::{future::BoxFuture, FutureExt, StreamExt};
+use sqlx::{migrate::MigrateDatabase, prelude::*, Sqlite, SqliteConnection};
 use std::{
+    cell::RefCell,
     collections::{BTreeMap, HashMap, HashSet},
     fmt::Debug,
     hash::{DefaultHasher, Hash, Hasher},
     path::Path,
 };
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, Result};
 use nucleo::{
     pattern::{Atom, AtomKind, CaseMatching, Normalization},
     Matcher, Utf32Str,
 };
-
-use chrono::Utc;
 
 use crate::{
     app::{APP, APPID, ORG, QUALIFIER},
@@ -23,8 +22,7 @@ use crate::{
     utils::{self},
 };
 
-use super::{DbMessage, DbTrait, EntryTrait};
-
+use super::{now, DbMessage, DbTrait, EntryId, EntryTrait, MimeDataMap};
 
 type Time = i64;
 
@@ -33,6 +31,31 @@ const DB_PATH: &str = constcat::concat!(APPID, "-db-", DB_VERSION, ".sqlite");
 
 const LOCK_FILE: &str = constcat::concat!(APPID, "-db", ".lock");
 
+pub struct DbSqlite {
+    conn: SqliteConnection,
+    /// Hash -> Id
+    hashs: HashMap<u64, EntryId>,
+    /// time -> Id
+    times: BTreeMap<Time, EntryId>,
+    /// Id -> Entry
+    entries: HashMap<EntryId, Entry>,
+    filtered: Vec<EntryId>,
+    query: String,
+    needle: Option<Atom>,
+    matcher: RefCell<Matcher>,
+    data_version: i64,
+    favorites: Favorites,
+}
+
+#[derive(Clone, Eq, Derivative)]
+pub struct Entry {
+    id: EntryId,
+    creation: Time,
+    // todo: lazelly load image in memory, since we can't search them anyways
+    /// (Mime, Content)
+    raw_content: MimeDataMap,
+    is_favorite: bool,
+}
 
 #[derive(Default)]
 struct Favorites {
@@ -68,6 +91,7 @@ impl Favorites {
         &self.favorites
     }
 
+    #[allow(dead_code)]
     fn change(&mut self, prev: &EntryId, new: EntryId) {
         let pos = self.favorites.iter().position(|e| e == prev).unwrap();
         self.favorites[pos] = new;
@@ -76,38 +100,45 @@ impl Favorites {
     }
 }
 
+fn hash_entry_content<H: Hasher>(data: &MimeDataMap, state: &mut H) {
+    for e in data.values() {
+        e.hash(state);
+    }
+}
 
-
-#[derive(Clone, Eq, Derivative)]
-pub struct Entry {
-    pub id: EntryId,
-    pub creation: Time,
-    // todo: lazelly load image in memory, since we can't search them anyways
-    /// (Mime, Content)
-    pub content: HashMap<String, Vec<u8>>,
+fn get_hash_entry_content(data: &MimeDataMap) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    hash_entry_content(data, &mut hasher);
+    hasher.finish()
 }
 
 impl Hash for Entry {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        for e in self.content.values() {
-            e.hash(state);
-        }
+        hash_entry_content(&self.raw_content, state);
     }
 }
 
 impl PartialEq for Entry {
     fn eq(&self, other: &Self) -> bool {
-        self.content == other.content
+        self.id == other.id
     }
 }
 
 impl EntryTrait for Entry {
     fn is_favorite(&self) -> bool {
-        todo!()
+        self.is_favorite
     }
 
-    fn content(&self) -> HashMap<String, Vec<u8>> {
-        todo!()
+    fn raw_content(&self) -> &MimeDataMap {
+        &self.raw_content
+    }
+
+    fn id(&self) -> EntryId {
+        self.id
+    }
+
+    fn into_raw_content(self) -> MimeDataMap {
+        self.raw_content
     }
 }
 
@@ -117,85 +148,22 @@ impl Entry {
         self.hash(&mut hasher);
         hasher.finish()
     }
-
-    pub fn new(id: i64, creation: i64, content: HashMap<String, Vec<u8>>, is_favorite: bool) -> Self {
-        Self {
-            creation,
-            content,
-            is_favorite,
-            id,
-        }
-    }
-
-   
 }
 
 impl Debug for Entry {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Data")
-        .field("id", &self.id)
+            .field("id", &self.id)
             .field("creation", &self.creation)
-            .field("content", &self.get_content())
+            .field("content", &self.viewable_content())
             .finish()
     }
 }
 
-
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct EntryMetadata {
-    pub mime: String,
-    pub value: String,
-}
-
-// impl Entry {
-    
-
-//     /// SELECT creation, mime, content, metadataMime, metadata
-//     fn from_row(row: &SqliteRow, favorites: &Favorites) -> Result<Self> {
-//         let id = row.get("creation");
-//         let is_fav = favorites.contains(&id);
-
-//         Ok(Entry::new(
-//             id,
-//             row.get("mime"),
-//             row.get("content"),
-//             row.try_get("metadataMime")
-//                 .ok()
-//                 .map(|metadata_mime| EntryMetadata {
-//                     mime: metadata_mime,
-//                     value: row.get("metadata"),
-//                 }),
-//             is_fav,
-//         ))
-//     }
-// }
-
-
-
-
-
-pub struct DbSqlite {
-    conn: SqliteConnection,
-    /// Hash -> Id
-    hashs: HashMap<u64, EntryId>,
-    /// time -> Id
-    times: BTreeMap<Time, EntryId>,
-    /// Id -> Entry
-    entries: HashMap<EntryId, Entry>,
-    filtered: Vec<(EntryId, Vec<u32>)>,
-    query: String,
-    needle: Option<Atom>,
-    matcher: Matcher,
-    data_version: i64,
-    favorites: Favorites,
-}
-
-
 impl DbTrait for DbSqlite {
     type Entry = Entry;
 
-     async fn new(config: &Config) -> Result<Self> {
+    async fn new(config: &Config) -> Result<Self> {
         let directories = directories::ProjectDirs::from(QUALIFIER, ORG, APP).unwrap();
 
         std::fs::create_dir_all(directories.cache_dir())?;
@@ -204,11 +172,9 @@ impl DbTrait for DbSqlite {
     }
 
     async fn with_path(config: &Config, db_dir: &Path) -> Result<Self> {
-
         if let Err(e) = alive_lock_file::remove_lock(LOCK_FILE) {
             error!("can't remove lock {e}");
         }
-        
 
         let db_path = db_dir.join(DB_PATH);
 
@@ -260,7 +226,6 @@ impl DbTrait for DbSqlite {
         }
 
         if let Some(max_number_of_entries) = &config.maximum_entries_number {
-
             let query_get_most_older = r#"
                 SELECT creation
                 FROM ClipboardEntries
@@ -272,13 +237,12 @@ impl DbTrait for DbSqlite {
                 .bind(max_number_of_entries)
                 .fetch_optional(&mut conn)
                 .await
-                .unwrap() {
+                .unwrap()
+            {
+                Some(r) => {
+                    let creation: Time = r.get("creation");
 
-
-                    Some(r) => {
-                        let creation: Time = r.get("creation");
-
-                        let query_delete_old_one = r#"
+                    let query_delete_old_one = r#"
                 
                             DELETE FROM ClipboardEntries
                             WHERE creation < ? AND id NOT IN (
@@ -286,20 +250,16 @@ impl DbTrait for DbSqlite {
                                 FROM FavoriteClipboardEntries);
                             "#;
 
-                        sqlx::query(query_delete_old_one)
-                            .bind(creation)
-                            .execute(&mut conn)
-                            .await
-                            .unwrap();
-
-                                },
-                                None => {
-                                    // nothing to do
-                                },
-                            }
-
-            
-         
+                    sqlx::query(query_delete_old_one)
+                        .bind(creation)
+                        .execute(&mut conn)
+                        .await
+                        .unwrap();
+                }
+                None => {
+                    // nothing to do
+                }
+            }
         }
 
         let mut db = DbSqlite {
@@ -311,7 +271,7 @@ impl DbTrait for DbSqlite {
             filtered: Vec::default(),
             query: String::default(),
             needle: None,
-            matcher: Matcher::new(nucleo::Config::DEFAULT),
+            matcher: Matcher::new(nucleo::Config::DEFAULT).into(),
             favorites: Favorites::default(),
         };
 
@@ -326,6 +286,7 @@ impl DbTrait for DbSqlite {
         self.times.clear();
         self.favorites.clear();
 
+        // init favorite
         {
             let query_load_favs = r#"
                 SELECT id, position
@@ -354,26 +315,61 @@ impl DbTrait for DbSqlite {
             }
         }
 
+        // init entries and times
         {
             let query_load_table = r#"
-                SELECT creation, mime, content, metadataMime, metadata
+                SELECT id, creation
                 FROM ClipboardEntries
-                JOIN ClipboardContents ON (id = creation)
-                GROUP BY
             "#;
 
-            let rows = sqlx::query(query_load_table)
-                .fetch_all(&mut self.conn)
-                .await?;
+            let mut stream = sqlx::query(query_load_table).fetch(&mut self.conn);
 
-                sqlx::query(query_load_table)
-                    .fetch(executor)
+            while let Some(res) = stream.next().await {
+                let row = res?;
 
-            for row in &rows {
-                let data = Entry::from_row(row, &self.favorites)?;
+                let id = row.get("id");
+                let creation = row.get("creation");
 
-                self.hashs.insert(data.get_hash(), data.creation);
-                self.state.insert(data.creation, data);
+                let entry = Entry {
+                    id,
+                    creation,
+                    raw_content: MimeDataMap::default(),
+                    is_favorite: self.favorites.contains(&id),
+                };
+
+                self.entries.insert(id, entry);
+
+                self.times.insert(creation, id);
+            }
+        }
+
+        // init contents
+        {
+            // todo: we can probably optimize by sorting with id
+
+            let query_load_table = r#"
+                SELECT id, mime, content
+                FROM ClipboardContents
+            "#;
+
+            let mut stream = sqlx::query(query_load_table).fetch(&mut self.conn);
+
+            while let Some(res) = stream.next().await {
+                let row = res?;
+
+                let id = row.get("id");
+                let mime: String = row.get("mime");
+                let content: Vec<u8> = row.get("content");
+
+                let entry = self.entries.get_mut(&id).expect("entry should exist");
+                entry.raw_content.insert(mime, content);
+            }
+        }
+
+        // init hashs
+        {
+            for entry in self.entries.values() {
+                self.hashs.insert(entry.get_hash(), entry.id());
             }
         }
 
@@ -382,13 +378,14 @@ impl DbTrait for DbSqlite {
         Ok(())
     }
 
-    
+    fn get_from_id(&self, id: EntryId) -> Option<&Self::Entry> {
+        self.entries.get(&id)
+    }
 
     // the <= 200 condition, is to unsure we reuse the same timestamp
     // of the first process that inserted the data.
-     fn insert<'a: 'b, 'b>(&'a mut self, mut data: Entry) -> BoxFuture<'b, Result<()>> {
+    fn insert<'a: 'b, 'b>(&'a mut self, data: MimeDataMap) -> BoxFuture<'b, Result<()>> {
         async move {
-
             match alive_lock_file::try_lock(LOCK_FILE)? {
                 LockResult::Success => {}
                 LockResult::AlreadyLocked => {
@@ -396,93 +393,66 @@ impl DbTrait for DbSqlite {
                     return Ok(());
                 }
             }
-            
-            // insert a new data, only if the last row is not the same AND was not created recently
-            let query_insert_if_not_exist = r#"
-                WITH last_row AS (
-                    SELECT creation, mime, content, metadataMime, metadata
-                    FROM ClipboardEntries
-                    ORDER BY creation DESC
-                    LIMIT 1
-                )
-                INSERT INTO ClipboardEntries (creation, mime, content, metadataMime, metadata)
-                SELECT $1, $2, $3, $4, $5
-                WHERE NOT EXISTS (
-                    SELECT 1
-                    FROM last_row AS lr
-                    WHERE lr.content = $3 AND ($6 - lr.creation) <= 1000
-                );
-            "#;
 
-            if let Err(e) = sqlx::query(query_insert_if_not_exist)
-                .bind(data.creation)
-                .bind(&data.mime)
-                .bind(&data.content)
-                .bind(data.metadata.as_ref().map(|m| &m.mime))
-                .bind(data.metadata.as_ref().map(|m| &m.value))
-                .bind(utils::now_millis())
-                .execute(&mut self.conn)
-                .await
-            {
-                if let sqlx::Error::Database(e) = &e {
-                    if e.is_unique_violation() {
-                        warn!("a different value with the same id was already inserted");
-                        data.creation += 1;
-                        return self.insert(data).await;
-                    }
-                }
+            let hash = get_hash_entry_content(&data);
+            let now = now();
 
-                return Err(e.into());
-            }
+            if let Some(id) = self.hashs.get(&hash) {
+                let entry = self.entries.get_mut(id).unwrap();
+                entry.creation = now;
+                self.times.remove(&entry.creation);
+                self.times.insert(now, *id);
 
-            // safe to unwrap since we insert before
-            let last_row = self.get_last_row().await?.unwrap();
+                let query_update_creation = r#"
+                    UPDATE ClipboardEntries
+                    SET creation = $1
+                    WHERE id = $2;
+                "#;
 
-            let new_id = last_row.creation;
+                sqlx::query(query_update_creation)
+                    .bind(now)
+                    .bind(id)
+                    .execute(&mut self.conn)
+                    .await?;
+            } else {
+                let id = now;
 
-            let data_hash = data.get_hash();
+                let query_insert_new_entry = r#"
+                    INSERT INTO ClipboardEntries (id, creation)
+                    SELECT $1, $2
+                "#;
 
-            if let Some(old_id) = self.hashs.remove(&data_hash) {
-                self.state.remove(&old_id);
+                sqlx::query(query_insert_new_entry)
+                    .bind(id)
+                    .bind(now)
+                    .execute(&mut self.conn)
+                    .await?;
 
-                if self.favorites.contains(&old_id) {
-                    data.is_favorite = true;
-                    let query_delete_old_id = r#"
-                        UPDATE FavoriteClipboardEntries
-                        SET id = $1
-                        WHERE id = $2;
+                for (mime, content) in &data {
+                    let query_insert_content = r#"
+                        INSERT INTO ClipboardContents (id, mime, content)
+                        SELECT $1, $2, $3
                     "#;
 
-                    sqlx::query(query_delete_old_id)
-                        .bind(new_id)
-                        .bind(old_id)
-                        .execute(&mut self.conn)
-                        .await?;
-
-                    self.favorites.change(&old_id, new_id);
-                } else {
-                    data.is_favorite = false;
-                }
-
-                // in case 2 same data were inserted in a short period
-                // we don't want to remove the old_id
-                if new_id != old_id {
-                    let query_delete_old_id = r#"
-                        DELETE FROM ClipboardEntries
-                        WHERE creation = ?;
-                    "#;
-
-                    sqlx::query(query_delete_old_id)
-                        .bind(old_id)
+                    sqlx::query(query_insert_content)
+                        .bind(id)
+                        .bind(mime)
+                        .bind(content)
                         .execute(&mut self.conn)
                         .await?;
                 }
+
+                let entry = Entry {
+                    id,
+                    creation: now,
+                    raw_content: data,
+                    is_favorite: false,
+                };
+
+                self.times.insert(now, id);
+                self.hashs.insert(hash, id);
+                self.entries.insert(id, entry);
             }
-
-            data.creation = new_id;
-
-            self.hashs.insert(data_hash, data.creation);
-            self.state.insert(data.creation, data);
 
             self.search();
             Ok(())
@@ -490,32 +460,36 @@ impl DbTrait for DbSqlite {
         .boxed()
     }
 
-     async fn delete(&mut self, data: &Entry) -> Result<()> {
+    async fn delete(&mut self, id: EntryId) -> Result<()> {
         let query = r#"
             DELETE FROM ClipboardEntries
-            WHERE creation = ?;
+            WHERE id = ?;
         "#;
 
-        sqlx::query(query)
-            .bind(data.creation)
-            .execute(&mut self.conn)
-            .await?;
+        sqlx::query(query).bind(id).execute(&mut self.conn).await?;
 
-        self.hashs.remove(&data.get_hash());
-        self.state.remove(&data.creation);
+        match self.entries.remove(&id) {
+            Some(entry) => {
+                self.hashs.remove(&entry.get_hash());
+                self.times.remove(&entry.creation);
 
-        if data.is_favorite {
-            self.favorites.remove(&data.creation);
+                if entry.is_favorite() {
+                    self.favorites.remove(&entry.creation);
+                }
+            }
+            None => {
+                warn!("no entry to remove")
+            }
         }
 
         self.search();
         Ok(())
     }
 
-     async fn clear(&mut self) -> Result<()> {
+    async fn clear(&mut self) -> Result<()> {
         let query_delete = r#"
             DELETE FROM ClipboardEntries
-            WHERE creation NOT IN(
+            WHERE id NOT IN(
                 SELECT id
                 FROM FavoriteClipboardEntries
             );
@@ -528,18 +502,18 @@ impl DbTrait for DbSqlite {
         Ok(())
     }
 
-     async fn add_favorite(&mut self, entry: &Entry, index: Option<usize>) -> Result<()> {
-        debug_assert!(!self.favorites.fav().contains(&entry.creation));
+    async fn add_favorite(&mut self, id: EntryId, index: Option<usize>) -> Result<()> {
+        debug_assert!(!self.favorites.fav().contains(&id));
 
-        self.favorites.insert_at(entry.creation, index);
+        self.favorites.insert_at(id, index);
 
         if let Some(pos) = index {
-            let query = r#"
+            let query_bump_positions = r#"
                 UPDATE FavoriteClipboardEntries
                 SET position = position + 1
                 WHERE position >= ?;
             "#;
-            sqlx::query(query)
+            sqlx::query(query_bump_positions)
                 .bind(pos as i32)
                 .execute(&mut self.conn)
                 .await
@@ -555,21 +529,21 @@ impl DbTrait for DbSqlite {
             "#;
 
             sqlx::query(query)
-                .bind(entry.creation)
+                .bind(id)
                 .bind(index as i32)
                 .execute(&mut self.conn)
                 .await?;
         }
 
-        if let Some(e) = self.state.get_mut(&entry.creation) {
+        if let Some(e) = self.entries.get_mut(&id) {
             e.is_favorite = true;
         }
 
         Ok(())
     }
 
-     async fn remove_favorite(&mut self, entry: &Entry) -> Result<()> {
-        debug_assert!(self.favorites.fav().contains(&entry.creation));
+    async fn remove_favorite(&mut self, id: EntryId) -> Result<()> {
+        debug_assert!(self.favorites.fav().contains(&id));
 
         {
             let query = r#"
@@ -577,13 +551,10 @@ impl DbTrait for DbSqlite {
                 WHERE id = ?;
             "#;
 
-            sqlx::query(query)
-                .bind(entry.creation)
-                .execute(&mut self.conn)
-                .await?;
+            sqlx::query(query).bind(id).execute(&mut self.conn).await?;
         }
 
-        if let Some(pos) = self.favorites.remove(&entry.creation) {
+        if let Some(pos) = self.favorites.remove(&id) {
             let query = r#"
                 UPDATE FavoriteClipboardEntries
                 SET position = position - 1
@@ -595,43 +566,46 @@ impl DbTrait for DbSqlite {
                 .await?;
         }
 
-        if let Some(e) = self.state.get_mut(&entry.creation) {
+        if let Some(e) = self.entries.get_mut(&id) {
             e.is_favorite = false;
         }
+
         Ok(())
     }
 
-     fn favorite_len(&self) -> usize {
+    fn favorite_len(&self) -> usize {
         self.favorites.favorites.len()
     }
 
-     fn search(&mut self) {
+    fn search(&mut self) {
         if self.query.is_empty() {
             self.filtered.clear();
         } else if let Some(atom) = &self.needle {
-            self.filtered = Self::iter_inner(&self.state, &self.favorites)
-                .filter_map(|data| {
-                    data.get_searchable_text().and_then(|text| {
+            self.filtered = self
+                .iter()
+                .filter_map(|entry| {
+                    if entry.searchable_content().any(|text| {
                         let mut buf = Vec::new();
 
                         let haystack = Utf32Str::new(text, &mut buf);
 
                         let mut indices = Vec::new();
 
-                        let _res = atom.indices(haystack, &mut self.matcher, &mut indices);
+                        let _res =
+                            atom.indices(haystack, &mut self.matcher.borrow_mut(), &mut indices);
 
-                        if !indices.is_empty() {
-                            Some((data.creation, indices))
-                        } else {
-                            None
-                        }
-                    })
+                        !indices.is_empty()
+                    }) {
+                        Some(entry.id)
+                    } else {
+                        None
+                    }
                 })
                 .collect::<Vec<_>>();
         }
     }
 
-     fn set_query_and_search(&mut self, query: String) {
+    fn set_query_and_search(&mut self, query: String) {
         if query.is_empty() {
             self.needle.take();
         } else {
@@ -651,44 +625,43 @@ impl DbTrait for DbSqlite {
         self.search();
     }
 
-     fn query(&self) -> &str {
+    fn get_query(&self) -> &str {
         &self.query
     }
 
-     fn get(&self, index: usize) -> Option<&Entry> {
-        if self.query.is_empty() {
-            self.iter().nth(index)
+    fn get(&self, index: usize) -> Option<&Self::Entry> {
+        self.iter().nth(index)
+    }
+
+    fn iter(&self) -> Box<dyn Iterator<Item = &'_ Self::Entry> + '_> {
+        if self.is_search_active() {
+            Box::new(self.filtered.iter().filter_map(|id| self.entries.get(id)))
         } else {
-            self.filtered
-                .get(index)
-                .map(|(id, _indices)| &self.state[id])
+            Box::new(
+                self.favorites
+                    .fav()
+                    .iter()
+                    .filter_map(|id| self.entries.get(id))
+                    .chain(
+                        self.times
+                            .values()
+                            .filter_map(|id| self.entries.get(id))
+                            .filter(|e| !e.is_favorite)
+                            .rev(),
+                    ),
+            )
         }
     }
 
-     fn iter(&self) -> impl Iterator<Item = &'_ Entry> {
-        debug_assert!(self.query.is_empty());
-        Self::iter_inner(&self.state, &self.favorites)
-    }
-
-    
-
-     fn search_iter(&self) -> impl Iterator<Item = (&'_ Entry, &'_ Vec<u32>)> {
-        debug_assert!(!self.query.is_empty());
-
-        self.filtered
-            .iter()
-            .map(|(id, indices)| (&self.state[id], indices))
-    }
-
-     fn len(&self) -> usize {
+    fn len(&self) -> usize {
         if self.query.is_empty() {
-            self.state.len()
+            self.entries.len()
         } else {
             self.filtered.len()
         }
     }
 
-     async fn handle_message(&mut self, _message: DbMessage) -> Result<()> {
+    async fn handle_message(&mut self, _message: DbMessage) -> Result<()> {
         let data_version = fetch_data_version(&mut self.conn).await?;
 
         if self.data_version != data_version {
@@ -701,19 +674,6 @@ impl DbTrait for DbSqlite {
     }
 }
 
-impl DbSqlite {
-    
-    fn iter_inner<'a>(
-        state: &'a BTreeMap<Time, Entry>,
-        favorites: &'a Favorites,
-    ) -> impl Iterator<Item = &'a Entry> + 'a {
-        favorites
-            .fav()
-            .iter()
-            .filter_map(|id| state.get(id))
-            .chain(state.values().filter(|e| !e.is_favorite).rev())
-    }
-}
 /// https://www.sqlite.org/pragma.html#pragma_data_version
 async fn fetch_data_version(conn: &mut SqliteConnection) -> Result<i64> {
     let data_version: i64 = sqlx::query("PRAGMA data_version")
@@ -723,4 +683,3 @@ async fn fetch_data_version(conn: &mut SqliteConnection) -> Result<i64> {
 
     Ok(data_version)
 }
-
