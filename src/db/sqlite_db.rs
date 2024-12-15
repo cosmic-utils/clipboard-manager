@@ -27,7 +27,6 @@ use super::{DbMessage, DbTrait, EntryTrait};
 
 
 type Time = i64;
-type EntryId = i64;
 
 const DB_VERSION: &str = "5";
 const DB_PATH: &str = constcat::concat!(APPID, "-db-", DB_VERSION, ".sqlite");
@@ -86,7 +85,6 @@ pub struct Entry {
     // todo: lazelly load image in memory, since we can't search them anyways
     /// (Mime, Content)
     pub content: HashMap<String, Vec<u8>>,
-    pub is_favorite: bool,
 }
 
 impl Hash for Entry {
@@ -177,7 +175,7 @@ pub struct EntryMetadata {
 
 
 
-pub struct Db {
+pub struct DbSqlite {
     conn: SqliteConnection,
     /// Hash -> Id
     hashs: HashMap<u64, EntryId>,
@@ -194,7 +192,7 @@ pub struct Db {
 }
 
 
-impl DbTrait for Db {
+impl DbTrait for DbSqlite {
     type Entry = Entry;
 
      async fn new(config: &Config) -> Result<Self> {
@@ -304,7 +302,7 @@ impl DbTrait for Db {
          
         }
 
-        let mut db = Db {
+        let mut db = DbSqlite {
             data_version: fetch_data_version(&mut conn).await?,
             conn,
             hashs: HashMap::default(),
@@ -703,7 +701,7 @@ impl DbTrait for Db {
     }
 }
 
-impl Db {
+impl DbSqlite {
     
     fn iter_inner<'a>(
         state: &'a BTreeMap<Time, Entry>,

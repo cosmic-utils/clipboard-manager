@@ -20,7 +20,7 @@ use futures::executor::block_on;
 use futures::StreamExt;
 
 use crate::config::{Config, PRIVATE_MODE};
-use crate::db::{self, Db, DbMessage};
+use crate::db::{self, DbMessage, DbTrait, EntryTrait};
 use crate::message::{AppMsg, ConfigMsg};
 use crate::navigation::EventMsg;
 use crate::utils::task_message;
@@ -35,7 +35,7 @@ pub const ORG: &str = "wiiznokes";
 pub const APP: &str = "cosmic-ext-applet-clipboard-manager";
 pub const APPID: &str = constcat::concat!(QUALIFIER, ".", ORG, ".", APP);
 
-pub struct AppState {
+pub struct AppState<Db: DbTrait> {
     core: Core,
     config_handler: cosmic_config::Config,
     popup: Option<Popup>,
@@ -46,20 +46,6 @@ pub struct AppState {
     pub page: usize,
     pub qr_code: Option<Result<qr_code::Data, ()>>,
     last_quit: Option<(i64, PopupKind)>,
-}
-
-impl AppState {
-    fn focus_next(&mut self) {
-        if self.db.len() > 0 {
-            self.focused = (self.focused + 1) % self.db.len();
-        }
-    }
-
-    fn focus_previous(&mut self) {
-        if self.db.len() > 0 {
-            self.focused = (self.focused + self.db.len() - 1) % self.db.len();
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -93,7 +79,19 @@ enum PopupKind {
     QuickSettings,
 }
 
-impl AppState {
+impl<Db: DbTrait> AppState<Db> {
+    fn focus_next(&mut self) {
+        if self.db.len() > 0 {
+            self.focused = (self.focused + 1) % self.db.len();
+        }
+    }
+
+    fn focus_previous(&mut self) {
+        if self.db.len() > 0 {
+            self.focused = (self.focused + self.db.len() - 1) % self.db.len();
+        }
+    }
+
     fn toggle_popup(&mut self, kind: PopupKind) -> Task<AppMsg> {
         self.qr_code.take();
         match &self.popup {
@@ -196,7 +194,7 @@ impl AppState {
     }
 }
 
-impl cosmic::Application for AppState {
+impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
     type Executor = cosmic::executor::Default;
     type Flags = Flags;
     type Message = AppMsg;
@@ -214,9 +212,9 @@ impl cosmic::Application for AppState {
         let config = flags.config;
         PRIVATE_MODE.store(config.private_mode, atomic::Ordering::Relaxed);
 
-        let db = block_on(async { db::Db::new(&config).await.unwrap() });
+        let db = block_on(async { Db::new(&config).await.unwrap() });
 
-        let window = AppState {
+        let state = AppState {
             core,
             config_handler: flags.config_handler,
             popup: None,
@@ -235,7 +233,7 @@ impl cosmic::Application for AppState {
         #[cfg(not(debug_assertions))]
         let command = Task::none();
 
-        (window, command)
+        (state, command)
     }
 
     fn on_close_requested(&self, id: window::Id) -> Option<AppMsg> {
@@ -300,15 +298,21 @@ impl cosmic::Application for AppState {
                     }
                 }
             },
-            AppMsg::Copy(data) => {
-                if let Err(e) = clipboard::copy(data) {
-                    error!("can't copy: {e}");
+            AppMsg::Copy(id) => {
+                match self.db.get_from_id(id) {
+                    Some(data) => {
+                        if let Err(e) = clipboard::copy(data.clone()) {
+                            error!("can't copy: {e}");
+                        }
+                    }
+                    None => error!("id not found"),
                 }
+
                 return self.close_popup();
             }
-            AppMsg::Delete(data) => {
-                if let Err(e) = block_on(self.db.delete(&data)) {
-                    error!("can't delete {:?}: {}", data.get_content(), e);
+            AppMsg::Delete(id) => {
+                if let Err(e) = block_on(self.db.delete(id)) {
+                    error!("can't delete {}: {}", id, e);
                 }
             }
             AppMsg::Clear => {
@@ -357,21 +361,28 @@ impl cosmic::Application for AppState {
                     error!("{err}");
                 }
             }
-            AppMsg::ShowQrCode(e) => {
-                // todo: handle better this error
-                if e.content.len() < 700 {
-                    match qr_code::Data::new(&e.content) {
-                        Ok(s) => {
-                            self.qr_code.replace(Ok(s));
-                        }
-                        Err(e) => {
-                            error!("{e}");
+            AppMsg::ShowQrCode(id) => {
+                match self.db.get_from_id(id) {
+                    Some(entry) => {
+                        let content = entry.qr_code_content();
+
+                        // todo: handle better this error
+                        if content.len() < 700 {
+                            match qr_code::Data::new(content) {
+                                Ok(s) => {
+                                    self.qr_code.replace(Ok(s));
+                                }
+                                Err(e) => {
+                                    error!("{e}");
+                                    self.qr_code.replace(Err(()));
+                                }
+                            }
+                        } else {
+                            error!("qr code to long: {}", content.len());
                             self.qr_code.replace(Err(()));
                         }
                     }
-                } else {
-                    error!("qr code to long: {}", e.content.len());
-                    self.qr_code.replace(Err(()));
+                    None => error!("id not found"),
                 }
             }
             AppMsg::ReturnToClipboard => {
@@ -390,12 +401,12 @@ impl cosmic::Application for AppState {
                 }
             },
             AppMsg::AddFavorite(entry) => {
-                if let Err(err) = block_on(self.db.add_favorite(&entry, None)) {
+                if let Err(err) = block_on(self.db.add_favorite(entry, None)) {
                     error!("{err}");
                 }
             }
             AppMsg::RemoveFavorite(entry) => {
-                if let Err(err) = block_on(self.db.remove_favorite(&entry)) {
+                if let Err(err) = block_on(self.db.remove_favorite(entry)) {
                     error!("{err}");
                 }
             }

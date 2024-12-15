@@ -16,13 +16,13 @@ use itertools::Itertools;
 
 use crate::{
     app::AppState,
-    db::{Content, Entry},
+    db::{Content, DbTrait, EntryTrait},
     fl, icon_button,
     message::{AppMsg, ConfigMsg},
     utils::formatted_value,
 };
 
-impl AppState {
+impl <Db: DbTrait>AppState<Db> {
     pub fn quick_settings_view(&self) -> Element<'_, AppMsg> {
         fn toggle_settings<'a>(
             info: impl Into<Cow<'a, str>> + 'a,
@@ -215,7 +215,7 @@ impl AppState {
 
     fn image_entry<'a>(
         &'a self,
-        entry: &'a Entry,
+        entry: &'a Db::Entry,
         is_focused: bool,
         image_data: &'a [u8],
     ) -> Option<Element<'a, AppMsg>> {
@@ -226,7 +226,7 @@ impl AppState {
 
     fn uris_entry<'a>(
         &'a self,
-        entry: &'a Entry,
+        entry: &'a Db::Entry,
         is_focused: bool,
         uris: &[&'a str],
     ) -> Option<Element<'a, AppMsg>> {
@@ -255,7 +255,7 @@ impl AppState {
 
     fn text_entry_with_indices<'a>(
         &'a self,
-        entry: &'a Entry,
+        entry: &'a Db::Entry,
         is_focused: bool,
         content: &'a str,
         _indices: &'a [u32],
@@ -265,7 +265,7 @@ impl AppState {
 
     fn text_entry<'a>(
         &'a self,
-        entry: &'a Entry,
+        entry: &'a Db::Entry,
         is_focused: bool,
         content: &'a str,
     ) -> Option<Element<'a, AppMsg>> {
@@ -282,12 +282,12 @@ impl AppState {
 
     fn base_entry<'a>(
         &'a self,
-        entry: &'a Entry,
+        entry: &'a Db::Entry,
         is_focused: bool,
         content: impl Into<Element<'a, AppMsg>>,
     ) -> Element<'a, AppMsg> {
         let btn = button::custom(content)
-            .on_press(AppMsg::Copy(entry.clone()))
+            .on_press(AppMsg::Copy(entry.id()))
             .padding([8, 16])
             .class(Button::Custom {
                 active: Box::new(move |focused, theme| {
@@ -343,25 +343,25 @@ impl AppState {
             Some(vec![
                 menu::Tree::new(
                     button::text(fl!("delete_entry"))
-                        .on_press(AppMsg::Delete(entry.clone()))
+                        .on_press(AppMsg::Delete(entry.id()))
                         .width(Length::Fill)
                         .class(Button::Destructive),
                 ),
                 menu::Tree::new(
                     button::text(fl!("show_qr_code"))
-                        .on_press(AppMsg::ShowQrCode(entry.clone()))
+                        .on_press(AppMsg::ShowQrCode(entry.id()))
                         .width(Length::Fill),
                 ),
-                if entry.is_favorite {
+                if entry.is_favorite() {
                     menu::Tree::new(
                         button::text(fl!("remove_favorite"))
-                            .on_press(AppMsg::RemoveFavorite(entry.clone()))
+                            .on_press(AppMsg::RemoveFavorite(entry.id()))
                             .width(Length::Fill),
                     )
                 } else {
                     menu::Tree::new(
                         button::text(fl!("add_favorite"))
-                            .on_press(AppMsg::AddFavorite(entry.clone()))
+                            .on_press(AppMsg::AddFavorite(entry.id()))
                             .width(Length::Fill),
                     )
                 },

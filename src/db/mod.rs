@@ -27,12 +27,15 @@ use crate::{
 // pub mod test;
 
 mod sqlite_db;
+pub use sqlite_db::DbSqlite;
 
 
 fn now() -> i64 {
     Utc::now().timestamp_millis()
 }
 
+pub type EntryId = i64;
+pub type MimeDataMap = HashMap<String, Vec<u8>>;
 
 pub enum Content<'a> {
     Text(&'a str),
@@ -69,11 +72,15 @@ fn find_alt(html: &str) -> Option<&str> {
 
 
 
-trait EntryTrait {
+pub trait EntryTrait: Debug + Clone + Send {
 
     fn is_favorite(&self) -> bool;
 
-    fn content(&self) -> HashMap<String, Vec<u8>>;
+    fn content(&self) -> MimeDataMap;
+
+    fn id(&self) -> EntryId;
+
+    fn qr_code_content(&self) -> &[u8];
 
 
      fn get_content(&self) -> Result<Content<'_>> {
@@ -122,9 +129,9 @@ trait EntryTrait {
 
 }
 
-trait DbTrait: Sized {
+pub trait DbTrait: Sized {
 
-    type Entry: EntryTrait + Debug;
+    type Entry: EntryTrait;
 
     async fn new(config: &Config) -> Result<Self>;
 
@@ -132,15 +139,15 @@ trait DbTrait: Sized {
 
     async fn reload(&mut self) -> Result<()>;
 
-    fn insert<'a: 'b, 'b>(&'a mut self, data: Self::Entry) -> BoxFuture<'b, Result<()>>;
+    fn insert<'a: 'b, 'b>(&'a mut self, data: MimeDataMap) -> BoxFuture<'b, Result<()>>;
 
-    async fn delete(&mut self, data: &Self::Entry) -> Result<()>;
+    async fn delete(&mut self, data: EntryId) -> Result<()>;
 
     async fn clear(&mut self) -> Result<()>;
 
-    async fn add_favorite(&mut self, entry: &Self::Entry, index: Option<usize>) -> Result<()>;
+    async fn add_favorite(&mut self, entry: EntryId, index: Option<usize>) -> Result<()>;
 
-    async fn remove_favorite(&mut self, entry: &Self::Entry) -> Result<()>;
+    async fn remove_favorite(&mut self, entry: EntryId) -> Result<()>;
 
     fn favorite_len(&self) -> usize;
 
@@ -151,6 +158,8 @@ trait DbTrait: Sized {
     fn query(&self) -> &str;
 
     fn get(&self, index: usize) -> Option<&Self::Entry>;
+
+    fn get_from_id(&self, id: EntryId) -> Option<&Self::Entry>;
 
     fn iter(&self) -> impl Iterator<Item = &'_ Self::Entry>;
 

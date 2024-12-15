@@ -1,5 +1,5 @@
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     io::Read,
     sync::atomic::{self},
 };
@@ -12,8 +12,7 @@ use wl_clipboard_rs::{
     paste_watch,
 };
 
-use crate::db::Entry;
-use crate::{config::PRIVATE_MODE, db::EntryMetadata};
+use crate::{config::PRIVATE_MODE, db::{EntryTrait, MimeDataMap}};
 use os_pipe::PipeReader;
 
 // prefer popular formats
@@ -27,7 +26,7 @@ const TEXT_MIME_TYPES: [&str; 3] = ["text/plain;charset=utf-8", "UTF8_STRING", "
 #[derive(Debug, Clone)]
 pub enum ClipboardMessage {
     Connected,
-    Data(Entry),
+    Data(MimeDataMap),
     /// Means that the source was closed, or the compurer just started
     /// This means the clipboard manager must become the source, by providing the last entry
     EmptyKeyboard,
@@ -46,59 +45,15 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
                         // return a vec of maximum 2 mimetypes
                         // 1.the main one
                         // optional 2. metadata
-                        let mime_type_filter = |mut mime_types: HashSet<String>| {
+                        let mime_type_filter = |mime_types: HashSet<String>| {
                             info!("mime type {:#?}", mime_types);
-
-                            let mut request = Vec::new();
-
-                            if mime_types.iter().any(|m| m.starts_with("image/")) {
-                                for prefered_image_format in IMAGE_MIME_TYPES {
-                                    if let Some(mime) = mime_types.take(prefered_image_format) {
-                                        request.push(mime);
-                                        break;
-                                    }
-                                }
-
-                                if request.is_empty() {
-                                    return request;
-                                }
-
-                                // can be useful for metadata (alt)
-                                if let Some(mime) = mime_types.take("text/html") {
-                                    request.push(mime);
-                                }
-                                return request;
-                            }
-
-                            if let Some(mime) = mime_types.take("text/uri-list") {
-                                request.push(mime);
-                            }
-
-                            if mime_types.iter().any(|m| m.starts_with("text/")) {
-                                for prefered_text_format in TEXT_MIME_TYPES {
-                                    if let Some(mime) = mime_types.take(prefered_text_format) {
-                                        request.push(mime);
-                                        return request;
-                                    }
-                                }
-
-                                for mime in mime_types {
-                                    if mime.starts_with("text/") {
-                                        request.push(mime);
-                                        return request;
-                                    }
-                                }
-                            }
-
-                            request
+                            mime_types.into_iter().collect()
                         };
 
                         match clipboard_watcher
                             .start_watching(paste_watch::Seat::Unspecified, mime_type_filter)
                         {
                             Ok(res) => {
-                                debug_assert!(res.len() == 1 || res.len() == 2);
-
                                 if !PRIVATE_MODE.load(atomic::Ordering::Relaxed) {
                                     tx.blocking_send(Some(res)).expect("can't send");
                                 } else {
@@ -119,29 +74,15 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
 
                     loop {
                         match rx.recv().await {
-                            Some(Some(mut res)) => {
-                                let (mut pipe, mime_type) = res.next().unwrap();
-
-                                let mut contents = Vec::new();
-                                pipe.read_to_end(&mut contents).unwrap();
-
-                                let metadata = if let Some((mut pipe, mimitype)) = res.next() {
-                                    let mut metadata = String::new();
-                                    pipe.read_to_string(&mut metadata).unwrap();
-
-                                    debug!("metadata = {}", metadata);
-
-                                    Some(EntryMetadata {
-                                        mime: mimitype,
-                                        value: metadata,
+                            Some(Some(res)) => {
+                                let data = res
+                                    .map(|(mut pipe, mime_type)| {
+                                        let mut contents = Vec::new();
+                                        pipe.read_to_end(&mut contents).unwrap();
+                                        (mime_type, contents)
                                     })
-                                } else {
-                                    None
-                                };
+                                    .collect();
 
-                                let data = Entry::new_now(mime_type, contents, metadata, false);
-
-                                debug!("sending data to database: {:?}", data);
                                 output.send(ClipboardMessage::Data(data)).await.unwrap();
                             }
 
@@ -173,23 +114,17 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
     })
 }
 
-pub fn copy(data: Entry) -> Result<(), copy::Error> {
+pub fn copy<Entry: EntryTrait>(data: Entry) -> Result<(), copy::Error> {
     debug!("copy {:?}", data);
 
-    let mut sources = Vec::with_capacity(if data.metadata.is_some() { 2 } else { 1 });
+    let mut sources = Vec::with_capacity(data.content().len());
 
-    let source = MimeSource {
-        source: copy::Source::Bytes(data.content.into_boxed_slice()),
-        mime_type: copy::MimeType::Specific(data.mime),
-    };
-
-    sources.push(source);
-
-    if let Some(metadata) = data.metadata {
+    for (mime, content) in data.content() {
         let source = MimeSource {
-            source: copy::Source::Bytes(metadata.value.into_boxed_str().into_boxed_bytes()),
-            mime_type: copy::MimeType::Specific(metadata.mime),
+            source: copy::Source::Bytes(content.into_boxed_slice()),
+            mime_type: copy::MimeType::Specific(mime),
         };
+
         sources.push(source);
     }
 
