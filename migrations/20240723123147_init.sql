@@ -6,9 +6,10 @@ CREATE TABLE IF NOT EXISTS ClipboardEntries (
 CREATE INDEX IF NOT EXISTS index_creation ON ClipboardEntries (creation);
 
 CREATE TABLE IF NOT EXISTS ClipboardContents (
-    id INTEGER PRIMARY KEY,
+    id INTEGER NOT NULL,
     mime TEXT NOT NULL,
     content BLOB NOT NULL,
+    PRIMARY KEY (id, mime),
 	FOREIGN KEY (id) REFERENCES ClipboardEntries(id) ON DELETE CASCADE
 );
 

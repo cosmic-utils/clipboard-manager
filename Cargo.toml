@@ -50,12 +50,6 @@ features = ["applet", "tokio", "wayland", "qr_code"]
 [dependencies.wl-clipboard-rs]
 git = "https://github.com/wiiznokes/wl-clipboard-rs.git"
 branch = "watch"
-# path = "../wl-clipboard-rs"
-
-# [patch."https://github.com/pop-os/libcosmic".libcosmic]
-# git = "https://github.com/wiiznokes/libcosmic"
-# branch = "fix_qr_code_theme"
-# path = "../libcosmic"
 
 
 [dev-dependencies]
@@ -66,3 +60,11 @@ configurator_schema = { git = "https://github.com/cosmic-utils/configurator.git"
 [profile.release-lto]
 inherits = "release"
 lto = "fat"
+
+# [patch."https://github.com/pop-os/libcosmic".libcosmic]
+# git = "https://github.com/wiiznokes/libcosmic"
+# branch = "fix_qr_code_theme"
+# path = "../libcosmic"
+
+# [patch."https://github.com/wiiznokes/wl-clipboard-rs.git".wl-clipboard-rs]
+# path = "../wl-clipboard-rs"

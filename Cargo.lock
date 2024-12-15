@@ -295,7 +295,7 @@ dependencies = [
  "url",
  "wayland-backend",
  "wayland-client",
- "wayland-protocols 0.32.5",
+ "wayland-protocols",
  "zbus 4.4.0",
 ]
 
@@ -1104,7 +1104,7 @@ dependencies = [
  "libc",
  "smithay-client-toolkit 0.19.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "wayland-client",
- "wayland-protocols 0.32.5",
+ "wayland-protocols",
 ]
 
 [[package]]
@@ -1192,7 +1192,7 @@ dependencies = [
  "serde",
  "smithay-client-toolkit 0.19.2 (git+https://github.com/Smithay/client-toolkit)",
  "tracing",
- "wayland-protocols-wlr 0.3.5",
+ "wayland-protocols-wlr",
  "xdg-shell-wrapper-config",
 ]
 
@@ -1204,8 +1204,8 @@ dependencies = [
  "bitflags 2.6.0",
  "wayland-backend",
  "wayland-client",
- "wayland-protocols 0.32.5",
- "wayland-protocols-wlr 0.3.5",
+ "wayland-protocols",
+ "wayland-protocols-wlr",
  "wayland-scanner",
  "wayland-server",
 ]
@@ -2663,7 +2663,7 @@ dependencies = [
  "tiny-xlib",
  "wayland-backend",
  "wayland-client",
- "wayland-protocols 0.32.5",
+ "wayland-protocols",
  "wayland-sys",
  "wgpu",
  "x11rb",
@@ -2705,7 +2705,7 @@ dependencies = [
  "tracing",
  "wasm-bindgen-futures",
  "wayland-backend",
- "wayland-protocols 0.32.5",
+ "wayland-protocols",
  "web-sys",
  "winapi",
  "window_clipboard",
@@ -5148,8 +5148,8 @@ dependencies = [
  "wayland-client",
  "wayland-csd-frame",
  "wayland-cursor",
- "wayland-protocols 0.32.5",
- "wayland-protocols-wlr 0.3.5",
+ "wayland-protocols",
+ "wayland-protocols-wlr",
  "wayland-scanner",
  "xkbcommon",
  "xkeysym",
@@ -5175,8 +5175,8 @@ dependencies = [
  "wayland-client",
  "wayland-csd-frame",
  "wayland-cursor",
- "wayland-protocols 0.32.5",
- "wayland-protocols-wlr 0.3.5",
+ "wayland-protocols",
+ "wayland-protocols-wlr",
  "wayland-scanner",
  "xkbcommon",
  "xkeysym",
@@ -6320,18 +6320,6 @@ dependencies = [
 
 [[package]]
 name = "wayland-protocols"
-version = "0.31.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f81f365b8b4a97f422ac0e8737c438024b5951734506b0e1d775c73030561f4"
-dependencies = [
- "bitflags 2.6.0",
- "wayland-backend",
- "wayland-client",
- "wayland-scanner",
-]
-
-[[package]]
-name = "wayland-protocols"
 version = "0.32.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7cd0ade57c4e6e9a8952741325c30bf82f4246885dca8bf561898b86d0c1f58e"
@@ -6352,20 +6340,7 @@ dependencies = [
  "bitflags 2.6.0",
  "wayland-backend",
  "wayland-client",
- "wayland-protocols 0.32.5",
- "wayland-scanner",
-]
-
-[[package]]
-name = "wayland-protocols-wlr"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ad1f61b76b6c2d8742e10f9ba5c3737f6530b4c243132c2a2ccc8aa96fe25cd6"
-dependencies = [
- "bitflags 2.6.0",
- "wayland-backend",
- "wayland-client",
- "wayland-protocols 0.31.2",
+ "wayland-protocols",
  "wayland-scanner",
 ]
 
@@ -6378,7 +6353,7 @@ dependencies = [
  "bitflags 2.6.0",
  "wayland-backend",
  "wayland-client",
- "wayland-protocols 0.32.5",
+ "wayland-protocols",
  "wayland-scanner",
  "wayland-server",
 ]
@@ -6941,7 +6916,7 @@ dependencies = [
  "wasm-bindgen-futures",
  "wayland-backend",
  "wayland-client",
- "wayland-protocols 0.32.5",
+ "wayland-protocols",
  "wayland-protocols-plasma",
  "web-sys",
  "web-time",
@@ -6972,19 +6947,20 @@ dependencies = [
 [[package]]
 name = "wl-clipboard-rs"
 version = "0.8.1"
-source = "git+https://github.com/wiiznokes/wl-clipboard-rs.git?branch=watch#45ccfaf4469585c520a2df2c63b13a7800627d9f"
+source = "git+https://github.com/wiiznokes/wl-clipboard-rs.git?branch=watch#10d95f5d5e22d062e51782d4270291295216c4e7"
 dependencies = [
  "libc",
  "log",
  "os_pipe",
  "rustix 0.38.42",
  "tempfile",
- "thiserror 1.0.69",
+ "thiserror 2.0.6",
+ "tokio",
  "tree_magic_mini",
  "wayland-backend",
  "wayland-client",
- "wayland-protocols 0.31.2",
- "wayland-protocols-wlr 0.2.0",
+ "wayland-protocols",
+ "wayland-protocols-wlr",
 ]
 
 [[package]]
@@ -7059,7 +7035,7 @@ version = "0.1.0"
 source = "git+https://github.com/pop-os/cosmic-panel#1c9c4e2a2cf27efd0ca77b5ec21bc6f7fa92d9da"
 dependencies = [
  "serde",
- "wayland-protocols-wlr 0.3.5",
+ "wayland-protocols-wlr",
 ]
 
 [[package]]

@@ -1,12 +1,11 @@
 use std::{
     collections::HashSet,
-    io::Read,
     sync::atomic::{self},
 };
 
 use cosmic::iced::{futures::SinkExt, stream::channel};
-use futures::Stream;
-use tokio::sync::mpsc;
+use futures::{future::join_all, Stream};
+use tokio::{io::AsyncReadExt, net::unix::pipe, sync::mpsc};
 use wl_clipboard_rs::{
     copy::{self, MimeSource},
     paste_watch,
@@ -16,7 +15,6 @@ use crate::{
     config::PRIVATE_MODE,
     db::{EntryTrait, MimeDataMap},
 };
-use os_pipe::PipeReader;
 
 #[derive(Debug, Clone)]
 pub enum ClipboardMessage {
@@ -34,7 +32,7 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
             match paste_watch::Watcher::init(paste_watch::ClipboardType::Regular) {
                 Ok(mut clipboard_watcher) => {
                     let (tx, mut rx) =
-                        mpsc::channel::<Option<std::vec::IntoIter<(PipeReader, String)>>>(5);
+                        mpsc::channel::<Option<std::vec::IntoIter<(pipe::Receiver, String)>>>(5);
 
                     tokio::task::spawn_blocking(move || loop {
                         // return a vec of maximum 2 mimetypes
@@ -70,13 +68,18 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
                     loop {
                         match rx.recv().await {
                             Some(Some(res)) => {
-                                let data = res
-                                    .map(|(mut pipe, mime_type)| {
-                                        let mut contents = Vec::new();
-                                        pipe.read_to_end(&mut contents).unwrap();
-                                        (mime_type, contents)
-                                    })
-                                    .collect();
+                                info!("start reading pipes");
+
+                                let data = join_all(res.map(|(mut pipe, mime_type)| async move {
+                                    let mut contents = Vec::new();
+                                    pipe.read_to_end(&mut contents).await.unwrap();
+                                    (mime_type, contents)
+                                }))
+                                .await
+                                .into_iter()
+                                .collect();
+
+                                info!("start sending pipes");
 
                                 output.send(ClipboardMessage::Data(data)).await.unwrap();
                             }

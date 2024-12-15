@@ -1,6 +1,7 @@
 use alive_lock_file::LockResultWithDrop;
 use derivative::Derivative;
 use futures::StreamExt;
+use itertools::Itertools;
 use sqlx::{migrate::MigrateDatabase, prelude::*, Sqlite, SqliteConnection};
 use std::{
     cell::RefCell,
@@ -26,7 +27,7 @@ use super::{now, DbMessage, DbTrait, EntryId, EntryTrait, MimeDataMap};
 
 type Time = i64;
 
-const DB_VERSION: &str = "5";
+const DB_VERSION: &str = "7";
 const DB_PATH: &str = constcat::concat!(APPID, "-db-", DB_VERSION, ".sqlite");
 
 const LOCK_FILE: &str = constcat::concat!(APPID, "-db", ".lock");
@@ -106,9 +107,11 @@ impl Favorites {
 }
 
 fn hash_entry_content<H: Hasher>(data: &MimeDataMap, state: &mut H) {
-    for e in data.values() {
-        e.hash(state);
-    }
+    data.iter()
+        .sorted_by(|e1, e2| e1.0.cmp(e2.0))
+        .for_each(|e| {
+            e.hash(state);
+        });
 }
 
 fn get_hash_entry_content(data: &MimeDataMap) -> u64 {
@@ -182,6 +185,8 @@ impl DbTrait for DbSqlite {
         }
 
         let db_path = db_dir.join(DB_PATH);
+
+        info!("db_path: {}", db_path.display());
 
         let db_path = db_path
             .to_str()
@@ -282,6 +287,10 @@ impl DbTrait for DbSqlite {
         };
 
         db.reload().await?;
+
+        dbg!(&db.hashs);
+        dbg!(&db.times);
+        dbg!(&db.entries);
 
         Ok(db)
     }
@@ -415,9 +424,11 @@ impl DbTrait for DbSqlite {
 
         if let Some(id) = self.hashs.get(&hash) {
             let entry = self.entries.get_mut(id).unwrap();
+            let old_creation = entry.creation;
             entry.creation = now;
-            self.times.remove(&entry.creation);
-            self.times.insert(now, *id);
+            let res = self.times.remove(&old_creation);
+            assert!(res.is_some());
+            self.times.insert(entry.creation, *id);
 
             let query_update_creation = r#"
                 UPDATE ClipboardEntries
@@ -465,7 +476,7 @@ impl DbTrait for DbSqlite {
                 is_favorite: false,
             };
 
-            self.times.insert(now, id);
+            self.times.insert(entry.creation, id);
             self.hashs.insert(hash, id);
             self.entries.insert(id, entry);
         }
@@ -645,17 +656,17 @@ impl DbTrait for DbSqlite {
 
     fn iter(&self) -> Box<dyn Iterator<Item = &'_ Self::Entry> + '_> {
         if self.is_search_active() {
-            Box::new(self.filtered.iter().filter_map(|id| self.entries.get(id)))
+            Box::new(self.filtered.iter().map(|id| &self.entries[id]))
         } else {
             Box::new(
                 self.favorites
                     .fav()
                     .iter()
-                    .filter_map(|id| self.entries.get(id))
+                    .map(|id| &self.entries[id])
                     .chain(
                         self.times
                             .values()
-                            .filter_map(|id| self.entries.get(id))
+                            .map(|id| &self.entries[id])
                             .filter(|e| !e.is_favorite)
                             .rev(),
                     ),
