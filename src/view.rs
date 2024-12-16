@@ -1,8 +1,11 @@
 use std::{borrow::Cow, cmp::min};
 
 use cosmic::{
-    iced::{padding, Alignment, Length, Padding},
-    iced_widget::scrollable::{Direction, Scrollbar},
+    iced::{alignment::Horizontal, padding, Alignment, Length, Padding},
+    iced_widget::{
+        scrollable::{Direction, Scrollbar},
+        Stack,
+    },
     theme::Button,
     widget::{
         self,
@@ -17,7 +20,7 @@ use itertools::Itertools;
 use crate::{
     app::AppState,
     db::{Content, DbTrait, EntryTrait},
-    fl, icon_button,
+    fl, icon, icon_button,
     message::{AppMsg, ConfigMsg},
     utils::formatted_value,
 };
@@ -304,20 +307,23 @@ impl<Db: DbTrait> AppState<Db> {
             btn.width(Length::Fill).into()
         };
 
-        context_menu(
-            btn,
-            Some(vec![
-                menu::Tree::new(
-                    button::text(fl!("delete_entry"))
-                        .on_press(AppMsg::Delete(entry.id()))
+        let content: Element<_> = if entry.is_favorite() {
+            Stack::new()
+                .push(btn)
+                .push(
+                    column()
+                        .align_x(Horizontal::Right)
                         .width(Length::Fill)
-                        .class(Button::Destructive),
-                ),
-                menu::Tree::new(
-                    button::text(fl!("show_qr_code"))
-                        .on_press(AppMsg::ShowQrCode(entry.id()))
-                        .width(Length::Fill),
-                ),
+                        .push(icon!("star24")),
+                )
+                .into()
+        } else {
+            btn
+        };
+
+        context_menu(
+            content,
+            Some(vec![
                 if entry.is_favorite() {
                     menu::Tree::new(
                         button::text(fl!("remove_favorite"))
@@ -331,6 +337,17 @@ impl<Db: DbTrait> AppState<Db> {
                             .width(Length::Fill),
                     )
                 },
+                menu::Tree::new(
+                    button::text(fl!("show_qr_code"))
+                        .on_press(AppMsg::ShowQrCode(entry.id()))
+                        .width(Length::Fill),
+                ),
+                menu::Tree::new(
+                    button::text(fl!("delete_entry"))
+                        .on_press(AppMsg::Delete(entry.id()))
+                        .width(Length::Fill)
+                        .class(Button::Destructive),
+                ),
             ]),
         )
         .into()
