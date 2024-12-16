@@ -196,7 +196,16 @@ pub trait DbTrait: Sized {
 
     fn get_from_id(&self, id: EntryId) -> Option<&Self::Entry>;
 
-    fn iter(&self) -> Box<dyn Iterator<Item = &'_ Self::Entry> + '_>;
+    fn iter(&self) -> impl Iterator<Item = &'_ Self::Entry>;
+
+    fn search_iter(&self) -> impl Iterator<Item = &'_ Self::Entry>;
+
+    fn either_iter(
+        &self,
+    ) -> itertools::Either<
+        impl Iterator<Item = &'_ Self::Entry>,
+        impl Iterator<Item = &'_ Self::Entry>,
+    >;
 
     fn len(&self) -> usize;
 

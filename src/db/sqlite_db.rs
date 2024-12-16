@@ -623,6 +623,7 @@ impl DbTrait for DbSqlite {
                     }
                 })
                 .collect::<Vec<_>>();
+            dbg!(&self.filtered);
         }
     }
 
@@ -654,23 +655,34 @@ impl DbTrait for DbSqlite {
         self.iter().nth(index)
     }
 
-    fn iter(&self) -> Box<dyn Iterator<Item = &'_ Self::Entry> + '_> {
-        if self.is_search_active() {
-            Box::new(self.filtered.iter().map(|id| &self.entries[id]))
-        } else {
-            Box::new(
-                self.favorites
-                    .fav()
-                    .iter()
+    fn iter(&self) -> impl Iterator<Item = &'_ Self::Entry> {
+        self.favorites
+            .fav()
+            .iter()
+            .map(|id| &self.entries[id])
+            .chain(
+                self.times
+                    .values()
                     .map(|id| &self.entries[id])
-                    .chain(
-                        self.times
-                            .values()
-                            .map(|id| &self.entries[id])
-                            .filter(|e| !e.is_favorite)
-                            .rev(),
-                    ),
+                    .filter(|e| !e.is_favorite)
+                    .rev(),
             )
+    }
+
+    fn search_iter(&self) -> impl Iterator<Item = &'_ Self::Entry> {
+        self.filtered.iter().map(|id| &self.entries[id])
+    }
+
+    fn either_iter(
+        &self,
+    ) -> itertools::Either<
+        impl Iterator<Item = &'_ Self::Entry>,
+        impl Iterator<Item = &'_ Self::Entry>,
+    > {
+        if self.is_search_active() {
+            itertools::Either::Left(self.search_iter())
+        } else {
+            itertools::Either::Right(self.iter())
         }
     }
 

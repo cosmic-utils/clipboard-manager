@@ -146,7 +146,7 @@ impl<Db: DbTrait> AppState<Db> {
 
                 let entries_view: Vec<_> = self
                     .db
-                    .iter()
+                    .either_iter()
                     .enumerate()
                     .get(range)
                     .filter_map(|(pos, data)| {
