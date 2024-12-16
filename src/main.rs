@@ -70,5 +70,5 @@ fn main() -> cosmic::iced::Result {
         config_handler,
         config,
     };
-    cosmic::applet::run::<AppState>(flags)
+    cosmic::applet::run::<AppState<db::DbSqlite>>(flags)
 }

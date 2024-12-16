@@ -34,7 +34,10 @@ pub struct Config {
     /// Reset the database at each login
     pub unique_session: bool,
     pub maximum_entries_by_page: NonZeroU32,
+    pub preferred_mime_types: Vec<String>,
 }
+
+pub static PRIVATE_MODE: AtomicBool = AtomicBool::new(false);
 
 impl Config {
     pub fn maximum_entries_lifetime(&self) -> Option<Duration> {
@@ -52,11 +55,10 @@ impl Default for Config {
             horizontal: false,
             unique_session: false,
             maximum_entries_by_page: NonZero::new(50).unwrap(),
+            preferred_mime_types: Vec::new(),
         }
     }
 }
-
-pub static PRIVATE_MODE: AtomicBool = AtomicBool::new(false);
 
 pub fn sub() -> Subscription<AppMsg> {
     struct ConfigSubscription;

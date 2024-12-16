@@ -16,13 +16,13 @@ use itertools::Itertools;
 
 use crate::{
     app::AppState,
-    db::{Content, Entry},
+    db::{Content, DbTrait, EntryTrait},
     fl, icon_button,
     message::{AppMsg, ConfigMsg},
     utils::formatted_value,
 };
 
-impl AppState {
+impl<Db: DbTrait> AppState<Db> {
     pub fn quick_settings_view(&self) -> Element<'_, AppMsg> {
         fn toggle_settings<'a>(
             info: impl Into<Cow<'a, str>> + 'a,
@@ -89,7 +89,7 @@ impl AppState {
         let content: Element<_> = match self.qr_code.is_none() {
             true => row()
                 .push(
-                    text_input::search_input(fl!("search_entries"), self.db.query())
+                    text_input::search_input(fl!("search_entries"), self.db.get_query())
                         .always_active()
                         .on_input(AppMsg::Search)
                         .on_paste(AppMsg::Search)
@@ -144,13 +144,14 @@ impl AppState {
                 let range =
                     self.page * maximum_entries_by_page..(self.page + 1) * maximum_entries_by_page;
 
-                let entries_view: Vec<_> = if self.db.query().is_empty() {
-                    self.db
-                        .iter()
-                        .enumerate()
-                        .get(range)
-                        .filter_map(|(pos, data)| match data.get_content() {
-                            Ok(c) => match c {
+                let entries_view: Vec<_> = self
+                    .db
+                    .either_iter()
+                    .enumerate()
+                    .get(range)
+                    .filter_map(|(pos, data)| {
+                        data.preferred_content(&self.preferred_mime_types_regex)
+                            .and_then(|(_, content)| match content {
                                 Content::Text(text) => {
                                     self.text_entry(data, pos == self.focused, text)
                                 }
@@ -160,34 +161,9 @@ impl AppState {
                                 Content::UriList(uris) => {
                                     self.uris_entry(data, pos == self.focused, &uris)
                                 }
-                            },
-                            Err(_) => None,
-                        })
-                        .collect()
-                } else {
-                    self.db
-                        .search_iter()
-                        .enumerate()
-                        .get(range)
-                        .filter_map(|(pos, (data, indices))| match data.get_content() {
-                            Ok(c) => match c {
-                                Content::Text(text) => self.text_entry_with_indices(
-                                    data,
-                                    pos == self.focused,
-                                    text,
-                                    indices,
-                                ),
-                                Content::Image(image) => {
-                                    self.image_entry(data, pos == self.focused, image)
-                                }
-                                Content::UriList(uris) => {
-                                    self.uris_entry(data, pos == self.focused, &uris)
-                                }
-                            },
-                            Err(_) => None,
-                        })
-                        .collect()
-                };
+                            })
+                    })
+                    .collect();
 
                 if self.config.horizontal {
                     let column = row::with_children(entries_view)
@@ -215,7 +191,7 @@ impl AppState {
 
     fn image_entry<'a>(
         &'a self,
-        entry: &'a Entry,
+        entry: &'a Db::Entry,
         is_focused: bool,
         image_data: &'a [u8],
     ) -> Option<Element<'a, AppMsg>> {
@@ -226,7 +202,7 @@ impl AppState {
 
     fn uris_entry<'a>(
         &'a self,
-        entry: &'a Entry,
+        entry: &'a Db::Entry,
         is_focused: bool,
         uris: &[&'a str],
     ) -> Option<Element<'a, AppMsg>> {
@@ -253,19 +229,9 @@ impl AppState {
         ))
     }
 
-    fn text_entry_with_indices<'a>(
-        &'a self,
-        entry: &'a Entry,
-        is_focused: bool,
-        content: &'a str,
-        _indices: &'a [u32],
-    ) -> Option<Element<'a, AppMsg>> {
-        self.text_entry(entry, is_focused, content)
-    }
-
     fn text_entry<'a>(
         &'a self,
-        entry: &'a Entry,
+        entry: &'a Db::Entry,
         is_focused: bool,
         content: &'a str,
     ) -> Option<Element<'a, AppMsg>> {
@@ -282,12 +248,12 @@ impl AppState {
 
     fn base_entry<'a>(
         &'a self,
-        entry: &'a Entry,
+        entry: &'a Db::Entry,
         is_focused: bool,
         content: impl Into<Element<'a, AppMsg>>,
     ) -> Element<'a, AppMsg> {
         let btn = button::custom(content)
-            .on_press(AppMsg::Copy(entry.clone()))
+            .on_press(AppMsg::Copy(entry.id()))
             .padding([8, 16])
             .class(Button::Custom {
                 active: Box::new(move |focused, theme| {
@@ -343,25 +309,25 @@ impl AppState {
             Some(vec![
                 menu::Tree::new(
                     button::text(fl!("delete_entry"))
-                        .on_press(AppMsg::Delete(entry.clone()))
+                        .on_press(AppMsg::Delete(entry.id()))
                         .width(Length::Fill)
                         .class(Button::Destructive),
                 ),
                 menu::Tree::new(
                     button::text(fl!("show_qr_code"))
-                        .on_press(AppMsg::ShowQrCode(entry.clone()))
+                        .on_press(AppMsg::ShowQrCode(entry.id()))
                         .width(Length::Fill),
                 ),
-                if entry.is_favorite {
+                if entry.is_favorite() {
                     menu::Tree::new(
                         button::text(fl!("remove_favorite"))
-                            .on_press(AppMsg::RemoveFavorite(entry.clone()))
+                            .on_press(AppMsg::RemoveFavorite(entry.id()))
                             .width(Length::Fill),
                     )
                 } else {
                     menu::Tree::new(
                         button::text(fl!("add_favorite"))
-                            .on_press(AppMsg::AddFavorite(entry.clone()))
+                            .on_press(AppMsg::AddFavorite(entry.id()))
                             .width(Length::Fill),
                     )
                 },

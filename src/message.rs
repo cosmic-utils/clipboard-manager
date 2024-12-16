@@ -1,7 +1,7 @@
 use crate::{
     clipboard::ClipboardMessage,
     config::Config,
-    db::{DbMessage, Entry},
+    db::{DbMessage, EntryId},
     navigation::EventMsg,
 };
 
@@ -15,16 +15,16 @@ pub enum AppMsg {
     ClipboardEvent(ClipboardMessage),
     #[allow(dead_code)]
     RetryConnectingClipboard,
-    Copy(Entry),
-    Delete(Entry),
+    Copy(EntryId),
+    Delete(EntryId),
     Clear,
     Navigation(EventMsg),
     Db(DbMessage),
-    ShowQrCode(Entry),
+    ShowQrCode(EntryId),
     ReturnToClipboard,
     Config(ConfigMsg),
-    AddFavorite(Entry),
-    RemoveFavorite(Entry),
+    AddFavorite(EntryId),
+    RemoveFavorite(EntryId),
     NextPage,
     PreviousPage,
 }

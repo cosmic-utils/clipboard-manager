@@ -42,6 +42,13 @@
       "type": "integer",
       "format": "uint32",
       "minimum": 1.0
+    },
+    "preferred_mime_types": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     }
   },
   "X_CONFIGURATOR_SOURCE_HOME_PATH": ".config/cosmic/io.github.wiiznokes.cosmic-ext-applet-clipboard-manager/v3",
