@@ -18,6 +18,7 @@ use cosmic::widget::{MouseArea, Space};
 use cosmic::{app::Task, Element};
 use futures::executor::block_on;
 use futures::StreamExt;
+use regex::Regex;
 
 use crate::config::{Config, PRIVATE_MODE};
 use crate::db::{DbMessage, DbTrait, EntryTrait};
@@ -46,6 +47,7 @@ pub struct AppState<Db: DbTrait> {
     pub page: usize,
     pub qr_code: Option<Result<qr_code::Data, ()>>,
     last_quit: Option<(i64, PopupKind)>,
+    pub preferred_mime_types_regex: Vec<Regex>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -222,9 +224,20 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
             clipboard_state: ClipboardState::Init,
             focused: 0,
             qr_code: None,
-            config,
             last_quit: None,
             page: 0,
+            preferred_mime_types_regex: config
+                .preferred_mime_types
+                .iter()
+                .filter_map(|r| match Regex::new(r) {
+                    Ok(r) => Some(r),
+                    Err(e) => {
+                        error!("regex {e}");
+                        None
+                    }
+                })
+                .collect(),
+            config,
         };
 
         #[cfg(debug_assertions)]
@@ -261,10 +274,23 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
 
         match message {
             AppMsg::ChangeConfig(config) => {
-                if config != self.config {
+                if config.private_mode != self.config.private_mode {
                     PRIVATE_MODE.store(config.private_mode, atomic::Ordering::Relaxed);
-                    self.config = config;
                 }
+                if config.preferred_mime_types != self.config.preferred_mime_types {
+                    self.preferred_mime_types_regex = config
+                        .preferred_mime_types
+                        .iter()
+                        .filter_map(|r| match Regex::new(r) {
+                            Ok(r) => Some(r),
+                            Err(e) => {
+                                error!("regex {e}");
+                                None
+                            }
+                        })
+                        .collect();
+                }
+                self.config = config;
             }
             AppMsg::ToggleQuickSettings => {
                 return self.toggle_popup(PopupKind::QuickSettings);
@@ -364,22 +390,24 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
             AppMsg::ShowQrCode(id) => {
                 match self.db.get_from_id(id) {
                     Some(entry) => {
-                        let content = entry.qr_code_content();
-
-                        // todo: handle better this error
-                        if content.len() < 700 {
-                            match qr_code::Data::new(content) {
-                                Ok(s) => {
-                                    self.qr_code.replace(Ok(s));
+                        if let Some(((_, content), _)) =
+                            entry.preferred_content(&self.preferred_mime_types_regex)
+                        {
+                            // todo: handle better this error
+                            if content.len() < 700 {
+                                match qr_code::Data::new(content) {
+                                    Ok(s) => {
+                                        self.qr_code.replace(Ok(s));
+                                    }
+                                    Err(e) => {
+                                        error!("{e}");
+                                        self.qr_code.replace(Err(()));
+                                    }
                                 }
-                                Err(e) => {
-                                    error!("{e}");
-                                    self.qr_code.replace(Err(()));
-                                }
+                            } else {
+                                error!("qr code to long: {}", content.len());
+                                self.qr_code.replace(Err(()));
                             }
-                        } else {
-                            error!("qr code to long: {}", content.len());
-                            self.qr_code.replace(Err(()));
                         }
                     }
                     None => error!("id not found"),

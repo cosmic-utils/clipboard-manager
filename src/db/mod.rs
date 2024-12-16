@@ -1,8 +1,9 @@
-use std::{collections::HashMap, fmt::Debug, path::Path};
+use std::{collections::HashMap, fmt::Debug, path::Path, sync::LazyLock};
 
-use anyhow::{bail, Result};
+use anyhow::Result;
 
 use chrono::Utc;
+use regex::Regex;
 
 use crate::config::Config;
 
@@ -17,12 +18,39 @@ fn now() -> i64 {
 }
 
 pub type EntryId = i64;
-pub type MimeDataMap = HashMap<String, Vec<u8>>;
+pub type Mime = String;
+pub type RawContent = Vec<u8>;
+pub type MimeDataMap = HashMap<Mime, RawContent>;
 
 pub enum Content<'a> {
     Text(&'a str),
     Image(&'a [u8]),
     UriList(Vec<&'a str>),
+}
+
+impl<'a> Content<'a> {
+    fn try_new(mime: &str, content: &'a [u8]) -> Result<Option<Self>> {
+        if mime == "text/uri-list" {
+            let text = core::str::from_utf8(content)?;
+
+            let uris = text
+                .lines()
+                .filter(|l| !l.is_empty() && !l.starts_with('#'))
+                .collect();
+
+            return Ok(Some(Content::UriList(uris)));
+        }
+
+        if mime.starts_with("text/") {
+            return Ok(Some(Content::Text(core::str::from_utf8(content)?)));
+        }
+
+        if mime.starts_with("image/") {
+            return Ok(Some(Content::Image(content)));
+        }
+
+        Ok(None)
+    }
 }
 
 impl Debug for Content<'_> {
@@ -35,7 +63,25 @@ impl Debug for Content<'_> {
     }
 }
 
-const PREFERRED_MIME_TYPES: &[&str] = &["text/plain"];
+/// More we have mime types here, Less we spend time in the [`EntryTrait::preferred_content`] function.
+const PRIV_MIME_TYPES_SIMPLE: &[&str] = &[
+    "text/plain;charset=utf-8",
+    "text/plain",
+    "STRING",
+    "UTF8_STRING",
+    "TEXT",
+    "image/png",
+    "image/jpg",
+    "image/jpeg",
+];
+const PRIV_MIME_TYPES_REGEX_STR: &[&str] = &["text/plain*", "text/*", "image/*"];
+
+static PRIV_MIME_TYPES_REGEX: LazyLock<Vec<Regex>> = LazyLock::new(|| {
+    PRIV_MIME_TYPES_REGEX_STR
+        .iter()
+        .map(|r| Regex::new(r).unwrap())
+        .collect()
+});
 
 pub trait EntryTrait: Debug + Clone + Send {
     fn is_favorite(&self) -> bool;
@@ -46,61 +92,58 @@ pub trait EntryTrait: Debug + Clone + Send {
 
     fn id(&self) -> EntryId;
 
-    // todo: prioritize certain mime types
-    fn qr_code_content(&self) -> &[u8] {
-        self.raw_content().iter().next().unwrap().1
-    }
-
-    fn viewable_content(&self) -> Result<Content<'_>> {
-        fn try_get_content<'a>(mime: &str, content: &'a [u8]) -> Result<Option<Content<'a>>> {
-            if mime == "text/uri-list" {
-                let text = core::str::from_utf8(content)?;
-
-                let uris = text
-                    .lines()
-                    .filter(|l| !l.is_empty() && !l.starts_with('#'))
-                    .collect();
-
-                return Ok(Some(Content::UriList(uris)));
-            }
-
-            if mime.starts_with("text/") {
-                return Ok(Some(Content::Text(core::str::from_utf8(content)?)));
-            }
-
-            if mime.starts_with("image/") {
-                return Ok(Some(Content::Image(content)));
-            }
-
-            Ok(None)
-        }
-
-        for pref_mime in PREFERRED_MIME_TYPES {
-            if let Some(content) = self.raw_content().get(*pref_mime) {
-                match try_get_content(pref_mime, content) {
-                    Ok(Some(content)) => return Ok(content),
-                    Ok(None) => error!("unsupported mime type {}", pref_mime),
-                    Err(e) => {
-                        error!("{e}");
+    fn preferred_content(
+        &self,
+        preferred_mime_types: &[Regex],
+    ) -> Option<((&str, &RawContent), Content<'_>)> {
+        for pref_mime_regex in preferred_mime_types {
+            for (mime, raw_content) in self.raw_content() {
+                if !raw_content.is_empty() && pref_mime_regex.is_match(mime) {
+                    match Content::try_new(mime, raw_content) {
+                        Ok(Some(content)) => return Some(((mime, raw_content), content)),
+                        Ok(None) => error!("unsupported mime type {}", pref_mime_regex),
+                        Err(e) => {
+                            error!("{e}");
+                        }
                     }
                 }
             }
         }
 
-        for (mime, content) in self.raw_content() {
-            match try_get_content(mime, content) {
-                Ok(Some(content)) => return Ok(content),
-                Ok(None) => {}
-                Err(e) => {
-                    error!("{e}");
+        for pref_mime in PRIV_MIME_TYPES_SIMPLE {
+            if let Some(raw_content) = self.raw_content().get(*pref_mime) {
+                if !raw_content.is_empty() {
+                    match Content::try_new(pref_mime, raw_content) {
+                        Ok(Some(content)) => return Some(((pref_mime, raw_content), content)),
+                        Ok(None) => {}
+                        Err(e) => {
+                            error!("{e}");
+                        }
+                    }
                 }
             }
         }
 
-        bail!(
+        for pref_mime_regex in PRIV_MIME_TYPES_REGEX.iter() {
+            for (mime, raw_content) in self.raw_content() {
+                if !raw_content.is_empty() && pref_mime_regex.is_match(mime) {
+                    match Content::try_new(mime, raw_content) {
+                        Ok(Some(content)) => return Some(((mime, raw_content), content)),
+                        Ok(None) => {}
+                        Err(e) => {
+                            error!("{e}");
+                        }
+                    }
+                }
+            }
+        }
+
+        warn!(
             "unsupported mime types {:#?}",
             self.raw_content().keys().collect::<Vec<_>>()
-        )
+        );
+
+        None
     }
 
     fn searchable_content(&self) -> impl Iterator<Item = &str> {

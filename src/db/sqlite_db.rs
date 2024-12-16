@@ -163,7 +163,7 @@ impl Debug for Entry {
         f.debug_struct("Data")
             .field("id", &self.id)
             .field("creation", &self.creation)
-            .field("content", &self.viewable_content())
+            .field("content", &self.preferred_content(&[]))
             .finish()
     }
 }

@@ -41,6 +41,7 @@ futures = "0.3"
 include_dir = "0.7"
 itertools = "0.13.0"
 alive_lock_file = "0.2"
+regex = "1"
 
 [dependencies.libcosmic]
 git = "https://github.com/pop-os/libcosmic"

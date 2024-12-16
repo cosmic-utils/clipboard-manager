@@ -1156,6 +1156,7 @@ dependencies = [
  "nucleo",
  "os_pipe",
  "paste",
+ "regex",
  "rust-embed",
  "serde",
  "serial_test",

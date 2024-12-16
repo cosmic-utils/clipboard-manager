@@ -149,17 +149,19 @@ impl<Db: DbTrait> AppState<Db> {
                     .iter()
                     .enumerate()
                     .get(range)
-                    .filter_map(|(pos, data)| match data.viewable_content() {
-                        Ok(c) => match c {
-                            Content::Text(text) => self.text_entry(data, pos == self.focused, text),
-                            Content::Image(image) => {
-                                self.image_entry(data, pos == self.focused, image)
-                            }
-                            Content::UriList(uris) => {
-                                self.uris_entry(data, pos == self.focused, &uris)
-                            }
-                        },
-                        Err(_) => None,
+                    .filter_map(|(pos, data)| {
+                        data.preferred_content(&self.preferred_mime_types_regex)
+                            .and_then(|(_, content)| match content {
+                                Content::Text(text) => {
+                                    self.text_entry(data, pos == self.focused, text)
+                                }
+                                Content::Image(image) => {
+                                    self.image_entry(data, pos == self.focused, image)
+                                }
+                                Content::UriList(uris) => {
+                                    self.uris_entry(data, pos == self.focused, &uris)
+                                }
+                            })
                     })
                     .collect();
 
