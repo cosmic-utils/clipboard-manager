@@ -1,7 +1,6 @@
 use alive_lock_file::LockResultWithDrop;
 use derivative::Derivative;
 use futures::StreamExt;
-use itertools::Itertools;
 use sqlx::{migrate::MigrateDatabase, prelude::*, Sqlite, SqliteConnection};
 use std::{
     cell::RefCell,
@@ -23,7 +22,7 @@ use crate::{
     utils::{self},
 };
 
-use super::{now, DbMessage, DbTrait, EntryId, EntryTrait, MimeDataMap};
+use super::{now, DbMessage, DbTrait, EntryId, EntryTrait, MimeDataMap, PRIV_MIME_TYPES_SIMPLE};
 
 type Time = i64;
 
@@ -49,11 +48,11 @@ pub struct DbSqlite {
     lock: Option<LockResultWithDrop>,
 }
 
-#[derive(Clone, Eq, Derivative)]
+#[derive(Clone, Derivative)]
 pub struct Entry {
     pub id: EntryId,
     pub creation: Time,
-    // todo: lazelly load image in memory, since we can't search them anyways
+    // todo: lazelly load image in memory, since we can't search them anyways?
     /// (Mime, Content)
     pub raw_content: MimeDataMap,
     pub is_favorite: bool,
@@ -107,11 +106,21 @@ impl Favorites {
 }
 
 fn hash_entry_content<H: Hasher>(data: &MimeDataMap, state: &mut H) {
-    data.iter()
-        .sorted_by(|e1, e2| e1.0.cmp(e2.0))
-        .for_each(|e| {
-            e.hash(state);
-        });
+    for m in PRIV_MIME_TYPES_SIMPLE {
+        if let Some(content) = data.get(*m) {
+            if !content.is_empty() {
+                content.hash(state);
+                return;
+            }
+        }
+    }
+
+    let mut sorted = data.iter().collect::<Vec<_>>();
+    sorted.sort_by(|(mime1, _), (mime2, _)| mime1.cmp(mime2));
+
+    for (_, content) in sorted {
+        content.hash(state);
+    }
 }
 
 fn get_hash_entry_content(data: &MimeDataMap) -> u64 {
@@ -123,12 +132,6 @@ fn get_hash_entry_content(data: &MimeDataMap) -> u64 {
 impl Hash for Entry {
     fn hash<H: Hasher>(&self, state: &mut H) {
         hash_entry_content(&self.raw_content, state);
-    }
-}
-
-impl PartialEq for Entry {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
     }
 }
 
@@ -424,6 +427,7 @@ impl DbTrait for DbSqlite {
 
         if let Some(id) = self.hashs.get(&hash) {
             let entry = self.entries.get_mut(id).unwrap();
+
             let old_creation = entry.creation;
             entry.creation = now;
             let res = self.times.remove(&old_creation);
