@@ -314,7 +314,7 @@ impl DbTrait for DbSqlite {
             let mut rows = rows
                 .iter()
                 .map(|row| {
-                    let id: i64 = row.get("id");
+                    let id: EntryId = row.get("id");
                     let index: i32 = row.get("position");
                     (id, index as usize)
                 })
@@ -442,7 +442,7 @@ impl DbTrait for DbSqlite {
                 .execute(&mut self.conn)
                 .await?;
         } else {
-            let id = now;
+            let id = now as EntryId;
 
             let query_insert_new_entry = r#"
                 INSERT INTO ClipboardEntries (id, creation)
@@ -499,7 +499,7 @@ impl DbTrait for DbSqlite {
                 self.times.remove(&entry.creation);
 
                 if entry.is_favorite() {
-                    self.favorites.remove(&entry.creation);
+                    self.favorites.remove(&entry.id);
                 }
             }
             None => {
