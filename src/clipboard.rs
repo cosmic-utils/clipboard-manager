@@ -1,6 +1,6 @@
 use std::{
-    collections::HashSet,
     sync::atomic::{self},
+    time::Duration,
 };
 
 use cosmic::iced::{futures::SinkExt, stream::channel};
@@ -35,17 +35,7 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
                         mpsc::channel::<Option<std::vec::IntoIter<(pipe::Receiver, String)>>>(5);
 
                     tokio::task::spawn_blocking(move || loop {
-                        // return a vec of maximum 2 mimetypes
-                        // 1.the main one
-                        // optional 2. metadata
-                        let mime_type_filter = |mime_types: HashSet<String>| {
-                            info!("mime type {:#?}", mime_types);
-                            mime_types.into_iter().collect()
-                        };
-
-                        match clipboard_watcher
-                            .start_watching(paste_watch::Seat::Unspecified, mime_type_filter)
-                        {
+                        match clipboard_watcher.start_watching(paste_watch::Seat::Unspecified) {
                             Ok(res) => {
                                 if !PRIVATE_MODE.load(atomic::Ordering::Relaxed) {
                                     tx.blocking_send(Some(res)).expect("can't send");
@@ -68,18 +58,36 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
                     loop {
                         match rx.recv().await {
                             Some(Some(res)) => {
-                                info!("start reading pipes");
-
                                 let data = join_all(res.map(|(mut pipe, mime_type)| async move {
                                     let mut contents = Vec::new();
-                                    pipe.read_to_end(&mut contents).await.unwrap();
-                                    (mime_type, contents)
+
+                                    match tokio::time::timeout(
+                                        Duration::from_millis(100),
+                                        pipe.read_to_end(&mut contents),
+                                    )
+                                    .await
+                                    {
+                                        Ok(Ok(_)) => Some((mime_type, contents)),
+                                        Ok(Err(e)) => {
+                                            warn!(
+                                                "read timeout on external pipe clipboard: {} {e}",
+                                                mime_type
+                                            );
+                                            None
+                                        }
+                                        Err(e) => {
+                                            warn!(
+                                                "read timeout on external pipe clipboard: {} {e}",
+                                                mime_type
+                                            );
+                                            None
+                                        }
+                                    }
                                 }))
                                 .await
                                 .into_iter()
+                                .flatten()
                                 .collect();
-
-                                info!("start sending pipes");
 
                                 output.send(ClipboardMessage::Data(data)).await.unwrap();
                             }

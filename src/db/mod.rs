@@ -65,14 +65,15 @@ impl Debug for Content<'_> {
 
 /// More we have mime types here, Less we spend time in the [`EntryTrait::preferred_content`] function.
 const PRIV_MIME_TYPES_SIMPLE: &[&str] = &[
+    "image/png",
+    "image/jpg",
+    "image/jpeg",
+    "image/bmp",
     "text/plain;charset=utf-8",
     "text/plain",
     "STRING",
     "UTF8_STRING",
     "TEXT",
-    "image/png",
-    "image/jpg",
-    "image/jpeg",
 ];
 const PRIV_MIME_TYPES_REGEX_STR: &[&str] = &["text/plain*", "text/*", "image/*"];
 

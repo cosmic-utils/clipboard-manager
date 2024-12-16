@@ -291,10 +291,6 @@ impl DbTrait for DbSqlite {
 
         db.reload().await?;
 
-        dbg!(&db.hashs);
-        dbg!(&db.times);
-        dbg!(&db.entries);
-
         Ok(db)
     }
 
@@ -627,7 +623,6 @@ impl DbTrait for DbSqlite {
                     }
                 })
                 .collect::<Vec<_>>();
-            dbg!(&self.filtered);
         }
     }
 
