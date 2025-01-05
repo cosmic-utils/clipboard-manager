@@ -19,11 +19,14 @@ sudo dnf install cosmic-ext-applet-clipboard-manager
 
 ### Other distros
 
+> [!NOTE]
+> You need a rust version >= `1.81`
+
 ```sh
+sudo apt install libsqlite3-dev sqlite3 just cargo libxkbcommon-dev git-lfs
 git clone https://github.com/cosmic-utils/clipboard-manager.git
 cd clipboard-manager
 git checkout 0.1.0
-sudo apt install libsqlite3-dev sqlite3 just cargo libxkbcommon-dev
 just build-release
 sudo just install
 ```

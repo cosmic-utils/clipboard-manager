@@ -217,3 +217,19 @@ fn remove_dir_contents(dir: &Path) {
 
     let _ = inner(dir);
 }
+
+use std::time::Instant;
+
+#[tokio::test]
+#[ignore = "bench"]
+async fn bench_search_from_system_path() {
+    let mut db = DbSqlite::new(&Config::default()).await.unwrap();
+
+    let now = Instant::now();
+
+    println!("{}", db.len());
+
+    db.set_query_and_search("a".into());
+
+    println!("Elapsed: {:?}", now.elapsed());
+}
