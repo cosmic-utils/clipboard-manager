@@ -93,6 +93,7 @@ pub trait EntryTrait: Debug + Clone + Send {
 
     fn id(&self) -> EntryId;
 
+    // note: hot fn, do not log
     fn preferred_content(
         &self,
         preferred_mime_types: &[Regex],
@@ -102,10 +103,10 @@ pub trait EntryTrait: Debug + Clone + Send {
                 if !raw_content.is_empty() && pref_mime_regex.is_match(mime) {
                     match Content::try_new(mime, raw_content) {
                         Ok(Some(content)) => return Some(((mime, raw_content), content)),
-                        Ok(None) => error!("unsupported mime type {}", pref_mime_regex),
-                        Err(e) => {
-                            error!("{e}");
+                        Ok(None) => {
+                            // unsupported mime type
                         }
+                        Err(_e) => {}
                     }
                 }
             }
@@ -117,9 +118,7 @@ pub trait EntryTrait: Debug + Clone + Send {
                     match Content::try_new(pref_mime, raw_content) {
                         Ok(Some(content)) => return Some(((pref_mime, raw_content), content)),
                         Ok(None) => {}
-                        Err(e) => {
-                            error!("{e}");
-                        }
+                        Err(_e) => {}
                     }
                 }
             }
@@ -131,18 +130,11 @@ pub trait EntryTrait: Debug + Clone + Send {
                     match Content::try_new(mime, raw_content) {
                         Ok(Some(content)) => return Some(((mime, raw_content), content)),
                         Ok(None) => {}
-                        Err(e) => {
-                            error!("{e}");
-                        }
+                        Err(_e) => {}
                     }
                 }
             }
         }
-
-        warn!(
-            "unsupported mime types {:#?}",
-            self.raw_content().keys().collect::<Vec<_>>()
-        );
 
         None
     }
