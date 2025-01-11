@@ -97,7 +97,16 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
                             }
                             None => {
                                 error!("can't receive");
-                                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                                output
+                                    .send(ClipboardMessage::Error(
+                                        "clipboard watching error".to_string(),
+                                    ))
+                                    .await
+                                    .expect("can't send");
+
+                                loop {
+                                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                                }
                             }
                         }
                     }
@@ -111,7 +120,6 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
                         .await
                         .expect("can't send");
                     loop {
-                        error!("inside error: {e}");
                         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
                     }
                 }
