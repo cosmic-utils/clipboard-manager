@@ -73,3 +73,8 @@ lto = "fat"
 
 [patch."https://github.com/smithay/client-toolkit.git"]
 sctk = { package = "smithay-client-toolkit", version = "=0.19.2" }
+
+[patch.crates-io.alive_lock_file]
+git = "https://github.com/wiiznokes/alive_lock_file"
+branch = "master"
+# path = "../alive_lock_file"

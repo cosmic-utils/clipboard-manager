@@ -29,7 +29,11 @@ type Time = i64;
 const DB_VERSION: &str = "7";
 const DB_PATH: &str = constcat::concat!(APPID, "-db-", DB_VERSION, ".sqlite");
 
-const LOCK_FILE: &str = constcat::concat!(APPID, "-db", ".lock");
+const LOCK_FILE2: &str = constcat::concat!(APPID, "-db", ".lock");
+#[cfg(not(test))]
+const LOCK_FILE: &str = LOCK_FILE2;
+#[cfg(test)]
+const LOCK_FILE: &str = constcat::concat!("/tmp/", LOCK_FILE2);
 
 pub struct DbSqlite {
     conn: SqliteConnection,
