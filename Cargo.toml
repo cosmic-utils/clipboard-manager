@@ -69,3 +69,7 @@ lto = "fat"
 
 # [patch."https://github.com/wiiznokes/wl-clipboard-rs.git".wl-clipboard-rs]
 # path = "../wl-clipboard-rs"
+
+
+[patch."https://github.com/smithay/client-toolkit.git"]
+sctk = { package = "smithay-client-toolkit", version = "=0.19.2" }
