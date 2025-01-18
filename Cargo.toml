@@ -23,7 +23,7 @@ derivative = "2"
 os_pipe = "1"
 thiserror = "2"
 paste = "1"
-directories = "5"
+directories = "6"
 anyhow = "1"
 chrono = { version = "0.4", default-features = false, features = ["now"] }
 mime = "0.3"
