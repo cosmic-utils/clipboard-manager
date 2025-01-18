@@ -4,3 +4,4 @@
 /flatpak-builder-tools
 /.flatpak-builder
 /cargo-sources.json
+/flatpak-out

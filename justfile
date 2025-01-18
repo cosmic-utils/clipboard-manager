@@ -90,21 +90,23 @@ setup:
 sources-gen:
   python3 flatpak-builder-tools/cargo/flatpak-cargo-generator.py ./Cargo.lock -o cargo-sources.json
 
+sdk-version := "24.08"
+
 install-sdk:
-  flatpak remote-add --if-not-exists --user flathub https://flathub.org/repo/flathub.flatpakrepo
-  flatpak install --noninteractive --user flathub \
-    org.freedesktop.Platform//23.08 \
-    org.freedesktop.Sdk//23.08 \
-    org.freedesktop.Sdk.Extension.rust-stable//23.08 \
-    org.freedesktop.Sdk.Extension.llvm17//23.08
+    flatpak remote-add --if-not-exists --user flathub https://flathub.org/repo/flathub.flatpakrepo
+    flatpak install --noninteractive --user flathub \
+        org.freedesktop.Platform//{{sdk-version}} \
+        org.freedesktop.Sdk//{{sdk-version}} \
+        org.freedesktop.Sdk.Extension.rust-stable//{{sdk-version}} \
+        org.freedesktop.Sdk.Extension.llvm18//{{sdk-version}}
 
 uninstall-f:
   flatpak uninstall io.github.wiiznokes.cosmic-ext-applet-clipboard-manager -y || true
 
 # deps: flatpak-builder git-lfs
 build-and-install: uninstall-f
+  rm -rf flatpak-out || true
   flatpak-builder \
-    --force-clean \
     --verbose \
     --ccache \
     --user --install \
