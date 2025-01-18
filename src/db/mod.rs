@@ -218,7 +218,7 @@ fn find_alt(html: &str) -> Option<&str> {
     const DEB: &str = "alt=\"";
 
     if let Some(pos) = html.find(DEB) {
-        const OFFSET: usize = DEB.as_bytes().len();
+        const OFFSET: usize = DEB.len();
 
         if let Some(pos_end) = html[pos + OFFSET..].find('"') {
             return Some(&html[pos + OFFSET..pos + pos_end + OFFSET]);

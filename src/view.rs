@@ -1,4 +1,4 @@
-use std::{borrow::Cow, cmp::min};
+use std::{borrow::Cow, cmp::min, sync::LazyLock};
 
 use cosmic::{
     iced::{alignment::Horizontal, padding, Alignment, Length, Padding},
@@ -11,7 +11,7 @@ use cosmic::{
         self,
         button::{self},
         column, container, context_menu, horizontal_space, image, menu, row, scrollable, text,
-        text_input, toggler,
+        text_input, toggler, Id,
     },
     Element,
 };
@@ -24,6 +24,8 @@ use crate::{
     message::{AppMsg, ConfigMsg},
     utils::formatted_value,
 };
+
+pub static SCROLLABLE_ID: LazyLock<Id> = LazyLock::new(|| Id::new("scrollable"));
 
 impl<Db: DbTrait> AppState<Db> {
     pub fn quick_settings_view(&self) -> Element<'_, AppMsg> {
@@ -152,9 +154,9 @@ impl<Db: DbTrait> AppState<Db> {
                     .either_iter()
                     .enumerate()
                     .get(range)
-                    .filter_map(|(pos, data)| {
-                        data.preferred_content(&self.preferred_mime_types_regex)
-                            .and_then(|(_, content)| match content {
+                    .map(|(pos, data)| {
+                        match data.preferred_content(&self.preferred_mime_types_regex) {
+                            Some((_, content)) => match content {
                                 Content::Text(text) => {
                                     self.text_entry(data, pos == self.focused, text)
                                 }
@@ -164,7 +166,9 @@ impl<Db: DbTrait> AppState<Db> {
                                 Content::UriList(uris) => {
                                     self.uris_entry(data, pos == self.focused, &uris)
                                 }
-                            })
+                            },
+                            None => self.unknown_entry(data, pos == self.focused),
+                        }
                     })
                     .collect();
 
@@ -174,6 +178,7 @@ impl<Db: DbTrait> AppState<Db> {
                         .padding(padding::bottom(10));
 
                     scrollable(column)
+                        // .id(SCROLLABLE_ID.clone())
                         .direction(Direction::Horizontal(Scrollbar::default()))
                         .into()
                 } else {
@@ -182,8 +187,9 @@ impl<Db: DbTrait> AppState<Db> {
                         .padding(padding::right(10));
 
                     scrollable(column)
+                        // .id(SCROLLABLE_ID.clone())
                         // XXX: why ?
-                        .height(Length::FillPortion(2))
+                        // .height(Length::FillPortion(2))
                         .into()
                 }
             }
@@ -197,10 +203,10 @@ impl<Db: DbTrait> AppState<Db> {
         entry: &'a Db::Entry,
         is_focused: bool,
         image_data: &'a [u8],
-    ) -> Option<Element<'a, AppMsg>> {
+    ) -> Element<'a, AppMsg> {
         let handle = image::Handle::from_bytes(image_data.to_owned());
 
-        Some(self.base_entry(entry, is_focused, image(handle).width(Length::Fill)))
+        self.base_entry(entry, is_focused, image(handle).width(Length::Fill))
     }
 
     fn uris_entry<'a>(
@@ -208,11 +214,7 @@ impl<Db: DbTrait> AppState<Db> {
         entry: &'a Db::Entry,
         is_focused: bool,
         uris: &[&'a str],
-    ) -> Option<Element<'a, AppMsg>> {
-        if uris.is_empty() {
-            return None;
-        }
-
+    ) -> Element<'a, AppMsg> {
         let max = 3;
 
         let mut lines = Vec::with_capacity(min(uris.len(), max + 1));
@@ -225,11 +227,32 @@ impl<Db: DbTrait> AppState<Db> {
             lines.push(text("...").into());
         }
 
-        Some(self.base_entry(
+        self.base_entry(
             entry,
             is_focused,
             column::with_children(lines).width(Length::Fill),
-        ))
+        )
+    }
+
+    fn unknown_entry<'a>(&'a self, entry: &'a Db::Entry, is_focused: bool) -> Element<'a, AppMsg> {
+        let len = entry.raw_content().len();
+        let max = 3;
+        let mut lines = Vec::new();
+        lines.push(text(fl!("unknown_mime_types_title")).into());
+
+        for mime in entry.raw_content().keys().take(max) {
+            lines.push(text(format!("- {mime}")).into());
+        }
+
+        if len > max {
+            lines.push(text(format!("... ({})", len - max)).into());
+        }
+
+        self.base_entry(
+            entry,
+            is_focused,
+            column::with_children(lines).width(Length::Fill),
+        )
     }
 
     fn text_entry<'a>(
@@ -237,15 +260,12 @@ impl<Db: DbTrait> AppState<Db> {
         entry: &'a Db::Entry,
         is_focused: bool,
         content: &'a str,
-    ) -> Option<Element<'a, AppMsg>> {
-        if content.is_empty() {
-            return None;
-        }
+    ) -> Element<'a, AppMsg> {
         // todo: remove this max line things: display the maximum
         if self.config.horizontal {
-            Some(self.base_entry(entry, is_focused, text(formatted_value(content, 10, 500))))
+            self.base_entry(entry, is_focused, text(formatted_value(content, 10, 500)))
         } else {
-            Some(self.base_entry(entry, is_focused, text(formatted_value(content, 5, 200))))
+            self.base_entry(entry, is_focused, text(formatted_value(content, 5, 200)))
         }
     }
 
