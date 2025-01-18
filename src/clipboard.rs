@@ -58,38 +58,41 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
                     loop {
                         match rx.recv().await {
                             Some(Some(res)) => {
-                                let data = join_all(res.map(|(mut pipe, mime_type)| async move {
-                                    let mut contents = Vec::new();
+                                let data: MimeDataMap =
+                                    join_all(res.map(|(mut pipe, mime_type)| async move {
+                                        let mut contents = Vec::new();
 
-                                    match tokio::time::timeout(
-                                        Duration::from_millis(100),
-                                        pipe.read_to_end(&mut contents),
-                                    )
+                                        match tokio::time::timeout(
+                                            Duration::from_millis(100),
+                                            pipe.read_to_end(&mut contents),
+                                        )
+                                        .await
+                                        {
+                                            Ok(Ok(_)) => Some((mime_type, contents)),
+                                            Ok(Err(e)) => {
+                                                warn!(
+                                                "read timeout on external pipe clipboard: {} {e}",
+                                                mime_type
+                                            );
+                                                None
+                                            }
+                                            Err(e) => {
+                                                warn!(
+                                                "read timeout on external pipe clipboard: {} {e}",
+                                                mime_type
+                                            );
+                                                None
+                                            }
+                                        }
+                                    }))
                                     .await
-                                    {
-                                        Ok(Ok(_)) => Some((mime_type, contents)),
-                                        Ok(Err(e)) => {
-                                            warn!(
-                                                "read timeout on external pipe clipboard: {} {e}",
-                                                mime_type
-                                            );
-                                            None
-                                        }
-                                        Err(e) => {
-                                            warn!(
-                                                "read timeout on external pipe clipboard: {} {e}",
-                                                mime_type
-                                            );
-                                            None
-                                        }
-                                    }
-                                }))
-                                .await
-                                .into_iter()
-                                .flatten()
-                                .collect();
+                                    .into_iter()
+                                    .flatten()
+                                    .collect();
 
-                                output.send(ClipboardMessage::Data(data)).await.unwrap();
+                                if !data.is_empty() {
+                                    output.send(ClipboardMessage::Data(data)).await.unwrap();
+                                }
                             }
 
                             Some(None) => {

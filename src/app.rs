@@ -5,10 +5,12 @@ use cosmic::iced::keyboard::key::Named;
 use cosmic::iced::window::Id;
 use cosmic::iced::{self, Limits};
 
+use cosmic::iced_core::widget::operation;
 use cosmic::iced_futures::Subscription;
 use cosmic::iced_runtime::core::window;
 use cosmic::iced_runtime::platform_specific::wayland::layer_surface::SctkLayerSurfaceSettings;
 use cosmic::iced_widget::qr_code;
+use cosmic::iced_widget::scrollable::RelativeOffset;
 use cosmic::iced_winit::commands::layer_surface::{
     self, destroy_layer_surface, get_layer_surface, KeyboardInteractivity,
 };
@@ -25,9 +27,10 @@ use crate::db::{DbMessage, DbTrait, EntryTrait};
 use crate::message::{AppMsg, ConfigMsg};
 use crate::navigation::EventMsg;
 use crate::utils::task_message;
+use crate::view::SCROLLABLE_ID;
 use crate::{clipboard, config, navigation};
 
-use cosmic::cosmic_config;
+use cosmic::{cosmic_config, iced_runtime};
 use std::sync::atomic::{self};
 use std::time::Duration;
 
@@ -82,15 +85,67 @@ enum PopupKind {
 }
 
 impl<Db: DbTrait> AppState<Db> {
-    fn focus_next(&mut self) {
+    fn focus_next(&mut self) -> Task<AppMsg> {
         if self.db.len() > 0 {
             self.focused = (self.focused + 1) % self.db.len();
+            self.page = self.focused / self.config.maximum_entries_by_page.get() as usize;
+
+            debug!("");
+            debug!("len = {}", self.db.len());
+            debug!("focused = {}", self.focused);
+            debug!(
+                "maximum_entries_by_page = {}",
+                self.config.maximum_entries_by_page.get() as usize
+            );
+            debug!("page = {}", self.page);
+
+            // will not work with last page but it is not used anyway because have bug
+            let delta_y = (self.focused % self.config.maximum_entries_by_page.get() as usize)
+                as f32
+                / self.config.maximum_entries_by_page.get() as f32;
+
+            debug!("delta_y = {}", delta_y);
+
+            iced_runtime::task::widget(operation::scrollable::snap_to(
+                SCROLLABLE_ID.clone(),
+                RelativeOffset {
+                    x: 0.,
+                    y: delta_y.max(1.).max(0.0),
+                },
+            ))
+        } else {
+            Task::none()
         }
     }
 
-    fn focus_previous(&mut self) {
+    fn focus_previous(&mut self) -> Task<AppMsg> {
         if self.db.len() > 0 {
             self.focused = (self.focused + self.db.len() - 1) % self.db.len();
+            self.page = self.focused / self.config.maximum_entries_by_page.get() as usize;
+
+            debug!("");
+            debug!("len = {}", self.db.len());
+            debug!("focused = {}", self.focused);
+            debug!(
+                "maximum_entries_by_page = {}",
+                self.config.maximum_entries_by_page.get() as usize
+            );
+            debug!("page = {}", self.page);
+
+            let delta_y = (self.focused % self.config.maximum_entries_by_page.get() as usize)
+                as f32
+                / self.config.maximum_entries_by_page.get() as f32;
+
+            debug!("delta_y = {}", delta_y);
+            iced_runtime::task::widget(operation::scrollable::snap_to(
+                SCROLLABLE_ID.clone(),
+                RelativeOffset {
+                    x: 0.,
+                    y: delta_y.max(1.).max(0.0),
+                },
+            ))
+        } else {
+            Task::none()
         }
     }
 
@@ -364,17 +419,28 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                     return task_message(AppMsg::Navigation(message));
                 }
                 EventMsg::Next => {
-                    self.focus_next();
+                    return self.focus_next();
                 }
                 EventMsg::Previous => {
-                    self.focus_previous();
+                    return self.focus_previous();
                 }
                 EventMsg::Enter => {
-                    if let Some(data) = self.db.get(self.focused) {
-                        if let Err(e) = clipboard::copy(data.clone()) {
-                            error!("can't copy: {e}");
+                    if matches!(
+                        self.popup,
+                        Some(Popup {
+                            kind: PopupKind::Popup,
+                            ..
+                        })
+                    ) {
+                        debug!("copy!!!");
+                        if let Some(data) = self.db.get(self.focused) {
+                            if let Err(e) = clipboard::copy(data.clone()) {
+                                error!("can't copy: {e}");
+                            }
+                            return self.close_popup();
                         }
-                        return self.close_popup();
+                    } else {
+                        debug!("don't copy!!!");
                     }
                 }
                 EventMsg::Quit => {
