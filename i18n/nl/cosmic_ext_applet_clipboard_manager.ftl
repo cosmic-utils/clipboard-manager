@@ -1,0 +1,12 @@
+search_entries = Zoeken
+delete_entry = Verwijderen
+incognito = Incognito
+clear_entries = Opschonen
+show_qr_code = QR-code tonen
+return_to_clipboard = Terug naar klembord
+qr_code_error = Kon geen QR-code genereren
+horizontal_layout = Horizontaal
+add_favorite = Favoriet toevoegen
+remove_favorite = Favoriet verwijderen
+unique_session = Unieke sessie
+unknown_mime_types_title = Mime-types
