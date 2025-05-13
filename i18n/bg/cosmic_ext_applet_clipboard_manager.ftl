@@ -1,0 +1,12 @@
+search_entries = Търсене
+delete_entry = Изтриване
+incognito = Поверителен режим
+clear_entries = Изчистване
+show_qr_code = Показване на QR код
+return_to_clipboard = Връщане към буфера за обмен
+qr_code_error = QR кодът не може да бъде генериран
+horizontal_layout = Хоризонтално
+add_favorite = Добавяне в любими
+remove_favorite = Премахване от любими
+unique_session = Уникална сесия
+unknown_mime_types_title = Видове MIME
