@@ -1,0 +1,12 @@
+search_entries = Procurar
+delete_entry = Excluir
+incognito = Incógnito
+clear_entries = Limpar
+show_qr_code = Exibir QR code
+return_to_clipboard = Retornar à área de transferência
+qr_code_error = Erro ao gerar o QR code
+horizontal_layout = Horizontal
+add_favorite = Adicionar Favorito
+remove_favorite = Remover Favorito
+unique_session = Sessão única
+unknown_mime_types_title = Tipos MIME

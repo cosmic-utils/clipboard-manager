@@ -1,7 +1,10 @@
 [Desktop Entry]
 Name=Clipboard Manager
+Name[pt]=Gestor da Área de Transferência
 Comment=A wayland clipboard manager
+Comment[pt]=Miniaplicativo para gerenciar itens copiados no sistema
 Keywords=Cosmic;Iced;history;
+Keywords[pt]=clipboard;histórico;
 
 # translators: do not translate this part
 Icon=io.github.wiiznokes.cosmic-ext-applet-clipboard-manager-symbolic
