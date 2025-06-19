@@ -18,7 +18,6 @@ i18n-embed = { version = "0.15", features = [
 ] }
 i18n-embed-fl = "0.9"
 rust-embed = "8"
-
 derivative = "2"
 os_pipe = "1"
 thiserror = "2"
@@ -35,7 +34,7 @@ tracing-subscriber = { version = "0.3", features = [
     "ansi",
 ] }
 tracing-journald = "0.3"
-constcat = "0.5"
+constcat = "0.6"
 nucleo = "0.5"
 futures = "0.3"
 include_dir = "0.7"
