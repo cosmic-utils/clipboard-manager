@@ -5,7 +5,7 @@ use std::{
 
 use cosmic::iced::{futures::SinkExt, stream::channel};
 use futures::{future::join_all, Stream};
-use tokio::{io::AsyncReadExt, net::unix::pipe, sync::mpsc};
+use tokio::{io::AsyncReadExt, sync::mpsc};
 use wl_clipboard_rs::{
     copy::{self, MimeSource},
     paste_watch,
@@ -32,7 +32,7 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
             match paste_watch::Watcher::init(paste_watch::ClipboardType::Regular) {
                 Ok(mut clipboard_watcher) => {
                     let (tx, mut rx) =
-                        mpsc::channel::<Option<std::vec::IntoIter<(pipe::Receiver, String)>>>(5);
+                        mpsc::channel(5);
 
                     tokio::task::spawn_blocking(move || loop {
                         match clipboard_watcher.start_watching(paste_watch::Seat::Unspecified) {
@@ -59,7 +59,7 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
                         match rx.recv().await {
                             Some(Some(res)) => {
                                 let data: MimeDataMap =
-                                    join_all(res.map(|(mut pipe, mime_type)| async move {
+                                    join_all(res.map(|(mime_type, mut pipe)| async move {
                                         let mut contents = Vec::new();
 
                                         match tokio::time::timeout(
