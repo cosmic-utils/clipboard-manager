@@ -1,0 +1,12 @@
+search_entries = 搜索
+delete_entry = 删除
+incognito = 匿名
+clear_entries = 清理
+show_qr_code = 显示二维码
+return_to_clipboard = 返回剪贴板
+qr_code_error = 生成二维码错误
+horizontal_layout = 水平
+add_favorite = 添加收藏
+remove_favorite = 移除收藏
+unique_session = 单一会话
+unknown_mime_types_title = Mime类型
