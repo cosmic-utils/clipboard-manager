@@ -12,19 +12,19 @@ use cosmic::iced_runtime::platform_specific::wayland::layer_surface::SctkLayerSu
 use cosmic::iced_widget::qr_code;
 use cosmic::iced_widget::scrollable::RelativeOffset;
 use cosmic::iced_winit::commands::layer_surface::{
-    self, destroy_layer_surface, get_layer_surface, KeyboardInteractivity,
+    self, KeyboardInteractivity, destroy_layer_surface, get_layer_surface,
 };
 use cosmic::iced_winit::commands::popup::{destroy_popup, get_popup};
 use cosmic::widget::{MouseArea, Space};
 
-use cosmic::{app::Task, Element};
-use futures::executor::block_on;
+use cosmic::{Element, app::Task};
 use futures::StreamExt;
+use futures::executor::block_on;
 use regex::Regex;
 
 use crate::config::{Config, PRIVATE_MODE};
 use crate::db::{DbMessage, DbTrait, EntryTrait};
-use crate::message::{AppMsg, ConfigMsg};
+use crate::message::{AppMsg, ConfigMsg, ContextMenuMsg};
 use crate::navigation::EventMsg;
 use crate::utils::task_message;
 use crate::view::SCROLLABLE_ID;
@@ -391,11 +391,6 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
 
                 return self.close_popup();
             }
-            AppMsg::Delete(id) => {
-                if let Err(e) = block_on(self.db.delete(id)) {
-                    error!("can't delete {}: {}", id, e);
-                }
-            }
             AppMsg::Clear => {
                 if let Err(e) = block_on(self.db.clear()) {
                     error!("can't clear db: {e}");
@@ -453,32 +448,6 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                     error!("{err}");
                 }
             }
-            AppMsg::ShowQrCode(id) => {
-                match self.db.get_from_id(id) {
-                    Some(entry) => {
-                        if let Some(((_, content), _)) =
-                            entry.preferred_content(&self.preferred_mime_types_regex)
-                        {
-                            // todo: handle better this error
-                            if content.len() < 700 {
-                                match qr_code::Data::new(content) {
-                                    Ok(s) => {
-                                        self.qr_code.replace(Ok(s));
-                                    }
-                                    Err(e) => {
-                                        error!("{e}");
-                                        self.qr_code.replace(Err(()));
-                                    }
-                                }
-                            } else {
-                                error!("qr code to long: {}", content.len());
-                                self.qr_code.replace(Err(()));
-                            }
-                        }
-                    }
-                    None => error!("id not found"),
-                }
-            }
             AppMsg::ReturnToClipboard => {
                 self.qr_code.take();
             }
@@ -494,16 +463,6 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                     config_set!(unique_session, unique_session);
                 }
             },
-            AppMsg::AddFavorite(entry) => {
-                if let Err(err) = block_on(self.db.add_favorite(entry, None)) {
-                    error!("{err}");
-                }
-            }
-            AppMsg::RemoveFavorite(entry) => {
-                if let Err(err) = block_on(self.db.remove_favorite(entry)) {
-                    error!("{err}");
-                }
-            }
             AppMsg::NextPage => {
                 self.page += 1;
                 self.focused = self.page * self.config.maximum_entries_by_page.get() as usize;
@@ -512,6 +471,49 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                 self.page -= 1;
                 self.focused = self.page * self.config.maximum_entries_by_page.get() as usize;
             }
+            AppMsg::ContextMenu(msg) => match msg {
+                ContextMenuMsg::RemoveFavorite(entry) => {
+                    if let Err(err) = block_on(self.db.remove_favorite(entry)) {
+                        error!("{err}");
+                    }
+                }
+                ContextMenuMsg::AddFavorite(entry) => {
+                    if let Err(err) = block_on(self.db.add_favorite(entry, None)) {
+                        error!("{err}");
+                    }
+                }
+                ContextMenuMsg::ShowQrCode(id) => {
+                    match self.db.get_from_id(id) {
+                        Some(entry) => {
+                            if let Some(((_, content), _)) =
+                                entry.preferred_content(&self.preferred_mime_types_regex)
+                            {
+                                // todo: handle better this error
+                                if content.len() < 700 {
+                                    match qr_code::Data::new(content) {
+                                        Ok(s) => {
+                                            self.qr_code.replace(Ok(s));
+                                        }
+                                        Err(e) => {
+                                            error!("{e}");
+                                            self.qr_code.replace(Err(()));
+                                        }
+                                    }
+                                } else {
+                                    error!("qr code to long: {}", content.len());
+                                    self.qr_code.replace(Err(()));
+                                }
+                            }
+                        }
+                        None => error!("id not found"),
+                    }
+                }
+                ContextMenuMsg::Delete(id) => {
+                    if let Err(e) = block_on(self.db.delete(id)) {
+                        error!("can't delete {}: {}", id, e);
+                    }
+                }
+            },
         }
         Task::none()
     }

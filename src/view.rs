@@ -1,19 +1,11 @@
-use std::{borrow::Cow, cmp::min, sync::LazyLock};
+use std::{borrow::Cow, cmp::min, collections::HashMap, sync::LazyLock};
 
 use cosmic::{
-    iced::{alignment::Horizontal, padding, Alignment, Length, Padding},
-    iced_widget::{
-        scrollable::{Direction, Scrollbar},
-        Stack,
-    },
-    theme::Button,
-    widget::{
-        self,
-        button::{self},
-        column, container, context_menu, horizontal_space, image, menu, row, scrollable, text,
-        text_input, toggler, Id,
-    },
-    Element,
+    iced::{alignment::Horizontal, padding, Alignment, Length, Padding}, iced_widget::{
+        scrollable::{Direction, Scrollbar}, Stack
+    }, theme::Button, widget::{
+        self, button::{self}, column, container, context_menu, horizontal_space, image, list, menu::{self}, row, scrollable, text, text_input, toggler, Id
+    }, Element
 };
 use itertools::Itertools;
 
@@ -21,7 +13,7 @@ use crate::{
     app::AppState,
     db::{Content, DbTrait, EntryTrait},
     fl, icon, icon_button,
-    message::{AppMsg, ConfigMsg},
+    message::{AppMsg, ConfigMsg, ContextMenuMsg},
     utils::formatted_value,
 };
 
@@ -275,6 +267,7 @@ impl<Db: DbTrait> AppState<Db> {
         is_focused: bool,
         content: impl Into<Element<'a, AppMsg>>,
     ) -> Element<'a, AppMsg> {
+
         let btn = button::custom(content)
             .on_press(AppMsg::Copy(entry.id()))
             .padding([8, 16])
@@ -341,35 +334,35 @@ impl<Db: DbTrait> AppState<Db> {
             btn
         };
 
-        context_menu(
-            content,
-            Some(vec![
-                if entry.is_favorite() {
-                    menu::Tree::new(
-                        button::text(fl!("remove_favorite"))
-                            .on_press(AppMsg::RemoveFavorite(entry.id()))
-                            .width(Length::Fill),
-                    )
-                } else {
-                    menu::Tree::new(
-                        button::text(fl!("add_favorite"))
-                            .on_press(AppMsg::AddFavorite(entry.id()))
-                            .width(Length::Fill),
-                    )
-                },
-                menu::Tree::new(
-                    button::text(fl!("show_qr_code"))
-                        .on_press(AppMsg::ShowQrCode(entry.id()))
-                        .width(Length::Fill),
-                ),
-                menu::Tree::new(
-                    button::text(fl!("delete_entry"))
-                        .on_press(AppMsg::Delete(entry.id()))
-                        .width(Length::Fill)
-                        .class(Button::Destructive),
-                ),
-            ]),
-        )
-        .into()
+        let items = vec![
+            if entry.is_favorite() {
+                menu::Item::Button(
+                    fl!("remove_favorite"),
+                    None,
+                    ContextMenuMsg::RemoveFavorite(entry.id()),
+                )
+            } else {
+                menu::Item::Button(
+                    fl!("add_favorite"),
+                    None,
+                    ContextMenuMsg::AddFavorite(entry.id()),
+                )
+            },
+            menu::Item::Button(
+                fl!("show_qr_code"),
+                None,
+                ContextMenuMsg::ShowQrCode(entry.id()),
+            ),
+            menu::Item::Button(
+                fl!("delete_entry"),
+                None,
+                ContextMenuMsg::Delete(entry.id()),
+            ),
+        ];
+
+        let tree = menu::items(&HashMap::new(), items);
+
+
+        context_menu(content, Some(tree)).into()
     }
 }
