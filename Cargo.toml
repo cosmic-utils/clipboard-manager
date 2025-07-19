@@ -12,11 +12,11 @@ rust-version = "1.85"
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
 
-i18n-embed = { version = "0.15", features = [
+i18n-embed = { version = "0.16", features = [
     "fluent-system",
     "desktop-requester",
 ] }
-i18n-embed-fl = "0.9"
+i18n-embed-fl = "0.10"
 rust-embed = "8"
 
 derivative = "2"
