@@ -1,11 +1,20 @@
 use std::{borrow::Cow, cmp::min, collections::HashMap, sync::LazyLock};
 
 use cosmic::{
-    iced::{alignment::Horizontal, padding, Alignment, Length, Padding}, iced_widget::{
-        scrollable::{Direction, Scrollbar}, Stack
-    }, theme::Button, widget::{
-        self, button::{self}, column, container, context_menu, horizontal_space, image, list, menu::{self}, row, scrollable, text, text_input, toggler, Id
-    }, Element
+    Element,
+    iced::{Alignment, Length, Padding, alignment::Horizontal, padding},
+    iced_widget::{
+        Stack,
+        scrollable::{Direction, Scrollbar},
+    },
+    theme::Button,
+    widget::{
+        self, Id,
+        button::{self},
+        column, container, context_menu, horizontal_space, image, list,
+        menu::{self},
+        row, scrollable, text, text_input, toggler,
+    },
 };
 use itertools::Itertools;
 
@@ -14,6 +23,7 @@ use crate::{
     db::{Content, DbTrait, EntryTrait},
     fl, icon, icon_button,
     message::{AppMsg, ConfigMsg, ContextMenuMsg},
+    my_widget,
     utils::formatted_value,
 };
 
@@ -267,7 +277,6 @@ impl<Db: DbTrait> AppState<Db> {
         is_focused: bool,
         content: impl Into<Element<'a, AppMsg>>,
     ) -> Element<'a, AppMsg> {
-
         let btn = button::custom(content)
             .on_press(AppMsg::Copy(entry.id()))
             .padding([8, 16])
@@ -334,7 +343,49 @@ impl<Db: DbTrait> AppState<Db> {
             btn
         };
 
-        let items = vec![
+        let overlay: Element<_> = column()
+            .push(if entry.is_favorite() {
+                button::text(fl!("remove_favorite"))
+                    .on_press(ContextMenuMsg::RemoveFavorite(entry.id()))
+            } else {
+                button::text(fl!("add_favorite")).on_press(ContextMenuMsg::AddFavorite(entry.id()))
+            })
+            .into();
+
+        let overlay = overlay.map(|m| AppMsg::ContextMenu(m));
+
+        my_widget::context_menu::ContextMenu::new(content, overlay).into()
+
+        // let items = vec![
+        //     if entry.is_favorite() {
+        //         menu::Item::Button(
+        //             fl!("remove_favorite"),
+        //             None,
+        //             ContextMenuMsg::RemoveFavorite(entry.id()),
+        //         )
+        //     } else {
+        //         menu::Item::Button(
+        //             fl!("add_favorite"),
+        //             None,
+        //             ContextMenuMsg::AddFavorite(entry.id()),
+        //         )
+        //     },
+        //     menu::Item::Button(
+        //         fl!("show_qr_code"),
+        //         None,
+        //         ContextMenuMsg::ShowQrCode(entry.id()),
+        //     ),
+        //     menu::Item::Button(
+        //         fl!("delete_entry"),
+        //         None,
+        //         ContextMenuMsg::Delete(entry.id()),
+        //     ),
+        // ];
+    }
+}
+
+/*
+let items = vec![
             if entry.is_favorite() {
                 menu::Item::Button(
                     fl!("remove_favorite"),
@@ -362,7 +413,6 @@ impl<Db: DbTrait> AppState<Db> {
 
         let tree = menu::items(&HashMap::new(), items);
 
-
         context_menu(content, Some(tree)).into()
-    }
-}
+
+*/

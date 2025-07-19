@@ -4,7 +4,7 @@ use std::{
 };
 
 use cosmic::iced::{futures::SinkExt, stream::channel};
-use futures::{future::join_all, Stream};
+use futures::{Stream, future::join_all};
 use tokio::{io::AsyncReadExt, sync::mpsc};
 use wl_clipboard_rs::{
     copy::{self, MimeSource},
@@ -31,26 +31,27 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
         async move {
             match paste_watch::Watcher::init(paste_watch::ClipboardType::Regular) {
                 Ok(mut clipboard_watcher) => {
-                    let (tx, mut rx) =
-                        mpsc::channel(5);
+                    let (tx, mut rx) = mpsc::channel(5);
 
-                    tokio::task::spawn_blocking(move || loop {
-                        match clipboard_watcher.start_watching(paste_watch::Seat::Unspecified) {
-                            Ok(res) => {
-                                if !PRIVATE_MODE.load(atomic::Ordering::Relaxed) {
-                                    tx.blocking_send(Some(res)).expect("can't send");
-                                } else {
-                                    info!("private mode")
+                    tokio::task::spawn_blocking(move || {
+                        loop {
+                            match clipboard_watcher.start_watching(paste_watch::Seat::Unspecified) {
+                                Ok(res) => {
+                                    if !PRIVATE_MODE.load(atomic::Ordering::Relaxed) {
+                                        tx.blocking_send(Some(res)).expect("can't send");
+                                    } else {
+                                        info!("private mode")
+                                    }
                                 }
+                                Err(e) => match e {
+                                    paste_watch::Error::ClipboardEmpty => {
+                                        tx.blocking_send(None).expect("can't send")
+                                    }
+                                    _ => {
+                                        error!("watch clipboard error: {e}");
+                                    }
+                                },
                             }
-                            Err(e) => match e {
-                                paste_watch::Error::ClipboardEmpty => {
-                                    tx.blocking_send(None).expect("can't send")
-                                }
-                                _ => {
-                                    error!("watch clipboard error: {e}");
-                                }
-                            },
                         }
                     });
                     output.send(ClipboardMessage::Connected).await.unwrap();

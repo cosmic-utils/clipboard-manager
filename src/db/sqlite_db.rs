@@ -1,7 +1,7 @@
 use alive_lock_file::LockResultWithDrop;
 use derivative::Derivative;
 use futures::StreamExt;
-use sqlx::{migrate::MigrateDatabase, prelude::*, Sqlite, SqliteConnection};
+use sqlx::{Sqlite, SqliteConnection, migrate::MigrateDatabase, prelude::*};
 use std::{
     cell::RefCell,
     collections::{BTreeMap, HashMap, HashSet},
@@ -10,10 +10,10 @@ use std::{
     path::Path,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use nucleo::{
-    pattern::{Atom, AtomKind, CaseMatching, Normalization},
     Matcher, Utf32Str,
+    pattern::{Atom, AtomKind, CaseMatching, Normalization},
 };
 
 use crate::{
@@ -22,7 +22,7 @@ use crate::{
     utils::{self},
 };
 
-use super::{now, DbMessage, DbTrait, EntryId, EntryTrait, MimeDataMap, PRIV_MIME_TYPES_SIMPLE};
+use super::{DbMessage, DbTrait, EntryId, EntryTrait, MimeDataMap, PRIV_MIME_TYPES_SIMPLE, now};
 
 type Time = i64;
 

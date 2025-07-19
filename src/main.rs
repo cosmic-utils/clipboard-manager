@@ -3,10 +3,10 @@
 // #![allow(unused_imports)]
 
 use app::{AppState, Flags};
-use config::{Config, CONFIG_VERSION};
+use config::{CONFIG_VERSION, Config};
 use cosmic::cosmic_config;
 use cosmic::cosmic_config::CosmicConfigEntry;
-use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 mod app;
 mod clipboard;
@@ -15,6 +15,7 @@ mod db;
 mod icon;
 mod localize;
 mod message;
+mod my_widget;
 mod navigation;
 mod utils;
 mod view;
