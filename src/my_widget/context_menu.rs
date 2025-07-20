@@ -1,10 +1,10 @@
 use cosmic::{
     iced::{self, keyboard, touch},
-    iced_core::{Size, Vector, keyboard::key::Named, widget::tree},
+    iced_core::{Size, Vector, widget::tree},
     iced_widget,
 };
 use iced_widget::core::{
-    self, Clipboard, Element, Event, Layout, Length, Point, Rectangle, Shell, Widget, event,
+    Clipboard, Element, Event, Layout, Length, Point, Rectangle, Shell, Widget, event,
     layout::{Limits, Node},
     mouse::{self, Cursor},
     overlay, renderer,
@@ -193,22 +193,12 @@ where
         let position = state.cursor_position;
         self.overlay.as_widget_mut().diff(&mut tree.children[1]);
 
-        Some(context_menu_overlay(
-            position + translation,
-            &mut tree.children[1],
-            &mut self.overlay,
+        Some(overlay::Element::new(Box::new(ContextMenuOverlay {
+            position: position + translation,
+            tree: &mut tree.children[1],
+            content: &mut self.overlay,
             state,
-        ))
-
-        // Some(
-        //     ContextMenuOverlay::new(
-        //         position + translation,
-        //         &mut tree.children[1],
-        //         &mut self.overlay,
-        //         state,
-        //     )
-        //     .overlay(),
-        // )
+        })))
     }
 }
 
@@ -243,74 +233,24 @@ impl State {
     }
 }
 
-pub fn context_menu_overlay<'a, Message, Theme, Renderer>(
-    position: Point,
-    tree: &'a mut Tree,
-    content: &'a mut Element<'a, Message, Theme, Renderer>,
-    state: &'a mut State,
-) -> overlay::Element<'a, Message, Theme, Renderer>
+struct ContextMenuOverlay<'a, 'b, Message, Theme, Renderer>
 where
     Renderer: renderer::Renderer,
-{
-    ContextMenuOverlay::new(
-        position,
-        &mut tree.children[1],
-        content,
-        state,
-    )
-    .overlay()
-}
-
-struct ContextMenuOverlay<'a, Message, Theme, Renderer>
-where
-    Message: 'a,
-    Theme: 'a,
-    Renderer: 'a + renderer::Renderer,
 {
     // The position of the element
     position: Point,
     /// The state of the [`ContextMenuOverlay`].
-    tree: &'a mut Tree,
+    tree: &'b mut Tree,
     /// The content of the [`ContextMenuOverlay`].
-    content: &'a mut Element<'a, Message, Theme, Renderer>,
+    content: &'b mut Element<'a, Message, Theme, Renderer>,
     /// The state shared between [`ContextMenu`](crate::widget::ContextMenu) and [`ContextMenuOverlay`].
-    state: &'a mut State,
+    state: &'b mut State,
 }
 
-impl<'a, Message, Theme, Renderer> ContextMenuOverlay<'a, Message, Theme, Renderer>
+impl<Message, Theme, Renderer> overlay::Overlay<Message, Theme, Renderer>
+    for ContextMenuOverlay<'_, '_, Message, Theme, Renderer>
 where
-    Message: 'a,
-    Theme: 'a,
-    Renderer: 'a + renderer::Renderer,
-{
-    /// Creates a new [`ContextMenuOverlay`].
-    fn new(
-        position: Point,
-        tree: &'a mut Tree,
-        content: &'a mut Element<'a, Message, Theme, Renderer>,
-        state: &'a mut State,
-    ) -> Self {
-        ContextMenuOverlay {
-            position,
-            tree,
-            content,
-            state,
-        }
-    }
-
-    /// Turn this [`ContextMenuOverlay`] into an overlay [`Element`](overlay::Element).
-    #[must_use]
-    fn overlay(self) -> overlay::Element<'a, Message, Theme, Renderer> {
-        overlay::Element::new(Box::new(self))
-    }
-}
-
-impl<'a, Message, Theme, Renderer> overlay::Overlay<Message, Theme, Renderer>
-    for ContextMenuOverlay<'a, Message, Theme, Renderer>
-where
-    Message: 'a,
-    Theme: 'a,
-    Renderer: 'a + renderer::Renderer,
+    Renderer: renderer::Renderer,
 {
     fn layout(&mut self, renderer: &Renderer, bounds: Size) -> Node {
         let limits = Limits::new(Size::ZERO, bounds);

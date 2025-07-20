@@ -1,7 +1,7 @@
-use std::{borrow::Cow, cmp::min, collections::HashMap, sync::LazyLock};
+use std::{borrow::Cow, cmp::min, sync::LazyLock};
 
 use cosmic::{
-    Element,
+    Apply, Element,
     iced::{Alignment, Length, Padding, alignment::Horizontal, padding},
     iced_widget::{
         Stack,
@@ -11,9 +11,7 @@ use cosmic::{
     widget::{
         self, Id,
         button::{self},
-        column, container, context_menu, horizontal_space, image, list,
-        menu::{self},
-        row, scrollable, text, text_input, toggler,
+        column, container, horizontal_space, image, row, scrollable, text, text_input, toggler,
     },
 };
 use itertools::Itertools;
@@ -350,37 +348,18 @@ impl<Db: DbTrait> AppState<Db> {
             } else {
                 button::text(fl!("add_favorite")).on_press(ContextMenuMsg::AddFavorite(entry.id()))
             })
-            .into();
-
-        let overlay = overlay.map(|m| AppMsg::ContextMenu(m));
+            .push(
+                button::text(fl!("show_qr_code")).on_press(ContextMenuMsg::ShowQrCode(entry.id())),
+            )
+            .push(
+                button::text(fl!("delete_entry"))
+                    .on_press(ContextMenuMsg::Delete(entry.id()))
+                    .class(Button::Destructive),
+            )
+            .apply(Element::from)
+            .map(AppMsg::ContextMenu);
 
         my_widget::context_menu::ContextMenu::new(content, overlay).into()
-
-        // let items = vec![
-        //     if entry.is_favorite() {
-        //         menu::Item::Button(
-        //             fl!("remove_favorite"),
-        //             None,
-        //             ContextMenuMsg::RemoveFavorite(entry.id()),
-        //         )
-        //     } else {
-        //         menu::Item::Button(
-        //             fl!("add_favorite"),
-        //             None,
-        //             ContextMenuMsg::AddFavorite(entry.id()),
-        //         )
-        //     },
-        //     menu::Item::Button(
-        //         fl!("show_qr_code"),
-        //         None,
-        //         ContextMenuMsg::ShowQrCode(entry.id()),
-        //     ),
-        //     menu::Item::Button(
-        //         fl!("delete_entry"),
-        //         None,
-        //         ContextMenuMsg::Delete(entry.id()),
-        //     ),
-        // ];
     }
 }
 
