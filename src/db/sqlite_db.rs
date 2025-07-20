@@ -1,5 +1,4 @@
 use alive_lock_file::LockResultWithDrop;
-use derivative::Derivative;
 use futures::StreamExt;
 use sqlx::{Sqlite, SqliteConnection, migrate::MigrateDatabase, prelude::*};
 use std::{
@@ -52,7 +51,7 @@ pub struct DbSqlite {
     lock: Option<LockResultWithDrop>,
 }
 
-#[derive(Clone, Derivative)]
+#[derive(Clone)]
 pub struct Entry {
     pub id: EntryId,
     pub creation: Time,

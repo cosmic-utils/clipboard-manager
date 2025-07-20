@@ -4,10 +4,10 @@ use std::{
     time::Duration,
 };
 
-#[cfg(test)]
-use configurator_schema::schemars;
-#[cfg(test)]
-use configurator_schema::schemars::JsonSchema;
+// #[cfg(test)]
+// use configurator_schema::schemars;
+// #[cfg(test)]
+// use configurator_schema::schemars::JsonSchema;
 
 use cosmic::{
     cosmic_config::{self, CosmicConfigEntry, cosmic_config_derive::CosmicConfigEntry},
@@ -21,7 +21,7 @@ use crate::{app::APPID, message::AppMsg};
 pub const CONFIG_VERSION: u64 = 3;
 
 #[derive(CosmicConfigEntry, Debug, Clone, Eq, PartialEq, Deserialize, Serialize)]
-#[cfg_attr(test, derive(JsonSchema))]
+// #[cfg_attr(test, derive(JsonSchema))]
 #[serde(default)]
 pub struct Config {
     /// Disable the clipboard manager
@@ -76,24 +76,24 @@ pub fn sub() -> Subscription<AppMsg> {
     })
 }
 
-#[cfg(test)]
-mod test {
-    use std::fs;
+// #[cfg(test)]
+// mod test {
+//     use std::fs;
 
-    use configurator_schema::ConfigFormat;
+//     use configurator_schema::ConfigFormat;
 
-    use crate::app::APPID;
+//     use crate::app::APPID;
 
-    use super::{CONFIG_VERSION, Config};
+//     use super::{CONFIG_VERSION, Config};
 
-    #[test]
-    fn gen_schema() {
-        let string = configurator_schema::gen_schema::<Config>()
-            .format(ConfigFormat::CosmicRon)
-            .source_home_path(&format!(".config/cosmic/{}/v{}", APPID, CONFIG_VERSION))
-            .call()
-            .unwrap();
+//     #[test]
+//     fn gen_schema() {
+//         let string = configurator_schema::gen_schema::<Config>()
+//             .format(ConfigFormat::CosmicRon)
+//             .source_home_path(&format!(".config/cosmic/{}/v{}", APPID, CONFIG_VERSION))
+//             .call()
+//             .unwrap();
 
-        fs::write("res/config_schema.json", &string).unwrap();
-    }
-}
+//         fs::write("res/config_schema.json", &string).unwrap();
+//     }
+// }
