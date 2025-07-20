@@ -16,17 +16,32 @@ pub enum AppMsg {
     #[allow(dead_code)]
     RetryConnectingClipboard,
     Copy(EntryId),
-    Delete(EntryId),
     Clear,
     Navigation(EventMsg),
     Db(DbMessage),
-    ShowQrCode(EntryId),
     ReturnToClipboard,
     Config(ConfigMsg),
-    AddFavorite(EntryId),
-    RemoveFavorite(EntryId),
     NextPage,
     PreviousPage,
+    ContextMenu(ContextMenuMsg),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Copy)]
+pub enum ContextMenuMsg {
+    RemoveFavorite(EntryId),
+    AddFavorite(EntryId),
+    ShowQrCode(EntryId),
+    Delete(EntryId),
+}
+
+use cosmic::widget::menu::action::MenuAction;
+
+impl MenuAction for ContextMenuMsg {
+    type Message = AppMsg;
+
+    fn message(&self) -> Self::Message {
+        AppMsg::ContextMenu(*self)
+    }
 }
 
 #[derive(Clone, Debug)]

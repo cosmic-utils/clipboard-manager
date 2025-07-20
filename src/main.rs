@@ -3,10 +3,10 @@
 // #![allow(unused_imports)]
 
 use app::{AppState, Flags};
-use config::{Config, CONFIG_VERSION};
+use config::{CONFIG_VERSION, Config};
 use cosmic::cosmic_config;
 use cosmic::cosmic_config::CosmicConfigEntry;
-use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 mod app;
 mod clipboard;
@@ -15,6 +15,7 @@ mod db;
 mod icon;
 mod localize;
 mod message;
+mod my_widget;
 mod navigation;
 mod utils;
 mod view;
@@ -24,7 +25,7 @@ mod view;
 extern crate tracing;
 
 fn setup_logs() {
-    let fmt_layer = fmt::layer().with_target(false);
+    let fmt_layer = fmt::layer().with_target(true);
     let filter_layer = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new(format!(
         "warn,{}=warn",
         env!("CARGO_CRATE_NAME")

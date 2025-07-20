@@ -2,8 +2,7 @@ use std::borrow::Cow;
 use std::cmp::min;
 
 use chrono::Utc;
-use cosmic::app::Message;
-use cosmic::Task;
+use cosmic::{Action, Task};
 
 pub fn formatted_value(value: &str, max_lines: usize, max_chars: usize) -> Cow<str> {
     let value = value.trim();
@@ -51,8 +50,8 @@ fn split_at(str: &str, n: usize) -> &str {
     }
 }
 
-pub fn task_message<M: Send + 'static>(message: M) -> Task<Message<M>> {
-    Task::done(cosmic::app::Message::App(message))
+pub fn task_message<M: Send + 'static>(message: M) -> Task<Action<M>> {
+    Task::done(cosmic::action::app(message))
 }
 
 pub fn now_millis() -> i64 {

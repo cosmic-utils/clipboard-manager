@@ -4,8 +4,9 @@ use std::{
 };
 
 use cosmic::iced::{futures::SinkExt, stream::channel};
-use futures::{future::join_all, Stream};
-use tokio::{io::AsyncReadExt, net::unix::pipe, sync::mpsc};
+use futures::{Stream, future::join_all};
+use itertools::Itertools;
+use tokio::{io::AsyncReadExt, sync::mpsc};
 use wl_clipboard_rs::{
     copy::{self, MimeSource},
     paste_watch,
@@ -31,56 +32,61 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
         async move {
             match paste_watch::Watcher::init(paste_watch::ClipboardType::Regular) {
                 Ok(mut clipboard_watcher) => {
-                    let (tx, mut rx) =
-                        mpsc::channel::<Option<std::vec::IntoIter<(pipe::Receiver, String)>>>(5);
+                    let (tx, mut rx) = mpsc::channel(5);
 
-                    tokio::task::spawn_blocking(move || loop {
-                        match clipboard_watcher.start_watching(paste_watch::Seat::Unspecified) {
-                            Ok(res) => {
-                                if !PRIVATE_MODE.load(atomic::Ordering::Relaxed) {
-                                    tx.blocking_send(Some(res)).expect("can't send");
-                                } else {
-                                    info!("private mode")
+                    tokio::task::spawn_blocking(move || {
+                        loop {
+                            match clipboard_watcher.start_watching(paste_watch::Seat::Unspecified) {
+                                Ok(res) => {
+                                    if !PRIVATE_MODE.load(atomic::Ordering::Relaxed) {
+                                        tx.blocking_send(Some(res)).expect("can't send");
+                                    } else {
+                                        info!("private mode")
+                                    }
                                 }
+                                Err(e) => match e {
+                                    paste_watch::Error::ClipboardEmpty => {
+                                        tx.blocking_send(None).expect("can't send")
+                                    }
+                                    _ => {
+                                        error!("watch clipboard error: {e}");
+                                    }
+                                },
                             }
-                            Err(e) => match e {
-                                paste_watch::Error::ClipboardEmpty => {
-                                    tx.blocking_send(None).expect("can't send")
-                                }
-                                _ => {
-                                    error!("watch clipboard error: {e}");
-                                }
-                            },
                         }
                     });
                     output.send(ClipboardMessage::Connected).await.unwrap();
 
+                    let mut i = 0;
                     loop {
+                        let s = debug_span!("", i);
+                        let _s = s.enter();
+                        i += 1;
+
                         match rx.recv().await {
                             Some(Some(res)) => {
                                 let data: MimeDataMap =
-                                    join_all(res.map(|(mut pipe, mime_type)| async move {
+                                    join_all(res.map(|(mime_type, mut pipe)| async move {
                                         let mut contents = Vec::new();
 
                                         match tokio::time::timeout(
-                                            Duration::from_millis(100),
+                                            Duration::from_millis(5000),
                                             pipe.read_to_end(&mut contents),
                                         )
                                         .await
                                         {
-                                            Ok(Ok(_)) => Some((mime_type, contents)),
+                                            Ok(Ok(len)) => {
+                                                if len == 0 {
+                                                    warn!("data is empty: {mime_type}");
+                                                    None
+                                                } else  {Some((mime_type, contents)) }
+                                            },
                                             Ok(Err(e)) => {
-                                                warn!(
-                                                "read timeout on external pipe clipboard: {} {e}",
-                                                mime_type
-                                            );
+                                                warn!("read error on external pipe clipboard: {mime_type} {e}");
                                                 None
                                             }
                                             Err(e) => {
-                                                warn!(
-                                                "read timeout on external pipe clipboard: {} {e}",
-                                                mime_type
-                                            );
+                                                warn!("read timeout on external pipe clipboard: {mime_type} {e}");
                                                 None
                                             }
                                         }
@@ -91,6 +97,12 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
                                     .collect();
 
                                 if !data.is_empty() {
+                                    let mimes = data
+                                        .iter()
+                                        .map(|(m, d)| (m.to_string(), d.len()))
+                                        .collect_vec();
+
+                                    debug!("send mime types to db: {mimes:?}");
                                     output.send(ClipboardMessage::Data(data)).await.unwrap();
                                 }
                             }

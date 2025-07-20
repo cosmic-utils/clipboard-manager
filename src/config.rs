@@ -10,7 +10,7 @@ use configurator_schema::schemars;
 use configurator_schema::schemars::JsonSchema;
 
 use cosmic::{
-    cosmic_config::{self, cosmic_config_derive::CosmicConfigEntry, CosmicConfigEntry},
+    cosmic_config::{self, CosmicConfigEntry, cosmic_config_derive::CosmicConfigEntry},
     iced::Subscription,
 };
 
@@ -84,7 +84,7 @@ mod test {
 
     use crate::app::APPID;
 
-    use super::{Config, CONFIG_VERSION};
+    use super::{CONFIG_VERSION, Config};
 
     #[test]
     fn gen_schema() {

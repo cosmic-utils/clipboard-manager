@@ -2,21 +2,21 @@
 name = "cosmic-ext-applet-clipboard-manager"
 version = "0.1.0"
 authors = ["wiiznokes <wiiznokes2@gmail.com>"]
-edition = "2021"
+edition = "2024"
 license = "GPL-3.0"
 homepage = "https://github.com//cosmic-utils/clipboard-manager/"
 repository = "https://github.com//cosmic-utils/clipboard-manager.git"
-rust-version = "1.80"
+rust-version = "1.85"
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
 
-i18n-embed = { version = "0.15", features = [
+i18n-embed = { version = "0.16", features = [
     "fluent-system",
     "desktop-requester",
 ] }
-i18n-embed-fl = "0.9"
+i18n-embed-fl = "0.10"
 rust-embed = "8"
 
 derivative = "2"
@@ -35,7 +35,7 @@ tracing-subscriber = { version = "0.3", features = [
     "ansi",
 ] }
 tracing-journald = "0.3"
-constcat = "0.5"
+constcat = "0.6"
 nucleo = "0.5"
 futures = "0.3"
 include_dir = "0.7"

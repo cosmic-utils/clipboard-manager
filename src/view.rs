@@ -1,19 +1,18 @@
 use std::{borrow::Cow, cmp::min, sync::LazyLock};
 
 use cosmic::{
-    iced::{alignment::Horizontal, padding, Alignment, Length, Padding},
+    Apply, Element,
+    iced::{Alignment, Length, Padding, alignment::Horizontal, padding},
     iced_widget::{
-        scrollable::{Direction, Scrollbar},
         Stack,
+        scrollable::{Direction, Scrollbar},
     },
     theme::Button,
     widget::{
-        self,
+        self, Id,
         button::{self},
-        column, container, context_menu, horizontal_space, image, menu, row, scrollable, text,
-        text_input, toggler, Id,
+        column, container, horizontal_space, image, row, scrollable, text, text_input, toggler,
     },
-    Element,
 };
 use itertools::Itertools;
 
@@ -21,7 +20,8 @@ use crate::{
     app::AppState,
     db::{Content, DbTrait, EntryTrait},
     fl, icon, icon_button,
-    message::{AppMsg, ConfigMsg},
+    message::{AppMsg, ConfigMsg, ContextMenuMsg},
+    my_widget,
     utils::formatted_value,
 };
 
@@ -175,12 +175,19 @@ impl<Db: DbTrait> AppState<Db> {
                 if self.config.horizontal {
                     let column = row::with_children(entries_view)
                         .spacing(5f32)
-                        .padding(padding::bottom(10));
+                        .padding(padding::bottom(10))
+                        .width(Length::Shrink)
+                        .apply(Element::from);
 
-                    scrollable(column)
-                        // .id(SCROLLABLE_ID.clone())
-                        .direction(Direction::Horizontal(Scrollbar::default()))
-                        .into()
+                    cosmic::iced::widget::Scrollable::with_direction(
+                        column,
+                        Direction::Horizontal(Scrollbar::new()),
+                    )
+                    .scroller_width(8.0)
+                    .scrollbar_width(8.0)
+                    // scrollable::horizontal(column)
+                    // .id(SCROLLABLE_ID.clone())
+                    .into()
                 } else {
                     let column = column::with_children(entries_view)
                         .spacing(5f32)
@@ -341,35 +348,62 @@ impl<Db: DbTrait> AppState<Db> {
             btn
         };
 
-        context_menu(
-            content,
-            Some(vec![
-                if entry.is_favorite() {
-                    menu::Tree::new(
-                        button::text(fl!("remove_favorite"))
-                            .on_press(AppMsg::RemoveFavorite(entry.id()))
-                            .width(Length::Fill),
-                    )
-                } else {
-                    menu::Tree::new(
-                        button::text(fl!("add_favorite"))
-                            .on_press(AppMsg::AddFavorite(entry.id()))
-                            .width(Length::Fill),
-                    )
-                },
-                menu::Tree::new(
-                    button::text(fl!("show_qr_code"))
-                        .on_press(AppMsg::ShowQrCode(entry.id()))
-                        .width(Length::Fill),
-                ),
-                menu::Tree::new(
-                    button::text(fl!("delete_entry"))
-                        .on_press(AppMsg::Delete(entry.id()))
-                        .width(Length::Fill)
-                        .class(Button::Destructive),
-                ),
-            ]),
-        )
-        .into()
+        let overlay: Element<_> = column()
+            .padding(3)
+            .push(if entry.is_favorite() {
+                button::text(fl!("remove_favorite"))
+                    .on_press(ContextMenuMsg::RemoveFavorite(entry.id()))
+            } else {
+                button::text(fl!("add_favorite")).on_press(ContextMenuMsg::AddFavorite(entry.id()))
+            })
+            .push(
+                button::text(fl!("show_qr_code")).on_press(ContextMenuMsg::ShowQrCode(entry.id())),
+            )
+            .push(
+                button::text(fl!("delete_entry"))
+                    .on_press(ContextMenuMsg::Delete(entry.id()))
+                    .class(Button::Destructive),
+            )
+            .apply(Element::from)
+            .map(AppMsg::ContextMenu);
+
+        let overlay = container(overlay)
+            .class(cosmic::theme::Container::Card)
+            .padding(padding::all(5));
+
+        my_widget::context_menu(content, overlay).into()
     }
 }
+
+/*
+let items = vec![
+            if entry.is_favorite() {
+                menu::Item::Button(
+                    fl!("remove_favorite"),
+                    None,
+                    ContextMenuMsg::RemoveFavorite(entry.id()),
+                )
+            } else {
+                menu::Item::Button(
+                    fl!("add_favorite"),
+                    None,
+                    ContextMenuMsg::AddFavorite(entry.id()),
+                )
+            },
+            menu::Item::Button(
+                fl!("show_qr_code"),
+                None,
+                ContextMenuMsg::ShowQrCode(entry.id()),
+            ),
+            menu::Item::Button(
+                fl!("delete_entry"),
+                None,
+                ContextMenuMsg::Delete(entry.id()),
+            ),
+        ];
+
+        let tree = menu::items(&HashMap::new(), items);
+
+        context_menu(content, Some(tree)).into()
+
+*/
