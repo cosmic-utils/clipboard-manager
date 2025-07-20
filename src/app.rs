@@ -22,6 +22,7 @@ use futures::StreamExt;
 use futures::executor::block_on;
 use regex::Regex;
 
+use crate::clipboard::ClipboardError;
 use crate::config::{Config, PRIVATE_MODE};
 use crate::db::{DbMessage, DbTrait, EntryTrait};
 use crate::message::{AppMsg, ConfigMsg, ContextMenuMsg};
@@ -57,7 +58,13 @@ pub struct AppState<Db: DbTrait> {
 pub enum ClipboardState {
     Init,
     Connected,
-    Error(String),
+    Error(ErrorState),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ErrorState {
+    MissingDataControlProtocol,
+    Other(String),
 }
 
 impl ClipboardState {
@@ -367,9 +374,19 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                         error!("can't insert data: {e}");
                     }
                 }
+                #[expect(irrefutable_let_patterns)]
                 clipboard::ClipboardMessage::Error(e) => {
-                    error!("{e}");
-                    self.clipboard_state = ClipboardState::Error(e);
+                    error!("clipboard: {e}");
+
+                    self.clipboard_state = if let ClipboardError::Watch(ref e) = e
+                        && let wl_clipboard_rs::paste_watch::Error::MissingProtocol { name, .. } =
+                            **e
+                        && name == "zwlr_data_control_manager_v1"
+                    {
+                        ClipboardState::Error(ErrorState::MissingDataControlProtocol)
+                    } else {
+                        ClipboardState::Error(ErrorState::Other(e.to_string()))
+                    };
                 }
                 clipboard::ClipboardMessage::EmptyKeyboard => {
                     if let Some(data) = self.db.get(0) {

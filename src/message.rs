@@ -47,6 +47,7 @@ impl MenuAction for ContextMenuMsg {
 #[derive(Clone, Debug)]
 pub enum ConfigMsg {
     PrivateMode(bool),
+    #[expect(dead_code)]
     Horizontal(bool),
     UniqueSession(bool),
 }

@@ -50,11 +50,11 @@ impl<Db: DbTrait> AppState<Db> {
                 self.config.private_mode,
                 |v| AppMsg::Config(ConfigMsg::PrivateMode(v)),
             ))
-            .push(toggle_settings(
-                fl!("horizontal_layout"),
-                self.config.horizontal,
-                |v| AppMsg::Config(ConfigMsg::Horizontal(v)),
-            ))
+            // .push(toggle_settings(
+            //     fl!("horizontal_layout"),
+            //     self.config.horizontal,
+            //     |v| AppMsg::Config(ConfigMsg::Horizontal(v)),
+            // ))
             .push(toggle_settings(
                 fl!("unique_session"),
                 self.config.unique_session,
@@ -88,6 +88,18 @@ impl<Db: DbTrait> AppState<Db> {
     }
     pub fn page_count(&self) -> usize {
         self.db.len() / self.config.maximum_entries_by_page.get() as usize
+    }
+
+    fn list_view(&self) -> Element<'_, AppMsg> {
+
+    }
+
+    fn qr_code_view(&self) -> Element<'_, AppMsg> {
+
+    }
+
+    fn error_view(&self) -> Element<'_, AppMsg> {
+        
     }
 
     fn top_bar(&self) -> Element<'_, AppMsg> {
