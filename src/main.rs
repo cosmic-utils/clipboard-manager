@@ -25,7 +25,7 @@ mod view;
 extern crate tracing;
 
 fn setup_logs() {
-    let fmt_layer = fmt::layer().with_target(false);
+    let fmt_layer = fmt::layer().with_target(true);
     let filter_layer = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new(format!(
         "warn,{}=warn",
         env!("CARGO_CRATE_NAME")

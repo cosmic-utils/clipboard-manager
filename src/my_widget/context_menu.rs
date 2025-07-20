@@ -1,5 +1,6 @@
 use cosmic::{
-    iced::{self, keyboard, touch},
+    Theme,
+    iced::{self, Background, Border, Color, Shadow, keyboard, touch},
     iced_core::{Size, Vector, widget::tree},
     iced_widget,
 };
@@ -16,20 +17,31 @@ use cosmic::iced::{event::Status, window};
 #[allow(missing_debug_implementations)]
 pub struct ContextMenu<'a, Message, Theme, Renderer>
 where
+    Theme: Catalog,
     Renderer: renderer::Renderer,
 {
     /// The underlying element.
     underlay: Element<'a, Message, Theme, Renderer>,
     /// The content of [`ContextMenuOverlay`].
     overlay: Element<'a, Message, Theme, Renderer>,
+    /// The style of the [`ContextMenu`].
+    class: Theme::Class<'a>,
 }
 
-// pub fn context_menu() -> ContextMenu<> {
-
-// }
+pub fn context_menu<'a, Message, Theme, Renderer>(
+    underlay: impl Into<Element<'a, Message, Theme, Renderer>>,
+    overlay: impl Into<Element<'a, Message, Theme, Renderer>>,
+) -> ContextMenu<'a, Message, Theme, Renderer>
+where
+    Theme: Catalog,
+    Renderer: renderer::Renderer,
+{
+    ContextMenu::new(underlay, overlay)
+}
 
 impl<'a, Message, Theme, Renderer> ContextMenu<'a, Message, Theme, Renderer>
 where
+    Theme: Catalog,
     Renderer: renderer::Renderer,
 {
     /// Creates a new [`ContextMenu`]
@@ -44,7 +56,25 @@ where
         ContextMenu {
             underlay: underlay.into(),
             overlay: overlay.into(),
+            class: Theme::default(),
         }
+    }
+
+    /// Sets the style of the [`ContextMenu`].
+    #[must_use]
+    pub fn style(mut self, style: impl Fn(&Theme) -> Style + 'a) -> Self
+    where
+        Theme::Class<'a>: From<StyleFn<'a, Theme, Style>>,
+    {
+        self.class = (Box::new(style) as StyleFn<'a, Theme, Style>).into();
+        self
+    }
+
+    /// Sets the class of the input of the [`ContextMenu`].
+    #[must_use]
+    pub fn class(mut self, class: impl Into<Theme::Class<'a>>) -> Self {
+        self.class = class.into();
+        self
     }
 }
 
@@ -52,6 +82,7 @@ impl<'a, Message, Theme, Renderer> Widget<Message, Theme, Renderer>
     for ContextMenu<'a, Message, Theme, Renderer>
 where
     Message: 'a,
+    Theme: Catalog,
     Renderer: 'a + renderer::Renderer,
 {
     fn size(&self) -> iced::Size<Length> {
@@ -198,6 +229,7 @@ where
             tree: &mut tree.children[1],
             content: &mut self.overlay,
             state,
+            class: &mut self.class,
         })))
     }
 }
@@ -206,7 +238,7 @@ impl<'a, Message, Theme, Renderer> From<ContextMenu<'a, Message, Theme, Renderer
     for Element<'a, Message, Theme, Renderer>
 where
     Message: 'a,
-    Theme: 'a,
+    Theme: 'a + Catalog,
     Renderer: 'a + renderer::Renderer,
 {
     fn from(modal: ContextMenu<'a, Message, Theme, Renderer>) -> Self {
@@ -235,6 +267,7 @@ impl State {
 
 struct ContextMenuOverlay<'a, 'b, Message, Theme, Renderer>
 where
+    Theme: Catalog,
     Renderer: renderer::Renderer,
 {
     // The position of the element
@@ -243,6 +276,8 @@ where
     tree: &'b mut Tree,
     /// The content of the [`ContextMenuOverlay`].
     content: &'b mut Element<'a, Message, Theme, Renderer>,
+    /// The style of the [`ContextMenuOverlay`].
+    class: &'b Theme::Class<'a>,
     /// The state shared between [`ContextMenu`](crate::widget::ContextMenu) and [`ContextMenuOverlay`].
     state: &'b mut State,
 }
@@ -250,6 +285,7 @@ where
 impl<Message, Theme, Renderer> overlay::Overlay<Message, Theme, Renderer>
     for ContextMenuOverlay<'_, '_, Message, Theme, Renderer>
 where
+    Theme: Catalog,
     Renderer: renderer::Renderer,
 {
     fn layout(&mut self, renderer: &Renderer, bounds: Size) -> Node {
@@ -283,12 +319,30 @@ where
         layout: Layout<'_>,
         cursor: Cursor,
     ) {
+        let bounds = layout.bounds();
+
+        let style_sheet = theme.style(self.class);
+
+        // Background
+        if (bounds.width > 0.) && (bounds.height > 0.) {
+            renderer.fill_quad(
+                renderer::Quad {
+                    bounds,
+                    border: Border {
+                        radius: (0.0).into(),
+                        width: 0.0,
+                        color: Color::TRANSPARENT,
+                    },
+                    shadow: Shadow::default(),
+                },
+                style_sheet.background,
+            );
+        }
+
         let content_layout = layout
             .children()
             .next()
             .expect("widget: Layout should have a content layout.");
-
-        let bounds = layout.bounds();
 
         // Modal
         self.content.as_widget().draw(
@@ -393,5 +447,63 @@ where
             viewport,
             renderer,
         )
+    }
+}
+
+/// The style of a [`ContextMenu`](crate::widget::ContextMenu).
+#[derive(Clone, Copy, Debug)]
+pub struct Style {
+    /// The background of the [`ContextMenu`](crate::widget::ContextMenu).
+    ///
+    /// This is used to color the backdrop of the modal.
+    pub background: Background,
+}
+
+impl Default for Style {
+    fn default() -> Self {
+        Self {
+            background: Background::Color([0.87, 0.87, 0.87, 0.30].into()),
+        }
+    }
+}
+
+/// The Catalog of a [`ContextMenu`](crate::widget::ContextMenu).
+pub trait Catalog {
+    ///Style for the trait to use.
+    type Class<'a>;
+
+    /// The default class produced by the [`Catalog`].
+    fn default<'a>() -> Self::Class<'a>;
+
+    /// The [`Style`] of a class with the given status.
+    fn style(&self, class: &Self::Class<'_>) -> Style;
+}
+
+pub type StyleFn<'a, Theme, Style> = Box<dyn Fn(&Theme) -> Style + 'a>;
+
+impl Catalog for Theme {
+    type Class<'a> = StyleFn<'a, Self, Style>;
+
+    fn default<'a>() -> Self::Class<'a> {
+        Box::new(primary)
+    }
+
+    fn style(&self, class: &Self::Class<'_>) -> Style {
+        class(self)
+    }
+}
+
+/// The primary theme of a [`ContextMenu`](crate::widget::ContextMenu).
+#[must_use]
+pub fn primary(theme: &Theme) -> Style {
+    let bg = theme.cosmic().background.component.base;
+
+    Style {
+        background: Background::Color(Color {
+            a: 0f32,
+            r: bg.red,
+            g: bg.green,
+            b: bg.blue,
+        }),
     }
 }

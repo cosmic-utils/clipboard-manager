@@ -5,6 +5,7 @@ use std::{
 
 use cosmic::iced::{futures::SinkExt, stream::channel};
 use futures::{Stream, future::join_all};
+use itertools::Itertools;
 use tokio::{io::AsyncReadExt, sync::mpsc};
 use wl_clipboard_rs::{
     copy::{self, MimeSource},
@@ -56,7 +57,12 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
                     });
                     output.send(ClipboardMessage::Connected).await.unwrap();
 
+                    let mut i = 0;
                     loop {
+                        let s = debug_span!("", i);
+                        let _s = s.enter();
+                        i += 1;
+
                         match rx.recv().await {
                             Some(Some(res)) => {
                                 let data: MimeDataMap =
@@ -64,24 +70,23 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
                                         let mut contents = Vec::new();
 
                                         match tokio::time::timeout(
-                                            Duration::from_millis(100),
+                                            Duration::from_millis(5000),
                                             pipe.read_to_end(&mut contents),
                                         )
                                         .await
                                         {
-                                            Ok(Ok(_)) => Some((mime_type, contents)),
+                                            Ok(Ok(len)) => {
+                                                if len == 0 {
+                                                    warn!("data is empty: {mime_type}");
+                                                    None
+                                                } else  {Some((mime_type, contents)) }
+                                            },
                                             Ok(Err(e)) => {
-                                                warn!(
-                                                "read timeout on external pipe clipboard: {} {e}",
-                                                mime_type
-                                            );
+                                                warn!("read error on external pipe clipboard: {mime_type} {e}");
                                                 None
                                             }
                                             Err(e) => {
-                                                warn!(
-                                                "read timeout on external pipe clipboard: {} {e}",
-                                                mime_type
-                                            );
+                                                warn!("read timeout on external pipe clipboard: {mime_type} {e}");
                                                 None
                                             }
                                         }
@@ -92,6 +97,12 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
                                     .collect();
 
                                 if !data.is_empty() {
+                                    let mimes = data
+                                        .iter()
+                                        .map(|(m, d)| (m.to_string(), d.len()))
+                                        .collect_vec();
+
+                                    debug!("send mime types to db: {mimes:?}");
                                     output.send(ClipboardMessage::Data(data)).await.unwrap();
                                 }
                             }

@@ -366,7 +366,7 @@ impl<Db: DbTrait> AppState<Db> {
             .apply(Element::from)
             .map(AppMsg::ContextMenu);
 
-        my_widget::context_menu::ContextMenu::new(content, overlay).into()
+        my_widget::context_menu(content, overlay).into()
     }
 }
 
