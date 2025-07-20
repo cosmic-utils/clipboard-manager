@@ -26,9 +26,9 @@ sudo dnf install cosmic-ext-applet-clipboard-manager
 sudo apt install libsqlite3-dev sqlite3 just cargo libxkbcommon-dev git-lfs
 git clone https://github.com/cosmic-utils/clipboard-manager.git
 cd clipboard-manager
-git checkout 0.1.0
 just build-release
 sudo just install
+sudo just install-env
 ```
 
 Restart the session for the `COSMIC_DATA_CONTROL_ENABLED` environment variable to take effect.

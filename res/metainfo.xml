@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- https://docs.flathub.org/docs/for-app-authors/metainfo-guidelines -->
+
+<component type="desktop-application">
+    <id>io.github.cosmic_utils.cosmic-ext-applet-external-clipboard-manager</id>
+
+    <name>Clipboard Manager</name>
+    <summary>A wayland clipboard manager</summary>
+
+    <metadata_license>MIT</metadata_license>
+    <project_license>GPL-3.0-only</project_license>
+
+    <project_group>COSMIC</project_group>
+
+    <developer id="tld.vendor">
+        <name>wiiznokes</name>
+    </developer>
+
+
+    <icon type="stock">io.github.cosmic_utils.cosmic-ext-applet-clipboard-manager-symbolic</icon>
+
+    <url type="homepage">
+        https://github.com/cosmic-utils/cosmic-ext-applet-clipboard-manager</url>
+    <url type="bugtracker">
+        https://github.com/cosmic-utils/cosmic-ext-applet-clipboard-manager/issues</url>
+    <url type="contribute">
+        https://github.com/cosmic-utils/cosmic-ext-applet-clipboard-manager</url>
+    <url type="translate">
+        https://github.com/cosmic-utils/cosmic-ext-applet-clipboard-manager/tree/master/i18n</url>
+
+    <content_rating type="oars-1.1" />
+
+
+    <description>
+        <p>Clipboard Manager cosmic applet with support for images and other mime types. Only work
+            on Wayland using the data control protocol (THIS PROTOCOL IS DISABLED BY DEFAULT ON
+            COSMIC).</p>
+    </description>
+
+
+    <launchable type="desktop-id">
+        io.github.cosmic_utils.cosmic-ext-applet-clipboard-manager.desktop</launchable>
+    <screenshots>
+        <screenshot type="default">
+            <image>
+                https://media.githubusercontent.com/media/cosmic-utils/cosmic-ext-applet-clipboard-manager/master/res/screenshots/main_popup.png</image>
+            <caption>The applet.</caption>
+        </screenshot>
+    </screenshots>
+
+    <provides>
+        <id>com.system76.CosmicApplet</id>
+        <binaries>
+            <binary>cosmic-ext-applet-clipboard-manager</binary>
+        </binaries>
+    </provides>
+
+    <categories>
+        <category>Utility</category>
+    </categories>
+
+    <releases>
+        <release version="0.0.1" date="2025-06-19">
+        </release>
+    </releases>
+</component>

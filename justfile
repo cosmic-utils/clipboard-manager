@@ -9,6 +9,7 @@ base-dir := absolute_path(clean(rootdir / prefix))
 share-dst := base-dir / 'share'
 bin-dst := base-dir / 'bin' / name
 desktop-dst := share-dst / 'applications' / appid + '.desktop'
+metainfo-dst := share-dst / 'metainfo' / appid + '.metainfo.xml'
 icon-dst := share-dst / 'icons/hicolor/scalable/apps' / appid + '-symbolic.svg'
 env-dst := rootdir / 'etc/profile.d' / name + '.sh'
 schema-dst := share-dst / 'configurator' / appid + '.json'
@@ -27,30 +28,32 @@ build-release *args:
 install:
     install -Dm0755 {{ bin-src }} {{ bin-dst }}
     install -Dm0644 res/desktop_entry.desktop {{ desktop-dst }}
+    install -Dm0644 res/metainfo.xml {{ metainfo-dst }}
     install -Dm0644 res/app_icon.svg {{ icon-dst }}
+
+install-env:
     install -Dm0644 res/env.sh {{ env-dst }}
 
 install-schema:
     install -Dm0644 res/config_schema.json {{ schema-dst }}
 
 uninstall:
-    rm {{ bin-dst }}
-    rm {{ desktop-dst }}
-    rm {{ icon-dst }}
-    rm {{ env-dst }}
-    rm {{ schema-dst }}
+    rm {{ bin-dst }} || true
+    rm {{ desktop-dst }} || true
+    rm {{ icon-dst }} || true
+    rm {{ env-dst }} || true
+    rm {{ schema-dst }} || true
+    rm {{ metainfo-dst }} || true
 
 clean:
     cargo clean
 
-pull: fmt prettier fix test
+###################  Format / Test
 
-###################  Test
+pull: fmt prettier fix test
 
 test:
     cargo test --workspace --all-features
-
-###################  Format
 
 fix:
     cargo clippy --workspace --all-features --fix --allow-dirty --allow-staged
@@ -62,6 +65,11 @@ prettier:
     # install on Debian: sudo snap install node --classic
     # npx is the command to run npm package, node is the runtime
     npx prettier -w .
+
+metainfo-check:
+    appstreamcli validate --pedantic --explain --strict res/metainfo.xml
+
+################### Other
 
 git-cache:
     git rm -rf --cached .
@@ -89,7 +97,7 @@ install-sdk:
         org.freedesktop.Sdk.Extension.llvm18//{{ sdk-version }}
 
 uninstall-f:
-    flatpak uninstall io.github.wiiznokes.cosmic-ext-applet-clipboard-manager -y || true
+    flatpak uninstall {{ appid }} -y || true
 
 # deps: flatpak-builder git-lfs
 build-and-install: uninstall-f
@@ -101,7 +109,7 @@ build-and-install: uninstall-f
       --install-deps-from=flathub \
       --repo=repo \
       flatpak-out \
-      io.github.wiiznokes.cosmic-ext-applet-clipboard-manager.json
+      {{ appid }}.json
 
 run:
-    flatpak run io.github.wiiznokes.cosmic-ext-applet-clipboard-manager
+    RUST_LOG="warn,cosmic_ext_applet_clipboard_manager=debug" flatpak run {{ appid }}

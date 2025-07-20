@@ -17,7 +17,7 @@ i18n-embed = { version = "0.16", features = [
     "desktop-requester",
 ] }
 i18n-embed-fl = "0.10"
-rust-embed = "8"
+rust-embed = { version = "8", features = ["debug-embed"] }
 
 derivative = "2"
 os_pipe = "1"
