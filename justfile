@@ -113,3 +113,6 @@ build-and-install: uninstall-f
 
 run:
     RUST_LOG="warn,cosmic_ext_applet_clipboard_manager=debug" flatpak run {{ appid }}
+
+runtime-packages:
+    flatpak run --command=cat org.freedesktop.Sdk//{{ sdk-version }} /usr/manifest.json|jq -r '."modules"|.[]|."name"'|sed -E 's#.*/(.*)\.bst#\1#'|sort -u
