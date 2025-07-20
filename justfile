@@ -15,7 +15,7 @@ schema-dst := share-dst / 'configurator' / appid + '.json'
 
 default: build-release
 
-build-mold:
+mold:
     CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=clang RUSTFLAGS="-C link-arg=-fuse-ld=/usr/bin/mold" just build-debug
 
 build-debug *args:
