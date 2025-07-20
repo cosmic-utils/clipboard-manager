@@ -319,7 +319,12 @@ where
         layout: Layout<'_>,
         cursor: Cursor,
     ) {
-        let bounds = layout.bounds();
+        let content_layout = layout
+            .children()
+            .next()
+            .expect("widget: Layout should have a content layout.");
+
+        let bounds = content_layout.bounds();
 
         let style_sheet = theme.style(self.class);
 
@@ -339,11 +344,6 @@ where
             );
         }
 
-        let content_layout = layout
-            .children()
-            .next()
-            .expect("widget: Layout should have a content layout.");
-
         // Modal
         self.content.as_widget().draw(
             self.tree,
@@ -352,7 +352,7 @@ where
             style,
             content_layout,
             cursor,
-            &bounds,
+            &layout.bounds(),
         );
     }
 

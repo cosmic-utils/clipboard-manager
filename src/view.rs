@@ -349,6 +349,7 @@ impl<Db: DbTrait> AppState<Db> {
         };
 
         let overlay: Element<_> = column()
+            .padding(3)
             .push(if entry.is_favorite() {
                 button::text(fl!("remove_favorite"))
                     .on_press(ContextMenuMsg::RemoveFavorite(entry.id()))
@@ -365,6 +366,10 @@ impl<Db: DbTrait> AppState<Db> {
             )
             .apply(Element::from)
             .map(AppMsg::ContextMenu);
+
+        let overlay = container(overlay)
+            .class(cosmic::theme::Container::Card)
+            .padding(padding::all(5));
 
         my_widget::context_menu(content, overlay).into()
     }
