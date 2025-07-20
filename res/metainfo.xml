@@ -21,13 +21,13 @@
     <icon type="stock">io.github.cosmic_utils.cosmic-ext-applet-clipboard-manager-symbolic</icon>
 
     <url type="homepage">
-        https://github.com/cosmic-utils/cosmic-ext-applet-clipboard-manager</url>
+        https://github.com/cosmic-utils/clipboard-manager</url>
     <url type="bugtracker">
-        https://github.com/cosmic-utils/cosmic-ext-applet-clipboard-manager/issues</url>
+        https://github.com/cosmic-utils/clipboard-manager/issues</url>
     <url type="contribute">
-        https://github.com/cosmic-utils/cosmic-ext-applet-clipboard-manager</url>
+        https://github.com/cosmic-utils/clipboard-manager</url>
     <url type="translate">
-        https://github.com/cosmic-utils/cosmic-ext-applet-clipboard-manager/tree/master/i18n</url>
+        https://github.com/cosmic-utils/clipboard-manager/tree/master/i18n</url>
 
     <content_rating type="oars-1.1" />
 
@@ -44,7 +44,7 @@
     <screenshots>
         <screenshot type="default">
             <image>
-                https://media.githubusercontent.com/media/cosmic-utils/cosmic-ext-applet-clipboard-manager/master/res/screenshots/main_popup.png</image>
+                https://media.githubusercontent.com/media/cosmic-utils/clipboard-manager/master/res/screenshots/main_popup.png</image>
             <caption>The applet.</caption>
         </screenshot>
     </screenshots>
@@ -61,7 +61,7 @@
     </categories>
 
     <releases>
-        <release version="0.0.1" date="2025-06-19">
+        <release version="0.1.0" date="2025-07-20">
         </release>
     </releases>
 </component>
