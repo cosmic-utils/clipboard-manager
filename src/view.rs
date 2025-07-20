@@ -175,12 +175,19 @@ impl<Db: DbTrait> AppState<Db> {
                 if self.config.horizontal {
                     let column = row::with_children(entries_view)
                         .spacing(5f32)
-                        .padding(padding::bottom(10));
+                        .padding(padding::bottom(10))
+                        .width(Length::Shrink)
+                        .apply(Element::from);
 
-                    scrollable(column)
-                        // .id(SCROLLABLE_ID.clone())
-                        .direction(Direction::Horizontal(Scrollbar::default()))
-                        .into()
+                    cosmic::iced::widget::Scrollable::with_direction(
+                        column,
+                        Direction::Horizontal(Scrollbar::new()),
+                    )
+                    .scroller_width(8.0)
+                    .scrollbar_width(8.0)
+                    // scrollable::horizontal(column)
+                    // .id(SCROLLABLE_ID.clone())
+                    .into()
                 } else {
                     let column = column::with_children(entries_view)
                         .spacing(5f32)
