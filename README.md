@@ -8,30 +8,23 @@ There is a quick settings popup when you right click the icon.
 
 ## Install
 
-### Fedora
+Use the flatpak version in the cosmic store.
 
-You can use this [copr](https://copr.fedorainfracloud.org/coprs/wiiznokes/cosmic-applets-unofficial/).
+You will need to enable the [data control protocol](https://wayland.app/protocols/ext-data-control-v1). It allow any privilegied client to access the clipboard, without any action from the user. It is thus kinda insecure.
 
-```sh
-sudo dnf copr enable wiiznokes/cosmic-applets-unofficial
-sudo dnf install cosmic-ext-applet-clipboard-manager
-```
-
-### Other distros
-
-> [!NOTE]
-> You need a rust version >= `1.81`
+The protocol is by default disabled on the COSMIC DE, but can be enabled with this command:
 
 ```sh
-sudo apt install libsqlite3-dev sqlite3 just cargo libxkbcommon-dev git-lfs
-git clone https://github.com/cosmic-utils/clipboard-manager.git
-cd clipboard-manager
-just build-release
-sudo just install
-sudo just install-env
+echo 'export COSMIC_DATA_CONTROL_ENABLED=1' | sudo tee /etc/profile.d/data_control_cosmic.sh > /dev/null
 ```
 
 Restart the session for the `COSMIC_DATA_CONTROL_ENABLED` environment variable to take effect.
+
+You can disable it with
+
+```sh
+sudo rm -f /etc/profile.d/data_control_cosmic.sh
+```
 
 ## Logs
 
@@ -52,7 +45,3 @@ To build and install the debug build
 ```sh
 just build-debug && sudo just debug=1 install && pkill cosmic-panel
 ```
-
-## Known bugs
-
-- Horizontal layout is currently broken
