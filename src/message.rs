@@ -24,6 +24,7 @@ pub enum AppMsg {
     NextPage,
     PreviousPage,
     ContextMenu(ContextMenuMsg),
+    LinkClicked(markdown::Url),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
@@ -34,7 +35,7 @@ pub enum ContextMenuMsg {
     Delete(EntryId),
 }
 
-use cosmic::widget::menu::action::MenuAction;
+use cosmic::widget::{markdown, menu::action::MenuAction};
 
 impl MenuAction for ContextMenuMsg {
     type Message = AppMsg;

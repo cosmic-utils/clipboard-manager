@@ -1,8 +1,8 @@
-use std::{borrow::Cow, cmp::min, sync::LazyLock};
+use std::{borrow::Cow, cmp::min, fs, sync::LazyLock};
 
 use cosmic::{
     Apply, Element,
-    iced::{Alignment, Length, Padding, alignment::Horizontal, padding},
+    iced::{Alignment, Length, alignment::Horizontal, padding},
     iced_widget::{
         Stack,
         scrollable::{Direction, Scrollbar},
@@ -11,13 +11,14 @@ use cosmic::{
     widget::{
         self, Id,
         button::{self},
-        column, container, horizontal_space, image, row, scrollable, text, text_input, toggler,
+        column, container, horizontal_space, image, markdown, row, scrollable, text, text_input,
+        toggler,
     },
 };
 use itertools::Itertools;
 
 use crate::{
-    app::AppState,
+    app::{AppState, ClipboardState, ErrorState},
     db::{Content, DbTrait, EntryTrait},
     fl, icon, icon_button,
     message::{AppMsg, ConfigMsg, ContextMenuMsg},
@@ -65,156 +66,191 @@ impl<Db: DbTrait> AppState<Db> {
     }
 
     pub fn popup_view(&self) -> Element<'_, AppMsg> {
-        column()
-            .push(self.top_bar())
-            .push(self.content())
-            // .push(self.page_actions())
-            .spacing(20)
-            // .padding(10)
-            .align_x(Alignment::Center)
-            // .width(Length::Fill)
-            // .height(Length::Fill)
-            .height(if self.config.horizontal {
-                Length::Fill
-            } else {
-                Length::Fixed(530f32)
-            })
-            .width(if self.config.horizontal {
-                Length::Fill
-            } else {
-                Length::Fixed(400f32)
-            })
-            .into()
+        container(if let ClipboardState::Error(e) = &self.clipboard_state {
+            self.error_view(e)
+        } else if let Some(qr_code_res) = &self.qr_code {
+            self.qr_code_view(qr_code_res)
+        } else {
+            self.list_view()
+        })
+        .height(if self.config.horizontal {
+            Length::Fill
+        } else {
+            Length::Fixed(530f32)
+        })
+        .width(if self.config.horizontal {
+            Length::Fill
+        } else {
+            Length::Fixed(400f32)
+        })
+        .into()
     }
     pub fn page_count(&self) -> usize {
         self.db.len() / self.config.maximum_entries_by_page.get() as usize
     }
 
     fn list_view(&self) -> Element<'_, AppMsg> {
-
-    }
-
-    fn qr_code_view(&self) -> Element<'_, AppMsg> {
-
-    }
-
-    fn error_view(&self) -> Element<'_, AppMsg> {
-        
-    }
-
-    fn top_bar(&self) -> Element<'_, AppMsg> {
-        let content: Element<_> = match self.qr_code.is_none() {
-            true => row()
-                .push(
-                    text_input::search_input(fl!("search_entries"), self.db.get_query())
-                        .always_active()
-                        .on_input(AppMsg::Search)
-                        .on_paste(AppMsg::Search)
-                        .on_clear(AppMsg::Search("".into()))
-                        .width(match self.config.horizontal {
-                            true => Length::Fixed(250f32),
-                            false => Length::Fill,
-                        }),
+        column()
+            .push(
+                container(
+                    row()
+                        .push(
+                            text_input::search_input(fl!("search_entries"), self.db.get_query())
+                                .always_active()
+                                .on_input(AppMsg::Search)
+                                .on_paste(AppMsg::Search)
+                                .on_clear(AppMsg::Search("".into()))
+                                .width(match self.config.horizontal {
+                                    true => Length::Fixed(250f32),
+                                    false => Length::Fill,
+                                }),
+                        )
+                        .push(horizontal_space().width(5))
+                        .push(icon_button!("arrow_back_ios_new24").on_press_maybe(
+                            if self.page > 0 {
+                                Some(AppMsg::PreviousPage)
+                            } else {
+                                None
+                            },
+                        ))
+                        .push(icon_button!("arrow_forward_ios24").on_press_maybe(
+                            if self.page < self.page_count() {
+                                Some(AppMsg::NextPage)
+                            } else {
+                                None
+                            },
+                        )),
                 )
-                .push(horizontal_space().width(5))
-                .push(
-                    icon_button!("arrow_back_ios_new24").on_press_maybe(if self.page > 0 {
-                        Some(AppMsg::PreviousPage)
+                .padding(padding::all(15f32).bottom(0)),
+            )
+            .push(
+                container({
+                    let maximum_entries_by_page =
+                        self.config.maximum_entries_by_page.get() as usize;
+                    let range = self.page * maximum_entries_by_page
+                        ..(self.page + 1) * maximum_entries_by_page;
+
+                    let entries_view: Vec<_> = self
+                        .db
+                        .either_iter()
+                        .enumerate()
+                        .get(range)
+                        .map(|(pos, data)| {
+                            match data.preferred_content(&self.preferred_mime_types_regex) {
+                                Some((_, content)) => match content {
+                                    Content::Text(text) => {
+                                        self.text_entry(data, pos == self.focused, text)
+                                    }
+                                    Content::Image(image) => {
+                                        self.image_entry(data, pos == self.focused, image)
+                                    }
+                                    Content::UriList(uris) => {
+                                        self.uris_entry(data, pos == self.focused, &uris)
+                                    }
+                                },
+                                None => self.unknown_entry(data, pos == self.focused),
+                            }
+                        })
+                        .collect();
+
+                    if self.config.horizontal {
+                        let column = row::with_children(entries_view)
+                            .spacing(5f32)
+                            .padding(padding::bottom(10))
+                            .width(Length::Shrink)
+                            .apply(Element::from);
+
+                        cosmic::iced::widget::Scrollable::with_direction(
+                            column,
+                            Direction::Horizontal(Scrollbar::new()),
+                        )
+                        .scroller_width(8.0)
+                        .scrollbar_width(8.0)
+                        // scrollable::horizontal(column)
+                        // .id(SCROLLABLE_ID.clone())
+                        .apply(Element::from)
                     } else {
-                        None
-                    }),
-                )
-                .push(icon_button!("arrow_forward_ios24").on_press_maybe(
-                    if self.page < self.page_count() {
-                        Some(AppMsg::NextPage)
-                    } else {
-                        None
-                    },
-                ))
-                .into(),
-            false => button::text(fl!("return_to_clipboard"))
-                .on_press(AppMsg::ReturnToClipboard)
-                .width(match self.config.horizontal {
-                    true => Length::Shrink,
-                    false => Length::Fill,
+                        let column = column::with_children(entries_view)
+                            .spacing(5f32)
+                            .padding(padding::right(10));
+
+                        scrollable(column)
+                            // .id(SCROLLABLE_ID.clone())
+                            // XXX: why ?
+                            // .height(Length::FillPortion(2))
+                            .into()
+                    }
                 })
-                .into(),
-        };
-
-        container(content)
-            .padding(Padding::new(15f32).bottom(0))
+                .padding(padding::all(20).top(0)),
+            )
+            .spacing(20)
+            .align_x(Alignment::Center)
             .into()
     }
 
-    fn content(&self) -> Element<'_, AppMsg> {
-        let content: Element<_> = match &self.qr_code {
-            Some(qr_code) => {
-                let qr_code_content: Element<_> = match qr_code {
-                    Ok(c) => widget::qr_code(c).into(),
-                    Err(()) => text(fl!("qr_code_error")).into(),
-                };
-
-                container(qr_code_content).center(Length::Fill).into()
-            }
-            None => {
-                let maximum_entries_by_page = self.config.maximum_entries_by_page.get() as usize;
-                let range =
-                    self.page * maximum_entries_by_page..(self.page + 1) * maximum_entries_by_page;
-
-                let entries_view: Vec<_> = self
-                    .db
-                    .either_iter()
-                    .enumerate()
-                    .get(range)
-                    .map(|(pos, data)| {
-                        match data.preferred_content(&self.preferred_mime_types_regex) {
-                            Some((_, content)) => match content {
-                                Content::Text(text) => {
-                                    self.text_entry(data, pos == self.focused, text)
-                                }
-                                Content::Image(image) => {
-                                    self.image_entry(data, pos == self.focused, image)
-                                }
-                                Content::UriList(uris) => {
-                                    self.uris_entry(data, pos == self.focused, &uris)
-                                }
-                            },
-                            None => self.unknown_entry(data, pos == self.focused),
-                        }
+    fn qr_code_view<'a>(
+        &'a self,
+        qr_code: &'a Result<cosmic::widget::qr_code::Data, ()>,
+    ) -> Element<'a, AppMsg> {
+        column()
+            .push(
+                container(
+                    button::text(fl!("return_to_clipboard"))
+                        .on_press(AppMsg::ReturnToClipboard)
+                        .width(match self.config.horizontal {
+                            true => Length::Shrink,
+                            false => Length::Fill,
+                        }),
+                )
+                .padding(padding::all(15f32).bottom(0)),
+            )
+            .push(
+                container(
+                    container(match qr_code {
+                        Ok(c) => widget::qr_code(c).apply(Element::from),
+                        Err(()) => text(fl!("qr_code_error")).into(),
                     })
-                    .collect();
+                    .center(Length::Fill),
+                )
+                .padding(padding::all(20).top(0)),
+            )
+            .spacing(20)
+            .align_x(Alignment::Center)
+            .into()
+    }
 
-                if self.config.horizontal {
-                    let column = row::with_children(entries_view)
-                        .spacing(5f32)
-                        .padding(padding::bottom(10))
-                        .width(Length::Shrink)
-                        .apply(Element::from);
+    fn error_view(&self, error: &ErrorState) -> Element<'_, AppMsg> {
+        match error {
+            ErrorState::MissingDataControlProtocol => {
+                let command = r#"```sh
+echo 'export COSMIC_DATA_CONTROL_ENABLED=1' | sudo tee /etc/profile.d/data_control_cosmic.sh > /dev/null
+```"#;
 
-                    cosmic::iced::widget::Scrollable::with_direction(
-                        column,
-                        Direction::Horizontal(Scrollbar::new()),
-                    )
-                    .scroller_width(8.0)
-                    .scrollbar_width(8.0)
-                    // scrollable::horizontal(column)
-                    // .id(SCROLLABLE_ID.clone())
-                    .into()
-                } else {
-                    let column = column::with_children(entries_view)
-                        .spacing(5f32)
-                        .padding(padding::right(10));
+                let content = format!(
+                    "### {}\n\n{}\n\n{}\n\n{command}",
+                    fl!("data_control", "title"),
+                    fl!("data_control", "explanation"),
+                    fl!("data_control", "cosmic")
+                );
 
-                    scrollable(column)
-                        // .id(SCROLLABLE_ID.clone())
-                        // XXX: why ?
-                        // .height(Length::FillPortion(2))
-                        .into()
-                }
+                let items = markdown::parse(&content).collect_vec();
+
+                let e = markdown::view(
+                    &items,
+                    markdown::Settings::default(),
+                    markdown::Style::from_palette(cosmic::iced::Theme::TokyoNightStorm.palette()),
+                )
+                .map(AppMsg::LinkClicked)
+                .apply(Element::from);
+
+                container(e)
+                    .align_top(Length::Fill)
+                    .center_x(Length::Fill)
+                    .padding(15)
+                    .apply(Element::from)
             }
-        };
-
-        container(content).padding(padding::all(20).top(0)).into()
+            ErrorState::Other(e) => text(format!("{e}")).into(),
+        }
     }
 
     fn image_entry<'a>(

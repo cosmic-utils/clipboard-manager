@@ -41,18 +41,12 @@ include_dir = "0.7"
 itertools = "0.14"
 alive_lock_file = "0.2"
 regex = "1"
+open = "5"
 
 [dependencies.libcosmic]
 git = "https://github.com/pop-os/libcosmic"
 default-features = false
-features = [
-    "applet",
-    "tokio",
-    "wayland",
-    "qr_code",
-    "markdown",
-    "highlighter"
-]
+features = ["applet", "tokio", "wayland", "qr_code", "markdown", "highlighter"]
 
 [dependencies.wl-clipboard-rs]
 git = "https://github.com/wiiznokes/wl-clipboard-rs.git"

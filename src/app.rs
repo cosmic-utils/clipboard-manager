@@ -357,7 +357,6 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
             AppMsg::ToggleQuickSettings => {
                 return self.toggle_popup(PopupKind::QuickSettings);
             }
-
             AppMsg::TogglePopup => {
                 return self.toggle_popup(PopupKind::Popup);
             }
@@ -531,6 +530,12 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                     }
                 }
             },
+            AppMsg::LinkClicked(url) => {
+                info!("open: {url}");
+                if let Err(e) = open::that(url.as_str()) {
+                    error!("{e}");
+                }
+            }
         }
         Task::none()
     }

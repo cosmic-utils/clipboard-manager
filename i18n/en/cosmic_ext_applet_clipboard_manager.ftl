@@ -11,11 +11,10 @@ remove_favorite = Remove Favorite
 unique_session = Unique session
 unknown_mime_types_title = Mime types
 
-data-control.title = You need to activate the data control Wayland protocol on your device
-
-data-control.explanation =
-    The { $link } is required for this applet to work. It allows any privileged client to access the clipboard
-    without any action from the user. It is thus somewhat insecure.
-
-data-control.cosmic = 
-    The protocol is disabled by default on the COSMIC desktop environment, but you can enable it with the following command:
+data_control = Dummy
+    .title = You need to activate the data control Wayland protocol on your device
+    .explanation =
+        The [data control protocol](https://wayland.app/protocols/ext-data-control-v1) is required for this applet to work. It allows any privileged client to access the clipboard
+        without any action from the user. It is thus somewhat insecure.
+    .cosmic = 
+        The protocol is disabled by default on the COSMIC desktop environment, but you can enable it with the following command:

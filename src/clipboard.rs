@@ -1,5 +1,8 @@
 use std::{
-    sync::{atomic::{self}, Arc},
+    sync::{
+        Arc,
+        atomic::{self},
+    },
     time::Duration,
 };
 
