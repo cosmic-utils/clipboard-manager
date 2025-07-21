@@ -1,7 +1,7 @@
 use crate::{
     clipboard::ClipboardMessage,
     config::Config,
-    db::{DbMessage, EntryId},
+    db::{DbMessage, EntryId, MimeDataMap},
     navigation::EventMsg,
 };
 
@@ -16,6 +16,7 @@ pub enum AppMsg {
     #[allow(dead_code)]
     RetryConnectingClipboard,
     Copy(EntryId),
+    CopySpecial(MimeDataMap),
     Clear,
     Navigation(EventMsg),
     Db(DbMessage),

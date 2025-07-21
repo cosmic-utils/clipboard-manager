@@ -15,10 +15,7 @@ use wl_clipboard_rs::{
     paste_watch,
 };
 
-use crate::{
-    config::PRIVATE_MODE,
-    db::{EntryTrait, MimeDataMap},
-};
+use crate::{config::PRIVATE_MODE, db::MimeDataMap};
 
 #[derive(Debug, Clone)]
 pub enum ClipboardMessage {
@@ -155,12 +152,10 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
     })
 }
 
-pub fn copy<Entry: EntryTrait>(data: Entry) -> Result<(), copy::Error> {
-    debug!("copy {:?}", data);
+pub fn copy(data: MimeDataMap) -> Result<(), copy::Error> {
+    let mut sources = Vec::with_capacity(data.len());
 
-    let mut sources = Vec::with_capacity(data.raw_content().len());
-
-    for (mime, content) in data.into_raw_content() {
+    for (mime, content) in data {
         let source = MimeSource {
             source: copy::Source::Bytes(content.into_boxed_slice()),
             mime_type: copy::MimeType::Specific(mime),

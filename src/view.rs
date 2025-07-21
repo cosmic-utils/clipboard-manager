@@ -1,4 +1,4 @@
-use std::{borrow::Cow, cmp::min, fs, sync::LazyLock};
+use std::{borrow::Cow, cmp::min, sync::LazyLock};
 
 use cosmic::{
     Apply, Element,
@@ -12,14 +12,14 @@ use cosmic::{
         self, Id,
         button::{self},
         column, container, horizontal_space, image, markdown, row, scrollable, text, text_input,
-        toggler,
+        toggler, vertical_space,
     },
 };
 use itertools::Itertools;
 
 use crate::{
     app::{AppState, ClipboardState, ErrorState},
-    db::{Content, DbTrait, EntryTrait},
+    db::{Content, DbTrait, EntryTrait, MimeDataMap},
     fl, icon, icon_button,
     message::{AppMsg, ConfigMsg, ContextMenuMsg},
     my_widget,
@@ -222,12 +222,12 @@ impl<Db: DbTrait> AppState<Db> {
     fn error_view(&self, error: &ErrorState) -> Element<'_, AppMsg> {
         match error {
             ErrorState::MissingDataControlProtocol => {
-                let command = r#"```sh
-echo 'export COSMIC_DATA_CONTROL_ENABLED=1' | sudo tee /etc/profile.d/data_control_cosmic.sh > /dev/null
-```"#;
+                const COMMAND: &str = "echo 'export COSMIC_DATA_CONTROL_ENABLED=1' | sudo tee /etc/profile.d/data_control_cosmic.sh > /dev/null";
+
+                const COMMAND_MD: &str = constcat::concat!("```sh\n", COMMAND, "\n````");
 
                 let content = format!(
-                    "### {}\n\n{}\n\n{}\n\n{command}",
+                    "### {}\n\n{}\n\n{}\n\n{COMMAND_MD}",
                     fl!("data_control", "title"),
                     fl!("data_control", "explanation"),
                     fl!("data_control", "cosmic")
@@ -243,13 +243,30 @@ echo 'export COSMIC_DATA_CONTROL_ENABLED=1' | sudo tee /etc/profile.d/data_contr
                 .map(AppMsg::LinkClicked)
                 .apply(Element::from);
 
-                container(e)
-                    .align_top(Length::Fill)
-                    .center_x(Length::Fill)
+                let mut copy = MimeDataMap::new();
+                copy.insert("text/plain".to_string(), COMMAND.as_bytes().to_vec());
+
+                column()
+                    .push(e)
+                    .push(vertical_space())
+                    .push(
+                        button::text("Copy Command")
+                            // todo: replace with on_press_with
+                            .on_press(AppMsg::CopySpecial(copy)),
+                    )
+                    .align_x(Horizontal::Center)
+                    .width(Length::Fill)
+                    .height(Length::Fill)
                     .padding(15)
                     .apply(Element::from)
+
+                // container(e)
+                //     .align_top(Length::Fill)
+                //     .center_x(Length::Fill)
+                //     .padding(15)
+                //     .apply(Element::from)
             }
-            ErrorState::Other(e) => text(format!("{e}")).into(),
+            ErrorState::Other(e) => text(e.to_string()).into(),
         }
     }
 
