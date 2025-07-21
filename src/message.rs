@@ -1,7 +1,7 @@
 use crate::{
     clipboard::ClipboardMessage,
     config::Config,
-    db::{DbMessage, EntryId},
+    db::{DbMessage, EntryId, MimeDataMap},
     navigation::EventMsg,
 };
 
@@ -16,6 +16,7 @@ pub enum AppMsg {
     #[allow(dead_code)]
     RetryConnectingClipboard,
     Copy(EntryId),
+    CopySpecial(MimeDataMap),
     Clear,
     Navigation(EventMsg),
     Db(DbMessage),
@@ -24,6 +25,7 @@ pub enum AppMsg {
     NextPage,
     PreviousPage,
     ContextMenu(ContextMenuMsg),
+    LinkClicked(markdown::Url),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
@@ -34,7 +36,7 @@ pub enum ContextMenuMsg {
     Delete(EntryId),
 }
 
-use cosmic::widget::menu::action::MenuAction;
+use cosmic::widget::{markdown, menu::action::MenuAction};
 
 impl MenuAction for ContextMenuMsg {
     type Message = AppMsg;
@@ -47,6 +49,7 @@ impl MenuAction for ContextMenuMsg {
 #[derive(Clone, Debug)]
 pub enum ConfigMsg {
     PrivateMode(bool),
+    #[expect(dead_code)]
     Horizontal(bool),
     UniqueSession(bool),
 }

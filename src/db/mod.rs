@@ -89,6 +89,7 @@ pub trait EntryTrait: Debug + Clone + Send {
 
     fn raw_content(&self) -> &MimeDataMap;
 
+    #[allow(dead_code)]
     fn into_raw_content(self) -> MimeDataMap;
 
     fn id(&self) -> EntryId;

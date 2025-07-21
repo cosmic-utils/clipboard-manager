@@ -5,3 +5,4 @@
 /.flatpak-builder
 /cargo-sources.json
 /flatpak-out
+/.cargo/config.toml

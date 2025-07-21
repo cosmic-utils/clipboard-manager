@@ -1,6 +1,7 @@
 use chrono::Utc;
 use cosmic::app::Core;
 
+use cosmic::iced::clipboard::mime::AsMimeTypes;
 use cosmic::iced::keyboard::key::Named;
 use cosmic::iced::window::Id;
 use cosmic::iced::{self, Limits};
@@ -22,8 +23,9 @@ use futures::StreamExt;
 use futures::executor::block_on;
 use regex::Regex;
 
+use crate::clipboard::ClipboardError;
 use crate::config::{Config, PRIVATE_MODE};
-use crate::db::{DbMessage, DbTrait, EntryTrait};
+use crate::db::{DbMessage, DbTrait, EntryTrait, MimeDataMap};
 use crate::message::{AppMsg, ConfigMsg, ContextMenuMsg};
 use crate::navigation::EventMsg;
 use crate::utils::task_message;
@@ -57,7 +59,13 @@ pub struct AppState<Db: DbTrait> {
 pub enum ClipboardState {
     Init,
     Connected,
-    Error(String),
+    Error(ErrorState),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ErrorState {
+    MissingDataControlProtocol,
+    Other(String),
 }
 
 impl ClipboardState {
@@ -350,7 +358,6 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
             AppMsg::ToggleQuickSettings => {
                 return self.toggle_popup(PopupKind::QuickSettings);
             }
-
             AppMsg::TogglePopup => {
                 return self.toggle_popup(PopupKind::Popup);
             }
@@ -367,13 +374,23 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                         error!("can't insert data: {e}");
                     }
                 }
+                #[expect(irrefutable_let_patterns)]
                 clipboard::ClipboardMessage::Error(e) => {
-                    error!("{e}");
-                    self.clipboard_state = ClipboardState::Error(e);
+                    error!("clipboard: {e}");
+
+                    self.clipboard_state = if let ClipboardError::Watch(ref e) = e
+                        && let wl_clipboard_rs::paste_watch::Error::MissingProtocol { name, .. } =
+                            **e
+                        && name == "zwlr_data_control_manager_v1"
+                    {
+                        ClipboardState::Error(ErrorState::MissingDataControlProtocol)
+                    } else {
+                        ClipboardState::Error(ErrorState::Other(e.to_string()))
+                    };
                 }
                 clipboard::ClipboardMessage::EmptyKeyboard => {
                     if let Some(data) = self.db.get(0) {
-                        if let Err(e) = clipboard::copy(data.to_owned()) {
+                        if let Err(e) = clipboard::copy(data.raw_content().clone()) {
                             error!("can't copy: {e}");
                         }
                     }
@@ -382,7 +399,7 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
             AppMsg::Copy(id) => {
                 match self.db.get_from_id(id) {
                     Some(data) => {
-                        if let Err(e) = clipboard::copy(data.clone()) {
+                        if let Err(e) = clipboard::copy(data.raw_content().clone()) {
                             error!("can't copy: {e}");
                         }
                     }
@@ -390,6 +407,10 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                 }
 
                 return self.close_popup();
+            }
+
+            AppMsg::CopySpecial(data) => {
+                return copy_iced(data);
             }
             AppMsg::Clear => {
                 if let Err(e) = block_on(self.db.clear()) {
@@ -429,7 +450,7 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                     ) {
                         debug!("copy!!!");
                         if let Some(data) = self.db.get(self.focused) {
-                            if let Err(e) = clipboard::copy(data.clone()) {
+                            if let Err(e) = clipboard::copy(data.raw_content().clone()) {
                                 error!("can't copy: {e}");
                             }
                             return self.close_popup();
@@ -514,6 +535,12 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                     }
                 }
             },
+            AppMsg::LinkClicked(url) => {
+                info!("open: {url}");
+                if let Err(e) = open::that(url.as_str()) {
+                    error!("{e}");
+                }
+            }
         }
         Task::none()
     }
@@ -574,4 +601,23 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
     fn style(&self) -> Option<iced::runtime::Appearance> {
         Some(cosmic::applet::style())
     }
+}
+
+// used because wl_clipboard can't copy when zwlr_data_control_manager_v1 is not there
+fn copy_iced(data: MimeDataMap) -> Task<AppMsg> {
+    struct MimeDataMapN(MimeDataMap);
+
+    impl AsMimeTypes for MimeDataMapN {
+        fn available(&self) -> std::borrow::Cow<'static, [String]> {
+            std::borrow::Cow::Owned(self.0.keys().cloned().collect())
+        }
+
+        fn as_bytes(&self, mime_type: &str) -> Option<std::borrow::Cow<'static, [u8]>> {
+            self.0
+                .get(mime_type)
+                .map(|d| std::borrow::Cow::Owned(d.clone()))
+        }
+    }
+
+    cosmic::iced::clipboard::write_data(MimeDataMapN(data))
 }

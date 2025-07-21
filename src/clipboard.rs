@@ -1,5 +1,8 @@
 use std::{
-    sync::atomic::{self},
+    sync::{
+        Arc,
+        atomic::{self},
+    },
     time::Duration,
 };
 
@@ -12,10 +15,7 @@ use wl_clipboard_rs::{
     paste_watch,
 };
 
-use crate::{
-    config::PRIVATE_MODE,
-    db::{EntryTrait, MimeDataMap},
-};
+use crate::{config::PRIVATE_MODE, db::MimeDataMap};
 
 #[derive(Debug, Clone)]
 pub enum ClipboardMessage {
@@ -24,7 +24,19 @@ pub enum ClipboardMessage {
     /// Means that the source was closed, or the compurer just started
     /// This means the clipboard manager must become the source, by providing the last entry
     EmptyKeyboard,
-    Error(String),
+    Error(ClipboardError),
+}
+
+#[derive(Debug, Clone, thiserror::Error)]
+pub enum ClipboardError {
+    #[error(transparent)]
+    Watch(Arc<paste_watch::Error>),
+}
+
+enum WatchRes<I> {
+    Some(I),
+    None,
+    Err(paste_watch::Error),
 }
 
 pub fn sub() -> impl Stream<Item = ClipboardMessage> {
@@ -39,17 +51,18 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
                             match clipboard_watcher.start_watching(paste_watch::Seat::Unspecified) {
                                 Ok(res) => {
                                     if !PRIVATE_MODE.load(atomic::Ordering::Relaxed) {
-                                        tx.blocking_send(Some(res)).expect("can't send");
+                                        tx.blocking_send(WatchRes::Some(res)).unwrap();
                                     } else {
                                         info!("private mode")
                                     }
                                 }
                                 Err(e) => match e {
                                     paste_watch::Error::ClipboardEmpty => {
-                                        tx.blocking_send(None).expect("can't send")
+                                        tx.blocking_send(WatchRes::None).unwrap();
                                     }
                                     _ => {
-                                        error!("watch clipboard error: {e}");
+                                        tx.blocking_send(WatchRes::Err(e)).unwrap();
+                                        break;
                                     }
                                 },
                             }
@@ -64,7 +77,7 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
                         i += 1;
 
                         match rx.recv().await {
-                            Some(Some(res)) => {
+                            Some(WatchRes::Some(res)) => {
                                 let data: MimeDataMap =
                                     join_all(res.map(|(mime_type, mut pipe)| async move {
                                         let mut contents = Vec::new();
@@ -107,21 +120,18 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
                                 }
                             }
 
-                            Some(None) => {
+                            Some(WatchRes::None) => {
                                 output.send(ClipboardMessage::EmptyKeyboard).await.unwrap();
                             }
-                            None => {
-                                error!("can't receive");
+                            Some(WatchRes::Err(e)) => {
                                 output
-                                    .send(ClipboardMessage::Error(
-                                        "clipboard watching error".to_string(),
-                                    ))
+                                    .send(ClipboardMessage::Error(ClipboardError::Watch(e.into())))
                                     .await
-                                    .expect("can't send");
-
-                                loop {
-                                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-                                }
+                                    .unwrap();
+                                std::future::pending::<()>().await;
+                            }
+                            None => {
+                                std::future::pending::<()>().await;
                             }
                         }
                     }
@@ -131,24 +141,21 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
                     // todo: how to cancel properly?
                     // https://github.com/pop-os/cosmic-files/blob/d96d48995d49e17f01903ca4d89839eb4a1b1104/src/app.rs#L1704
                     output
-                        .send(ClipboardMessage::Error(e.to_string()))
+                        .send(ClipboardMessage::Error(ClipboardError::Watch(e.into())))
                         .await
-                        .expect("can't send");
-                    loop {
-                        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-                    }
+                        .unwrap();
+
+                    std::future::pending::<()>().await;
                 }
             };
         }
     })
 }
 
-pub fn copy<Entry: EntryTrait>(data: Entry) -> Result<(), copy::Error> {
-    debug!("copy {:?}", data);
+pub fn copy(data: MimeDataMap) -> Result<(), copy::Error> {
+    let mut sources = Vec::with_capacity(data.len());
 
-    let mut sources = Vec::with_capacity(data.raw_content().len());
-
-    for (mime, content) in data.into_raw_content() {
+    for (mime, content) in data {
         let source = MimeSource {
             source: copy::Source::Bytes(content.into_boxed_slice()),
             mime_type: copy::MimeType::Specific(mime),

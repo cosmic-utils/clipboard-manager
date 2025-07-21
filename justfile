@@ -38,12 +38,12 @@ install-schema:
     install -Dm0644 res/config_schema.json {{ schema-dst }}
 
 uninstall:
-    rm {{ bin-dst }} || true
-    rm {{ desktop-dst }} || true
-    rm {{ icon-dst }} || true
-    rm {{ env-dst }} || true
-    rm {{ schema-dst }} || true
-    rm {{ metainfo-dst }} || true
+    rm -f {{ bin-dst }}
+    rm -f {{ desktop-dst }} 
+    rm -f {{ icon-dst }}
+    rm -f {{ env-dst }}
+    rm -f {{ schema-dst }}
+    rm -f {{ metainfo-dst }}
 
 clean:
     cargo clean
