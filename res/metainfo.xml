@@ -34,8 +34,7 @@
 
     <description>
         <p>Clipboard Manager cosmic applet with support for images and other mime types. Only work
-            on Wayland using the data control protocol (THIS PROTOCOL IS DISABLED BY DEFAULT ON
-            COSMIC).</p>
+            on Wayland using the data control protocol.</p>
     </description>
 
 
