@@ -7070,7 +7070,7 @@ dependencies = [
 [[package]]
 name = "wl-clipboard-rs"
 version = "0.8.1"
-source = "git+https://github.com/wiiznokes/wl-clipboard-rs.git?branch=watch#95713ccf8b3d8ec3abbd630562482ad086299fd0"
+source = "git+https://github.com/wiiznokes//wl-clipboard-rs?rev=759678ad907fd8e9304f3be9a70ba43b2c920bf5#759678ad907fd8e9304f3be9a70ba43b2c920bf5"
 dependencies = [
  "libc",
  "log",

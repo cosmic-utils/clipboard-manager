@@ -79,7 +79,7 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
                         match rx.recv().await {
                             Some(WatchRes::Some(res)) => {
                                 let data: MimeDataMap =
-                                    join_all(res.map(|(mime_type, mut pipe)| async move {
+                                    join_all(res.into_iter().map(|(mime_type, mut pipe)| async move {
                                         let mut contents = Vec::new();
 
                                         match tokio::time::timeout(
