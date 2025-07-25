@@ -90,7 +90,7 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
                                         {
                                             Ok(Ok(len)) => {
                                                 if len == 0 {
-                                                    warn!("data is empty: {mime_type}");
+                                                    debug!("data is empty: {mime_type}");
                                                     None
                                                 } else  {Some((mime_type, contents)) }
                                             },
