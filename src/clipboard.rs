@@ -79,7 +79,7 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
                         match rx.recv().await {
                             Some(WatchRes::Some(res)) => {
                                 let data: MimeDataMap =
-                                    join_all(res.map(|(mime_type, mut pipe)| async move {
+                                    join_all(res.into_iter().map(|(mime_type, mut pipe)| async move {
                                         let mut contents = Vec::new();
 
                                         match tokio::time::timeout(
@@ -90,7 +90,7 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
                                         {
                                             Ok(Ok(len)) => {
                                                 if len == 0 {
-                                                    warn!("data is empty: {mime_type}");
+                                                    debug!("data is empty: {mime_type}");
                                                     None
                                                 } else  {Some((mime_type, contents)) }
                                             },
