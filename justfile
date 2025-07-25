@@ -69,35 +69,15 @@ prettier:
 metainfo-check:
     appstreamcli validate --pedantic --explain --strict res/metainfo.xml
 
-################### Other
+################### Flatpak
 
-git-cache:
-    git rm -rf --cached .
-    git add .
-
-expand:
-    cargo expand
-
-setup:
-    rm -rf flatpak-builder-tools
-    git clone https://github.com/flatpak/flatpak-builder-tools
-    pip install aiohttp toml
-
-sources-gen:
-    python3 flatpak-builder-tools/cargo/flatpak-cargo-generator.py ./Cargo.lock -o cargo-sources.json
-
-sdk-version := "24.08"
-
-install-sdk:
-    flatpak remote-add --if-not-exists --user flathub https://flathub.org/repo/flathub.flatpakrepo
-    flatpak install --noninteractive --user flathub \
-        org.freedesktop.Platform//{{ sdk-version }} \
-        org.freedesktop.Sdk//{{ sdk-version }} \
-        org.freedesktop.Sdk.Extension.rust-stable//{{ sdk-version }} \
-        org.freedesktop.Sdk.Extension.llvm18//{{ sdk-version }}
+run:
+    RUST_LOG="warn,cosmic_ext_applet_clipboard_manager=debug" flatpak run {{ appid }}
 
 uninstall-f:
     flatpak uninstall {{ appid }} -y || true
+
+update-flatpak-all: setup-update-flatpak update-flatpak commit-update-flatpak
 
 # deps: flatpak-builder git-lfs
 build-and-install: uninstall-f
@@ -111,8 +91,47 @@ build-and-install: uninstall-f
       flatpak-out \
       {{ appid }}.json
 
-run:
-    RUST_LOG="warn,cosmic_ext_applet_clipboard_manager=debug" flatpak run {{ appid }}
+sdk-version := "24.08"
 
-runtime-packages:
-    flatpak run --command=cat org.freedesktop.Sdk//{{ sdk-version }} /usr/manifest.json|jq -r '."modules"|.[]|."name"'|sed -E 's#.*/(.*)\.bst#\1#'|sort -u
+install-sdk:
+    flatpak remote-add --if-not-exists --user flathub https://flathub.org/repo/flathub.flatpakrepo
+    flatpak install --noninteractive --user flathub \
+        org.freedesktop.Platform//{{ sdk-version }} \
+        org.freedesktop.Sdk//{{ sdk-version }} \
+        org.freedesktop.Sdk.Extension.rust-stable//{{ sdk-version }} \
+        org.freedesktop.Sdk.Extension.llvm18//{{ sdk-version }}
+
+# pip install aiohttp toml
+setup-update-flatpak:
+    rm -rf cosmic-flatpak
+    git clone https://github.com/wiiznokes/cosmic-flatpak.git
+    git -C cosmic-flatpak remote add upstream https://github.com/pop-os/cosmic-flatpak.git
+    git -C cosmic-flatpak fetch upstream
+    git -C cosmic-flatpak checkout master
+    git -C cosmic-flatpak rebase upstream/master master
+    git -C cosmic-flatpak push origin master
+
+    git -C cosmic-flatpak branch -D update || true
+    git -C cosmic-flatpak push origin --delete update || true
+    git -C cosmic-flatpak checkout -b update
+    git -C cosmic-flatpak push origin update
+
+    rm -rf flatpak-builder-tools
+    git clone https://github.com/flatpak/flatpak-builder-tools
+
+update-flatpak:
+    python3 flatpak-builder-tools/cargo/flatpak-cargo-generator.py Cargo.lock -o cosmic-flatpak/app/{{ appid }}/cargo-sources.json
+    cp flatpak_schema.json cosmic-flatpak/app/{{ appid }}/{{ appid }}.json
+    sed -i "s/###commit###/$(git rev-parse HEAD)/g" cosmic-flatpak/app/{{ appid }}/{{ appid }}.json
+
+commit-update-flatpak:
+    git -C cosmic-flatpak add .
+    git -C cosmic-flatpak commit -m "Update clipboard manager"
+    git -C cosmic-flatpak push origin update
+    xdg-open https://github.com/pop-os/cosmic-flatpak/compare/master...wiiznokes:update?expand=1
+
+################### Other
+
+git-cache:
+    git rm -rf --cached .
+    git add .

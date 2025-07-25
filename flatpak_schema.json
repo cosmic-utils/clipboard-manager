@@ -1,0 +1,39 @@
+{
+  "id": "io.github.cosmic_utils.cosmic-ext-applet-clipboard-manager",
+  "runtime": "org.freedesktop.Platform",
+  "runtime-version": "24.08",
+  "base": "com.system76.Cosmic.BaseApp",
+  "base-version": "stable",
+  "sdk": "org.freedesktop.Sdk",
+  "sdk-extensions": ["org.freedesktop.Sdk.Extension.rust-stable"],
+  "command": "cosmic-ext-applet-clipboard-manager",
+  "finish-args": [
+    "--share=ipc",
+    "--socket=wayland",
+    "--talk-name=com.system76.CosmicSettingsDaemon"
+  ],
+  "build-options": {
+    "append-path": "/usr/lib/sdk/rust-stable/bin",
+    "env": {
+      "CARGO_HOME": "/run/build/cosmic-ext-applet-clipboard-manager/cargo"
+    }
+  },
+  "modules": [
+    {
+      "name": "cosmic-ext-applet-clipboard-manager",
+      "buildsystem": "simple",
+      "build-commands": [
+        "just build-release --verbose --offline",
+        "just prefix=/app install"
+      ],
+      "sources": [
+        {
+          "type": "git",
+          "url": "https://github.com/cosmic-utils/clipboard-manager.git",
+          "commit": "###commit###"
+        },
+        "cargo-sources.json"
+      ]
+    }
+  ]
+}
