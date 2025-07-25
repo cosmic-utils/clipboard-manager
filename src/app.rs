@@ -37,7 +37,7 @@ use std::sync::atomic::{self};
 use std::time::Duration;
 
 pub const QUALIFIER: &str = "io.github";
-pub const ORG: &str = "wiiznokes";
+pub const ORG: &str = "cosmic_utils";
 pub const APP: &str = "cosmic-ext-applet-clipboard-manager";
 pub const APPID: &str = constcat::concat!(QUALIFIER, ".", ORG, ".", APP);
 

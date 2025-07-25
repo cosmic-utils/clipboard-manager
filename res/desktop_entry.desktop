@@ -7,7 +7,7 @@ Keywords=Cosmic;Iced;history;
 Keywords[pt]=clipboard;histórico;
 
 # translators: do not translate this part
-Icon=io.github.wiiznokes.cosmic-ext-applet-clipboard-manager-symbolic
+Icon=io.github.cosmic_utils.cosmic-ext-applet-clipboard-manager-symbolic
 Categories=Cosmic;Iced;
 Type=Application
 Exec=cosmic-ext-applet-clipboard-manager

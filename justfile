@@ -2,7 +2,7 @@ rootdir := ''
 prefix := '/usr'
 debug := '0'
 name := 'cosmic-ext-applet-clipboard-manager'
-appid := 'io.github.wiiznokes.' + name
+appid := 'io.github.cosmic_utils.' + name
 cargo-target-dir := env('CARGO_TARGET_DIR', 'target')
 bin-src := cargo-target-dir / if debug == '1' { 'debug' / name } else { 'release' / name }
 base-dir := absolute_path(clean(rootdir / prefix))
