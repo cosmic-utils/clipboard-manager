@@ -61,6 +61,9 @@ fix:
 fmt:
     cargo fmt --all
 
+fmt-just:
+    just --fmt --unstable
+
 prettier:
     # install on Debian: sudo snap install node --classic
     # npx is the command to run npm package, node is the runtime
@@ -77,7 +80,7 @@ run:
 uninstall-f:
     flatpak uninstall {{ appid }} -y || true
 
-update-flatpak: setup-update-flatpak update-flatpak commit-update-flatpak
+update-flatpak: setup-update-flatpak update-flatpak-gen commit-update-flatpak
 
 # deps: flatpak-builder git-lfs
 build-and-install: uninstall-f

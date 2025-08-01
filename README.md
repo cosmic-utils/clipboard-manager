@@ -10,9 +10,9 @@ There is a quick settings popup when you right click the icon.
 
 Use the flatpak version in the cosmic store.
 
-
 > [!NOTE]
-> The applet is not currently displayed on the cosmic-store for some reason. Use this command to install it manually: 
+> The applet is not currently displayed on the cosmic-store for some reason. Use this command to install it manually:
+>
 > ```sh
 > flatpak install cosmic io.github.cosmic_utils.cosmic-ext-applet-clipboard-manager
 > ```
