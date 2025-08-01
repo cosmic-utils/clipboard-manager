@@ -3,7 +3,7 @@
 <!-- https://docs.flathub.org/docs/for-app-authors/metainfo-guidelines -->
 
 <component type="desktop-application">
-    <id>io.github.cosmic_utils.cosmic-ext-applet-external-clipboard-manager</id>
+    <id>io.github.cosmic_utils.cosmic-ext-applet-clipboard-manager</id>
 
     <name>Clipboard Manager</name>
     <summary>A wayland clipboard manager</summary>
