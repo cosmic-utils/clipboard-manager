@@ -77,7 +77,7 @@ run:
 uninstall-f:
     flatpak uninstall {{ appid }} -y || true
 
-update-flatpak-all: setup-update-flatpak update-flatpak commit-update-flatpak
+update-flatpak: setup-update-flatpak update-flatpak commit-update-flatpak
 
 # deps: flatpak-builder git-lfs
 build-and-install: uninstall-f
@@ -89,7 +89,7 @@ build-and-install: uninstall-f
       --install-deps-from=flathub \
       --repo=repo \
       flatpak-out \
-      {{ appid }}.json
+      {{ repo-name }}/{{ appid }}.json
 
 sdk-version := "24.08"
 
@@ -101,34 +101,37 @@ install-sdk:
         org.freedesktop.Sdk.Extension.rust-stable//{{ sdk-version }} \
         org.freedesktop.Sdk.Extension.llvm18//{{ sdk-version }}
 
+repo-name := "flatpak-repo"
+branch-name := 'update-' + name
+
 # pip install aiohttp toml
 setup-update-flatpak:
-    rm -rf cosmic-flatpak
-    git clone https://github.com/wiiznokes/cosmic-flatpak.git
-    git -C cosmic-flatpak remote add upstream https://github.com/pop-os/cosmic-flatpak.git
-    git -C cosmic-flatpak fetch upstream
-    git -C cosmic-flatpak checkout master
-    git -C cosmic-flatpak rebase upstream/master master
-    git -C cosmic-flatpak push origin master
+    rm -rf {{ repo-name }}
+    git clone https://github.com/wiiznokes/cosmic-flatpak.git {{ repo-name }}
+    git -C {{ repo-name }} remote add upstream https://github.com/pop-os/cosmic-flatpak.git
+    git -C {{ repo-name }} fetch upstream
+    git -C {{ repo-name }} checkout master
+    git -C {{ repo-name }} rebase upstream/master master
+    git -C {{ repo-name }} push origin master
 
-    git -C cosmic-flatpak branch -D update || true
-    git -C cosmic-flatpak push origin --delete update || true
-    git -C cosmic-flatpak checkout -b update
-    git -C cosmic-flatpak push origin update
+    git -C {{ repo-name }} branch -D {{ branch-name }} || true
+    git -C {{ repo-name }} push origin --delete {{ branch-name }} || true
+    git -C {{ repo-name }} checkout -b {{ branch-name }}
+    git -C {{ repo-name }} push origin {{ branch-name }}
 
     rm -rf flatpak-builder-tools
     git clone https://github.com/flatpak/flatpak-builder-tools
 
-update-flatpak:
-    python3 flatpak-builder-tools/cargo/flatpak-cargo-generator.py Cargo.lock -o cosmic-flatpak/app/{{ appid }}/cargo-sources.json
-    cp flatpak_schema.json cosmic-flatpak/app/{{ appid }}/{{ appid }}.json
-    sed -i "s/###commit###/$(git rev-parse HEAD)/g" cosmic-flatpak/app/{{ appid }}/{{ appid }}.json
+update-flatpak-gen:
+    python3 flatpak-builder-tools/cargo/flatpak-cargo-generator.py Cargo.lock -o {{ repo-name }}/app/{{ appid }}/cargo-sources.json
+    cp flatpak_schema.json {{ repo-name }}/app/{{ appid }}/{{ appid }}.json
+    sed -i "s/###commit###/$(git rev-parse HEAD)/g" {{ repo-name }}/app/{{ appid }}/{{ appid }}.json
 
 commit-update-flatpak:
-    git -C cosmic-flatpak add .
-    git -C cosmic-flatpak commit -m "Update clipboard manager"
-    git -C cosmic-flatpak push origin update
-    xdg-open https://github.com/pop-os/cosmic-flatpak/compare/master...wiiznokes:update?expand=1
+    git -C {{ repo-name }} add .
+    git -C {{ repo-name }} commit -m "Update {{ name }}"
+    git -C {{ repo-name }} push origin {{ branch-name }}
+    xdg-open https://github.com/pop-os/cosmic-flatpak/compare/master...wiiznokes:{{ branch-name }}?expand=1
 
 ################### Other
 
