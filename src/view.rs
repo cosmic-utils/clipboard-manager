@@ -258,13 +258,7 @@ impl<Db: DbTrait> AppState<Db> {
                     .width(Length::Fill)
                     .height(Length::Fill)
                     .padding(15)
-                    .apply(Element::from)
-
-                // container(e)
-                //     .align_top(Length::Fill)
-                //     .center_x(Length::Fill)
-                //     .padding(15)
-                //     .apply(Element::from)
+                    .into()
             }
             ErrorState::Other(e) => text(e.to_string()).into(),
         }

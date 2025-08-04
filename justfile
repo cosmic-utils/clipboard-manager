@@ -83,7 +83,7 @@ uninstallf:
 update-flatpak: setup-update-flatpak update-flatpak-gen commit-update-flatpak
 
 # deps: flatpak-builder git-lfs
-build-and-install: uninstallf
+build-and-installf: uninstallf
     rm -rf flatpak-out || true
     flatpak-builder \
       --verbose \
@@ -92,7 +92,7 @@ build-and-install: uninstallf
       --install-deps-from=flathub \
       --repo=repo \
       flatpak-out \
-      {{ repo-name }}/{{ appid }}.json
+      {{ repo-name }}/app/{{ appid }}/{{ appid }}.json
 
 sdk-version := "24.08"
 
@@ -123,7 +123,7 @@ setup-update-flatpak:
     git -C {{ repo-name }} push origin {{ branch-name }}
 
     rm -rf flatpak-builder-tools
-    git clone https://github.com/flatpak/flatpak-builder-tools
+    git clone https://github.com/flatpak/flatpak-builder-tools --branch master --depth 1
 
 update-flatpak-gen:
     python3 flatpak-builder-tools/cargo/flatpak-cargo-generator.py Cargo.lock -o {{ repo-name }}/app/{{ appid }}/cargo-sources.json

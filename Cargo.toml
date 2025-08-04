@@ -45,7 +45,14 @@ open = "5"
 [dependencies.libcosmic]
 git = "https://github.com/pop-os/libcosmic"
 default-features = false
-features = ["applet", "tokio", "wayland", "qr_code", "markdown", "highlighter"]
+features = [
+    "applet",
+    "tokio",
+    "wayland",
+    "qr_code",
+    "markdown",
+    "highlighter",
+]
 
 [dependencies.wl-clipboard-rs]
 git = "https://github.com/wiiznokes/wl-clipboard-rs.git"

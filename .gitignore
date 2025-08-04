@@ -7,3 +7,5 @@
 /flatpak-out
 /.cargo/config.toml
 /cosmic-flatpak
+/flatpak-repo
+/repo
