@@ -52,7 +52,6 @@ features = [
     "qr_code",
     "markdown",
     "highlighter",
-    "dbus-config",
 ]
 
 [dependencies.wl-clipboard-rs]
