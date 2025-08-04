@@ -74,13 +74,15 @@ metainfo-check:
 
 ################### Flatpak
 
-run:
+runf:
     RUST_LOG="warn,cosmic_ext_applet_clipboard_manager=debug" flatpak run {{ appid }}
 
 uninstallf:
     flatpak uninstall {{ appid }} -y || true
 
 update-flatpak: setup-update-flatpak update-flatpak-gen commit-update-flatpak
+
+update-flatpak-test: setup-update-flatpak update-flatpak-gen build-and-installf runf
 
 # deps: flatpak-builder git-lfs
 build-and-installf: uninstallf
