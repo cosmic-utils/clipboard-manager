@@ -246,21 +246,19 @@ impl<Db: DbTrait> AppState<Db> {
                 let mut copy = MimeDataMap::new();
                 copy.insert("text/plain".to_string(), COMMAND.as_bytes().to_vec());
 
-                scrollable(
-                    column()
-                        .push(e)
-                        .push(vertical_space())
-                        .push(
-                            button::text("Copy Command")
-                                // todo: replace with on_press_with
-                                .on_press(AppMsg::CopySpecial(copy)),
-                        )
-                        .align_x(Horizontal::Center)
-                        .width(Length::Fill)
-                        .height(Length::Fill)
-                        .padding(15),
-                )
-                .into()
+                column()
+                    .push(e)
+                    .push(vertical_space())
+                    .push(
+                        button::text("Copy Command")
+                            // todo: replace with on_press_with
+                            .on_press(AppMsg::CopySpecial(copy)),
+                    )
+                    .align_x(Horizontal::Center)
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .padding(15)
+                    .into()
             }
             ErrorState::Other(e) => text(e.to_string()).into(),
         }
