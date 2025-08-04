@@ -11,7 +11,7 @@ bin-dst := base-dir / 'bin' / name
 desktop-dst := share-dst / 'applications' / appid + '.desktop'
 metainfo-dst := share-dst / 'metainfo' / appid + '.metainfo.xml'
 icon-dst := share-dst / 'icons/hicolor/scalable/apps' / appid + '-symbolic.svg'
-env-dst := rootdir / 'etc/profile.d' / name + '.sh'
+env-dst := rootdir / 'etc/profile.d/data_control_cosmic.sh'
 schema-dst := share-dst / 'configurator' / appid + '.json'
 
 default: build-release
@@ -77,13 +77,13 @@ metainfo-check:
 run:
     RUST_LOG="warn,cosmic_ext_applet_clipboard_manager=debug" flatpak run {{ appid }}
 
-uninstall-f:
+uninstallf:
     flatpak uninstall {{ appid }} -y || true
 
 update-flatpak: setup-update-flatpak update-flatpak-gen commit-update-flatpak
 
 # deps: flatpak-builder git-lfs
-build-and-install: uninstall-f
+build-and-install: uninstallf
     rm -rf flatpak-out || true
     flatpak-builder \
       --verbose \
