@@ -83,7 +83,7 @@ uninstallf:
 update-flatpak: setup-update-flatpak update-flatpak-gen commit-update-flatpak
 
 # deps: flatpak-builder git-lfs
-build-and-install: uninstallf
+build-and-installf: uninstallf
     rm -rf flatpak-out || true
     flatpak-builder \
       --verbose \
