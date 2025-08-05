@@ -7070,7 +7070,7 @@ dependencies = [
 [[package]]
 name = "wl-clipboard-rs"
 version = "0.8.1"
-source = "git+https://github.com/wiiznokes/wl-clipboard-rs.git?branch=watch#3ee0fbeab3be99ea7238aa6d45de53e1950efeff"
+source = "git+https://github.com/wiiznokes//wl-clipboard-rs?rev=da29a01e38904ba0e6f177e6cd7ed1e1b79ae70e#da29a01e38904ba0e6f177e6cd7ed1e1b79ae70e"
 dependencies = [
  "libc",
  "log",
@@ -7078,7 +7078,6 @@ dependencies = [
  "rustix 0.38.44",
  "tempfile",
  "thiserror 2.0.12",
- "tokio",
  "tree_magic_mini",
  "wayland-backend",
  "wayland-client",
