@@ -6,7 +6,9 @@
     <id>io.github.cosmic_utils.cosmic-ext-applet-clipboard-manager</id>
 
     <name>Clipboard Manager</name>
+    <name xml:lang="hu">Vágólapkezelő</name>
     <summary>A wayland clipboard manager</summary>
+    <summary xml:lang="hu">Wayland vágólapkezelő</summary>
 
     <metadata_license>MIT</metadata_license>
     <project_license>GPL-3.0-only</project_license>
@@ -35,6 +37,8 @@
     <description>
         <p>Clipboard Manager cosmic applet with support for images and other mime types. Only work
             on Wayland using the data control protocol.</p>
+        <p xml:lang="hu">Vágólapkezelő COSMIC kisalkalmazás, amely támogatja a képeket és más MIME-típusokat. 
+           Csak Waylanden működik az adatvezérlő protokoll használatával.</p>
     </description>
 
 
@@ -45,6 +49,7 @@
             <image>
                 https://media.githubusercontent.com/media/cosmic-utils/clipboard-manager/master/res/screenshots/main_popup.png</image>
             <caption>The applet.</caption>
+            <caption xml:lang="hu">A kisalkalmazás.</caption>
         </screenshot>
     </screenshots>
 
