@@ -114,13 +114,13 @@ pub trait EntryTrait: Debug + Clone + Send {
         }
 
         for pref_mime in PRIV_MIME_TYPES_SIMPLE {
-            if let Some(raw_content) = self.raw_content().get(*pref_mime) {
-                if !raw_content.is_empty() {
-                    match Content::try_new(pref_mime, raw_content) {
-                        Ok(Some(content)) => return Some(((pref_mime, raw_content), content)),
-                        Ok(None) => {}
-                        Err(_e) => {}
-                    }
+            if let Some(raw_content) = self.raw_content().get(*pref_mime)
+                && !raw_content.is_empty()
+            {
+                match Content::try_new(pref_mime, raw_content) {
+                    Ok(Some(content)) => return Some(((pref_mime, raw_content), content)),
+                    Ok(None) => {}
+                    Err(_e) => {}
                 }
             }
         }
@@ -145,10 +145,10 @@ pub trait EntryTrait: Debug + Clone + Send {
             if mime.starts_with("text/") {
                 let text = core::str::from_utf8(content).ok()?;
 
-                if mime == "text/html" {
-                    if let Some(alt) = find_alt(text) {
-                        return Some(alt);
-                    }
+                if mime == "text/html"
+                    && let Some(alt) = find_alt(text)
+                {
+                    return Some(alt);
                 }
 
                 return Some(text);

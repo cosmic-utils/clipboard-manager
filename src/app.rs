@@ -315,10 +315,10 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
     fn on_close_requested(&self, id: window::Id) -> Option<AppMsg> {
         info!("on_close_requested");
 
-        if let Some(popup) = &self.popup {
-            if popup.id == id {
-                return Some(AppMsg::ClosePopup);
-            }
+        if let Some(popup) = &self.popup
+            && popup.id == id
+        {
+            return Some(AppMsg::ClosePopup);
         }
         None
     }
@@ -389,10 +389,10 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                     };
                 }
                 clipboard::ClipboardMessage::EmptyKeyboard => {
-                    if let Some(data) = self.db.get(0) {
-                        if let Err(e) = clipboard::copy(data.raw_content().clone()) {
-                            error!("can't copy: {e}");
-                        }
+                    if let Some(data) = self.db.get(0)
+                        && let Err(e) = clipboard::copy(data.raw_content().clone())
+                    {
+                        error!("can't copy: {e}");
                     }
                 }
             },
@@ -545,7 +545,7 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
         Task::none()
     }
 
-    fn view(&self) -> Element<Self::Message> {
+    fn view(&self) -> Element<'_, Self::Message> {
         let icon = self
             .core
             .applet
@@ -557,7 +557,7 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
             .into()
     }
 
-    fn view_window(&self, _id: Id) -> Element<Self::Message> {
+    fn view_window(&self, _id: Id) -> Element<'_, Self::Message> {
         let Some(popup) = &self.popup else {
             return Space::new(0, 0).into();
         };
@@ -590,10 +590,10 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
     }
 
     fn on_app_exit(&mut self) -> Option<Self::Message> {
-        if self.config.unique_session {
-            if let Err(err) = block_on(self.db.clear()) {
-                error!("{err}");
-            }
+        if self.config.unique_session
+            && let Err(err) = block_on(self.db.clear())
+        {
+            error!("{err}");
         }
         None
     }

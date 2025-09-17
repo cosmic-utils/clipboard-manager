@@ -110,11 +110,11 @@ impl Favorites {
 
 fn hash_entry_content<H: Hasher>(data: &MimeDataMap, state: &mut H) {
     for m in PRIV_MIME_TYPES_SIMPLE {
-        if let Some(content) = data.get(*m) {
-            if !content.is_empty() {
-                content.hash(state);
-                return;
-            }
+        if let Some(content) = data.get(*m)
+            && !content.is_empty()
+        {
+            content.hash(state);
+            return;
         }
     }
 

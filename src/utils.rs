@@ -4,7 +4,7 @@ use std::cmp::min;
 use chrono::Utc;
 use cosmic::{Action, Task};
 
-pub fn formatted_value(value: &str, max_lines: usize, max_chars: usize) -> Cow<str> {
+pub fn formatted_value(value: &str, max_lines: usize, max_chars: usize) -> Cow<'_, str> {
     let value = value.trim();
 
     if value.lines().count() <= max_lines && value.len() <= max_chars {

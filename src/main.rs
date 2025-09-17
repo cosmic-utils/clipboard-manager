@@ -45,7 +45,7 @@ fn setup_logs() {
     }
 }
 
-fn main() -> cosmic::iced::Result {
+fn main() {
     localize::localize();
 
     setup_logs();
@@ -71,5 +71,9 @@ fn main() -> cosmic::iced::Result {
         config_handler,
         config,
     };
-    cosmic::applet::run::<AppState<db::DbSqlite>>(flags)
+
+    if let Err(e) = cosmic::applet::run::<AppState<db::DbSqlite>>(flags) {
+        error!("{e}");
+        panic!();
+    }
 }
