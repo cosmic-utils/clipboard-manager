@@ -1,3 +1,4 @@
+export CLIPBOARD_MANAGER_COMMIT := `git rev-parse --short HEAD`
 rootdir := ''
 prefix := '/usr'
 debug := '0'

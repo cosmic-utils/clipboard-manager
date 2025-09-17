@@ -46,6 +46,16 @@ fn setup_logs() {
 }
 
 fn main() {
+    for arg in std::env::args().skip(1) {
+        if arg == "-V" || arg == "--version" {
+            let version = env!("CARGO_PKG_VERSION");
+            let commit = option_env!("CLIPBOARD_MANAGER_COMMIT").unwrap_or("unknown");
+
+            println!("clipboard-manager {version} (commit {commit})");
+            return;
+        }
+    }
+
     localize::localize();
 
     setup_logs();
