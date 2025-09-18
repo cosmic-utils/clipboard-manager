@@ -1110,7 +1110,6 @@ dependencies = [
  "tracing",
  "tracing-journald",
  "tracing-subscriber",
- "wl-clipboard-rs",
 ]
 
 [[package]]
@@ -1129,7 +1128,7 @@ dependencies = [
 [[package]]
 name = "cosmic-panel-config"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/cosmic-panel#9ab63d665de38a3b6a60b6339523edc9a967c245"
+source = "git+https://github.com/pop-os/cosmic-panel#1afc1e85b9119baea9a9e8a47deadfdfb8b3677f"
 dependencies = [
  "anyhow",
  "cosmic-config",
@@ -1765,12 +1764,6 @@ name = "find-msvc-tools"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7fd99930f64d146689264c637b5af2f0233a933bef0d8570e2526bf9e083192d"
-
-[[package]]
-name = "fixedbitset"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ce7134b9999ecaf8bcd65542e436736ef32ddca1b3e06094cb6ec5755203b80"
 
 [[package]]
 name = "flate2"
@@ -3427,12 +3420,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6877bb514081ee2a7ff5ef9de3281f14a4dd4bceac4c09388074a6b5df8a139a"
 
 [[package]]
-name = "minimal-lexical"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
-
-[[package]]
 name = "miniz_oxide"
 version = "0.8.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3553,16 +3540,6 @@ dependencies = [
  "cfg_aliases 0.2.1",
  "libc",
  "memoffset 0.9.1",
-]
-
-[[package]]
-name = "nom"
-version = "7.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d273983c5a657a70a3e8f2a01329822f3b8c8172b73826411a55751e404a0a4a"
-dependencies = [
- "memchr",
- "minimal-lexical",
 ]
 
 [[package]]
@@ -4053,16 +4030,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "os_pipe"
-version = "1.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db335f4760b14ead6290116f2427bf33a14d4f0617d49f78a246de10c1831224"
-dependencies = [
- "libc",
- "windows-sys 0.59.0",
-]
-
-[[package]]
 name = "ouroboros"
 version = "0.18.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4200,16 +4167,6 @@ name = "percent-encoding"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
-
-[[package]]
-name = "petgraph"
-version = "0.6.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4c5cc86750666a3ed20bdaf5ca2a0344f9c67674cae0515bec2da16fbaa47db"
-dependencies = [
- "fixedbitset",
- "indexmap",
-]
 
 [[package]]
 name = "phf"
@@ -6063,18 +6020,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tree_magic_mini"
-version = "3.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f943391d896cdfe8eec03a04d7110332d445be7df856db382dd96a730667562c"
-dependencies = [
- "memchr",
- "nom",
- "once_cell",
- "petgraph",
-]
-
-[[package]]
 name = "ttf-parser"
 version = "0.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7277,25 +7222,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f17a85883d4e6d00e8a97c586de764dabcc06133f7f1d55dce5cdc070ad7fe59"
 
 [[package]]
-name = "wl-clipboard-rs"
-version = "0.8.1"
-source = "git+https://github.com/wiiznokes/wl-clipboard-rs.git?branch=watch#3ee0fbeab3be99ea7238aa6d45de53e1950efeff"
-dependencies = [
- "libc",
- "log",
- "os_pipe",
- "rustix 0.38.44",
- "tempfile",
- "thiserror 2.0.16",
- "tokio",
- "tree_magic_mini",
- "wayland-backend",
- "wayland-client",
- "wayland-protocols",
- "wayland-protocols-wlr",
-]
-
-[[package]]
 name = "writeable"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7365,7 +7291,7 @@ dependencies = [
 [[package]]
 name = "xdg-shell-wrapper-config"
 version = "0.1.0"
-source = "git+https://github.com/pop-os/cosmic-panel#9ab63d665de38a3b6a60b6339523edc9a967c245"
+source = "git+https://github.com/pop-os/cosmic-panel#1afc1e85b9119baea9a9e8a47deadfdfb8b3677f"
 dependencies = [
  "serde",
  "wayland-protocols-wlr",

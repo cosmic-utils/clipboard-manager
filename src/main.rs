@@ -10,6 +10,7 @@ use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberI
 
 mod app;
 mod clipboard;
+mod clipboard_watcher;
 mod config;
 mod db;
 mod icon;

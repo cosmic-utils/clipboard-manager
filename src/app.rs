@@ -30,7 +30,7 @@ use crate::message::{AppMsg, ConfigMsg, ContextMenuMsg};
 use crate::navigation::EventMsg;
 use crate::utils::task_message;
 use crate::view::SCROLLABLE_ID;
-use crate::{clipboard, config, navigation};
+use crate::{clipboard, clipboard_watcher, config, navigation};
 
 use cosmic::{cosmic_config, iced_runtime};
 use std::sync::atomic::{self};
@@ -379,8 +379,7 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                     error!("clipboard: {e}");
 
                     self.clipboard_state = if let ClipboardError::Watch(ref e) = e
-                        && let wl_clipboard_rs::paste_watch::Error::MissingProtocol { name, .. } =
-                            **e
+                        && let clipboard_watcher::Error::MissingProtocol { name, .. } = **e
                         && name == "zwlr_data_control_manager_v1"
                     {
                         ClipboardState::Error(ErrorState::MissingDataControlProtocol)
@@ -389,24 +388,21 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                     };
                 }
                 clipboard::ClipboardMessage::EmptyKeyboard => {
-                    if let Some(data) = self.db.get(0)
-                        && let Err(e) = clipboard::copy(data.raw_content().clone())
-                    {
-                        error!("can't copy: {e}");
+                    if let Some(data) = self.db.get(0) {
+                        return copy_iced(data.raw_content().clone());
                     }
                 }
             },
             AppMsg::Copy(id) => {
-                match self.db.get_from_id(id) {
-                    Some(data) => {
-                        if let Err(e) = clipboard::copy(data.raw_content().clone()) {
-                            error!("can't copy: {e}");
-                        }
+                let task = match self.db.get_from_id(id) {
+                    Some(data) => copy_iced(data.raw_content().clone()),
+                    None => {
+                        error!("id not found");
+                        Task::none()
                     }
-                    None => error!("id not found"),
-                }
+                };
 
-                return self.close_popup();
+                return Task::batch([task, self.close_popup()]);
             }
 
             AppMsg::CopySpecial(data) => {
@@ -447,16 +443,12 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                             kind: PopupKind::Popup,
                             ..
                         })
-                    ) {
-                        debug!("copy!!!");
-                        if let Some(data) = self.db.get(self.focused) {
-                            if let Err(e) = clipboard::copy(data.raw_content().clone()) {
-                                error!("can't copy: {e}");
-                            }
-                            return self.close_popup();
-                        }
-                    } else {
-                        debug!("don't copy!!!");
+                    ) && let Some(data) = self.db.get(self.focused)
+                    {
+                        return Task::batch([
+                            copy_iced(data.raw_content().clone()),
+                            self.close_popup(),
+                        ]);
                     }
                 }
                 EventMsg::Quit => {

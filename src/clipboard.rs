@@ -10,12 +10,8 @@ use cosmic::iced::{futures::SinkExt, stream::channel};
 use futures::{Stream, future::join_all};
 use itertools::Itertools;
 use tokio::{io::AsyncReadExt, sync::mpsc};
-use wl_clipboard_rs::{
-    copy::{self, MimeSource},
-    paste_watch,
-};
 
-use crate::{config::PRIVATE_MODE, db::MimeDataMap};
+use crate::{clipboard_watcher, config::PRIVATE_MODE, db::MimeDataMap};
 
 #[derive(Debug, Clone)]
 pub enum ClipboardMessage {
@@ -30,25 +26,28 @@ pub enum ClipboardMessage {
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum ClipboardError {
     #[error(transparent)]
-    Watch(Arc<paste_watch::Error>),
+    Watch(Arc<clipboard_watcher::Error>),
 }
 
 enum WatchRes<I> {
     Some(I),
     None,
-    Err(paste_watch::Error),
+    Err(clipboard_watcher::Error),
 }
 
 pub fn sub() -> impl Stream<Item = ClipboardMessage> {
     channel(500, move |mut output| {
         async move {
-            match paste_watch::Watcher::init(paste_watch::ClipboardType::Regular) {
+            match clipboard_watcher::Watcher::init() {
                 Ok(mut clipboard_watcher) => {
                     let (tx, mut rx) = mpsc::channel(5);
 
                     tokio::task::spawn_blocking(move || {
                         loop {
-                            match clipboard_watcher.start_watching(paste_watch::Seat::Unspecified) {
+                            debug!("start watching");
+                            match clipboard_watcher
+                                .start_watching(clipboard_watcher::Seat::Unspecified)
+                            {
                                 Ok(res) => {
                                     if !PRIVATE_MODE.load(atomic::Ordering::Relaxed) {
                                         tx.blocking_send(WatchRes::Some(res)).unwrap();
@@ -57,7 +56,7 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
                                     }
                                 }
                                 Err(e) => match e {
-                                    paste_watch::Error::ClipboardEmpty => {
+                                    clipboard_watcher::Error::ClipboardEmpty => {
                                         tx.blocking_send(WatchRes::None).unwrap();
                                     }
                                     _ => {
@@ -121,6 +120,7 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
                             }
 
                             Some(WatchRes::None) => {
+                                debug!("empty keyboard");
                                 output.send(ClipboardMessage::EmptyKeyboard).await.unwrap();
                             }
                             Some(WatchRes::Err(e)) => {
@@ -150,24 +150,6 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
             };
         }
     })
-}
-
-pub fn copy(data: MimeDataMap) -> Result<(), copy::Error> {
-    let mut sources = Vec::with_capacity(data.len());
-
-    for (mime, content) in data {
-        let source = MimeSource {
-            source: copy::Source::Bytes(content.into_boxed_slice()),
-            mime_type: copy::MimeType::Specific(mime),
-        };
-
-        sources.push(source);
-    }
-
-    let options = copy::Options::default();
-    wl_clipboard_rs::copy::copy_multi(options, sources)?;
-
-    Ok(())
 }
 
 // unfold experiment, doesn't work with channel, but better error management
