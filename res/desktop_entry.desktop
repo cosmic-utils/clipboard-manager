@@ -1,11 +1,13 @@
 [Desktop Entry]
 Name=Clipboard Manager
 Name[cs]=Manažer schránky
+Name[ar]=مدير الحافظة
 Name[pt]=Gestor da Área de Transferência
 Name[hu]=Vágólapkezelő
 Name[es]=Gestor de portapapeles
 Comment=A wayland clipboard manager
 Comment[cs]=Manažer schránky pro Wayland
+Comment[ar]=مدير حافظة وايلاند
 Comment[pt]=Miniaplicativo para gerenciar itens copiados no sistema
 Comment[hu]=Wayland vágólapkezelő
 Comment[es]=Gestor de portapapeles wayland
