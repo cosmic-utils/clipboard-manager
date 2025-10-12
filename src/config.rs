@@ -35,6 +35,23 @@ pub struct Config {
     pub unique_session: bool,
     pub maximum_entries_by_page: NonZeroU32,
     pub preferred_mime_types: Vec<String>,
+    /// Keyboard shortcut to toggle clipboard manager
+    pub keyboard_shortcut: KeyboardShortcut,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Deserialize, Serialize)]
+pub struct KeyboardShortcut {
+    pub modifiers: Vec<String>,
+    pub key: String,
+}
+
+impl Default for KeyboardShortcut {
+    fn default() -> Self {
+        Self {
+            modifiers: vec!["Super".to_string()],
+            key: "V".to_string(),
+        }
+    }
 }
 
 pub static PRIVATE_MODE: AtomicBool = AtomicBool::new(false);
@@ -56,6 +73,7 @@ impl Default for Config {
             unique_session: false,
             maximum_entries_by_page: NonZero::new(50).unwrap(),
             preferred_mime_types: Vec::new(),
+            keyboard_shortcut: KeyboardShortcut::default(),
         }
     }
 }
