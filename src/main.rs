@@ -14,11 +14,11 @@ mod clipboard_watcher;
 mod config;
 mod db;
 mod icon;
-mod ipc;
 mod localize;
 mod message;
 mod my_widget;
 mod navigation;
+mod toggle_signal;
 mod utils;
 mod view;
 
@@ -66,8 +66,8 @@ fn main() {
         }
 
         if arg == "--toggle" || arg == "-t" {
-            if let Err(e) = ipc::send_toggle_signal() {
-                eprintln!("Failed to toggle clipboard manager: {}", e);
+            if let Err(e) = toggle_signal::send_toggle_signal() {
+                error!("Failed to toggle clipboard manager: {}", e);
                 std::process::exit(1);
             }
             return;
@@ -97,6 +97,10 @@ fn main() {
     localize::localize();
 
     setup_logs();
+
+    if let Err(e) = toggle_signal::ensure_file_exist() {
+        error!("ensure toggle file exist {e}")
+    }
 
     let (config_handler, config) = match cosmic_config::Config::new(app::APPID, CONFIG_VERSION) {
         Ok(config_handler) => {

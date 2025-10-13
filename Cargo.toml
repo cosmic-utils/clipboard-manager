@@ -41,7 +41,7 @@ itertools = "0.14"
 alive_lock_file = "0.2"
 regex = "1"
 open = "5"
-notify = "7.0"
+notify = "8"
 
 [dependencies.libcosmic]
 git = "https://github.com/pop-os/libcosmic"

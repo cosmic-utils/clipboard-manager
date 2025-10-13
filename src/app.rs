@@ -30,7 +30,7 @@ use crate::message::{AppMsg, ConfigMsg, ContextMenuMsg};
 use crate::navigation::EventMsg;
 use crate::utils::task_message;
 use crate::view::SCROLLABLE_ID;
-use crate::{clipboard, clipboard_watcher, config, ipc, navigation};
+use crate::{clipboard, clipboard_watcher, config, navigation, toggle_signal};
 
 use cosmic::{cosmic_config, iced_runtime};
 use std::sync::atomic::{self};
@@ -53,7 +53,7 @@ pub struct AppState<Db: DbTrait> {
     pub qr_code: Option<Result<qr_code::Data, ()>>,
     last_quit: Option<(i64, PopupKind)>,
     pub preferred_mime_types_regex: Vec<Regex>,
-    last_signal_content: Option<String>,
+    last_toggle_signal_content: Option<u128>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -298,7 +298,7 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                 })
                 .collect(),
             config,
-            last_signal_content: None,
+            last_toggle_signal_content: None,
         };
 
         #[cfg(debug_assertions)]
@@ -335,18 +335,13 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
 
         match message {
             AppMsg::CheckSignalFile => {
-                // Only check signal file if XDG_RUNTIME_DIR is set
-                if let Some(signal_file) = ipc::get_signal_file_path() {
-                    if let Ok(content) = std::fs::read_to_string(&signal_file) {
-                        if self.last_signal_content.as_ref() != Some(&content) {
-                            self.last_signal_content = Some(content);
+                if let Ok(content) = toggle_signal::read_toggle_signal() {
+                    if self.last_toggle_signal_content.as_ref() != Some(&content) {
+                        self.last_toggle_signal_content = Some(content);
 
-                            // Clear last_quit for external toggles to ensure it works
-                            self.last_quit = None;
+                        self.last_quit = None;
 
-                            // Toggle the popup using the existing toggle_popup function
-                            return self.toggle_popup(PopupKind::Popup);
-                        }
+                        return self.toggle_popup(PopupKind::Popup);
                     }
                 }
             }
@@ -584,7 +579,7 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
             config::sub(),
             navigation::sub().map(AppMsg::Navigation),
             db_sub().map(AppMsg::Db),
-            ipc::signal_file_watcher(),
+            Subscription::run(|| toggle_signal::sub()),
         ];
 
         if !self.clipboard_state.is_error() {
