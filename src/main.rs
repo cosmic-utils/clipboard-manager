@@ -7,9 +7,6 @@ use config::{CONFIG_VERSION, Config};
 use cosmic::cosmic_config;
 use cosmic::cosmic_config::CosmicConfigEntry;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
-use std::fs;
-use std::path::PathBuf;
-use std::time::SystemTime;
 
 mod app;
 mod clipboard;
@@ -17,31 +14,13 @@ mod clipboard_watcher;
 mod config;
 mod db;
 mod icon;
+mod ipc;
 mod localize;
 mod message;
 mod my_widget;
 mod navigation;
 mod utils;
 mod view;
-
-// Signal file path for IPC
-fn get_signal_file_path() -> PathBuf {
-    let runtime_dir = std::env::var("XDG_RUNTIME_DIR")
-        .unwrap_or_else(|_| "/tmp".to_string());
-    PathBuf::from(runtime_dir).join("cosmic-clipboard-manager-toggle")
-}
-
-fn send_toggle_signal() -> std::io::Result<()> {
-    let signal_file = get_signal_file_path();
-    // Write current timestamp to signal file
-    let timestamp = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap()
-        .as_millis()
-        .to_string();
-    fs::write(&signal_file, timestamp)?;
-    Ok(())
-}
 
 #[allow(unused_imports)]
 #[macro_use]
@@ -77,10 +56,7 @@ fn setup_logs() {
 }
 
 fn main() {
-    // Check for command-line arguments before initializing the app
-    let args: Vec<String> = std::env::args().skip(1).collect();
-
-    for arg in &args {
+    for arg in std::env::args().skip(1) {
         if arg == "-V" || arg == "--version" {
             let version = env!("CARGO_PKG_VERSION");
             let commit = option_env!("CLIPBOARD_MANAGER_COMMIT").unwrap_or("unknown");
@@ -90,7 +66,7 @@ fn main() {
         }
 
         if arg == "--toggle" || arg == "-t" {
-            if let Err(e) = send_toggle_signal() {
+            if let Err(e) = ipc::send_toggle_signal() {
                 eprintln!("Failed to toggle clipboard manager: {}", e);
                 std::process::exit(1);
             }
