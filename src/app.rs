@@ -182,9 +182,11 @@ impl<Db: DbTrait> AppState<Db> {
 
             self.last_quit = Some((Utc::now().timestamp_millis(), popup.kind));
 
-            if popup.kind == PopupKind::Popup && self.config.horizontal {
+            // Popup now always uses layer surface for reliable keyboard focus
+            if popup.kind == PopupKind::Popup {
                 destroy_layer_surface(popup.id)
             } else {
+                // QuickSettings still uses popup
                 destroy_popup(popup.id)
             }
         } else {
@@ -210,34 +212,28 @@ impl<Db: DbTrait> AppState<Db> {
 
         match kind {
             PopupKind::Popup => {
-                if self.config.horizontal {
-                    get_layer_surface(SctkLayerSurfaceSettings {
-                        id: new_id,
-                        keyboard_interactivity: KeyboardInteractivity::OnDemand,
-                        anchor: layer_surface::Anchor::BOTTOM
+                // Always use layer surface for external toggles to ensure keyboard focus
+                // Popups don't reliably receive keyboard focus when opened programmatically
+                get_layer_surface(SctkLayerSurfaceSettings {
+                    id: new_id,
+                    keyboard_interactivity: KeyboardInteractivity::Exclusive,
+                    anchor: if self.config.horizontal {
+                        layer_surface::Anchor::BOTTOM
                             | layer_surface::Anchor::LEFT
-                            | layer_surface::Anchor::RIGHT,
-                        namespace: "clipboard manager".into(),
-                        size: Some((None, Some(350))),
-                        size_limits: Limits::NONE.min_width(1.0).min_height(1.0),
-                        ..Default::default()
-                    })
-                } else {
-                    let mut popup_settings = self.core.applet.get_popup_settings(
-                        self.core.main_window_id().unwrap(),
-                        new_id,
-                        None,
-                        None,
-                        None,
-                    );
-
-                    popup_settings.positioner.size_limits = Limits::NONE
-                        .min_width(300.0)
-                        .max_width(400.0)
-                        .min_height(200.0)
-                        .max_height(500.0);
-                    get_popup(popup_settings)
-                }
+                            | layer_surface::Anchor::RIGHT
+                    } else {
+                        // Position at top-right for vertical layout
+                        layer_surface::Anchor::TOP | layer_surface::Anchor::RIGHT
+                    },
+                    namespace: "clipboard manager".into(),
+                    size: if self.config.horizontal {
+                        Some((None, Some(350)))
+                    } else {
+                        Some((Some(400), Some(530)))
+                    },
+                    size_limits: Limits::NONE.min_width(1.0).min_height(1.0),
+                    ..Default::default()
+                })
             }
             PopupKind::QuickSettings => {
                 let mut popup_settings = self.core.applet.get_popup_settings(
