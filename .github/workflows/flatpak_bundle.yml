@@ -25,10 +25,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y flatpak flatpak-builder ostree
-          flatpak remote-add --if-not-exists --user flathub https://flathub.org/repo/flathub.flatpakrepo
 
-      # - name: Install flatpak SDKs
-      #   run: just flatpak-install-sdk
+      - name: Install flatpak SDKs
+        run: just flatpak-install-sdk
 
       - name: Generate manifest
         run: |
