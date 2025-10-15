@@ -18,11 +18,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      - uses: taiki-e/install-action@just
+      - uses: Swatinem/rust-cache@v2
 
-      - name: Set up Flatpak
+      - name: Install system deps
         run: |
           sudo apt-get update
           sudo apt-get install -y flatpak flatpak-builder ostree
+
+      - name: Install flatpak SDKs
+        run: just flatpak-install-sdk
+
+      - name: Generate manifest
+        run: just flatpak-gen-manifest
 
       - name: Build app
         run: |
