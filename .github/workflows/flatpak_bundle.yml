@@ -1,0 +1,40 @@
+name: Flatpak bundle
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build app bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build app
+        run: |
+          flatpak-builder \
+              --verbose \
+              --ccache \
+              --repo=repo \
+              flatpak-out \
+              flatpak_schema.json
+
+      - name: Create Flatpak bundle
+        run: |
+          flatpak build-bundle \
+            repo \
+            clipboard-manager.flatpak \
+            io.github.cosmic_utils.cosmic-ext-applet-clipboard-manager \
+            testing
+
+      - name: Upload Flatpak bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: flatpak-bundle
+          path: clipboard-manager.flatpak
