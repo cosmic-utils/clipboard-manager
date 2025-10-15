@@ -2,6 +2,8 @@ name: Flatpak bundle
 
 on:
   workflow_dispatch:
+  push:
+    branches: flatpak-wf
 
 concurrency:
   group: ${{ github.ref }}-${{ github.workflow }}
