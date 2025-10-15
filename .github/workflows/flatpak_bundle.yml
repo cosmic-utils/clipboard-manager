@@ -30,7 +30,9 @@ jobs:
         run: just flatpak-install-sdk
 
       - name: Generate manifest
-        run: just flatpak-gen-manifest
+        run: |
+          just flatpak-install-flatpak-builder-tools
+          just flatpak-gen-manifest
 
       - name: Build app
         run: |

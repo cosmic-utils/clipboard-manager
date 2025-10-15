@@ -125,6 +125,7 @@ flatpak-setup-upstream-repo:
     git -C {{ repo-name }} checkout -b {{ branch-name }}
     git -C {{ repo-name }} push origin {{ branch-name }}
 
+flatpak-install-flatpak-builder-tools:
     rm -rf flatpak-builder-tools
     git clone https://github.com/flatpak/flatpak-builder-tools --branch master --depth 1
 
