@@ -127,7 +127,7 @@ flatpak-setup-upstream-repo:
 flatpak-install-flatpak-builder-tools:
     rm -rf flatpak-builder-tools
     git clone https://github.com/flatpak/flatpak-builder-tools --branch master --depth 1
-    pip install aiohttp toml
+    pip install aiohttp tomlkit
 
 flatpak-gen-manifest:
     python3 flatpak-builder-tools/cargo/flatpak-cargo-generator.py Cargo.lock -o cargo-sources.json
