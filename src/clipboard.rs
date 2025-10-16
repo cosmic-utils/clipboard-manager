@@ -1,13 +1,13 @@
 use std::{
+    io::Read,
     sync::{
         Arc,
         atomic::{self},
     },
-    time::Duration,
 };
 
 use cosmic::iced::{futures::SinkExt, stream::channel};
-use futures::{Stream, future::join_all};
+use futures::Stream;
 use itertools::Itertools;
 use tokio::{io::AsyncReadExt, sync::mpsc};
 
@@ -77,36 +77,26 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
 
                         match rx.recv().await {
                             Some(WatchRes::Some(res)) => {
-                                let data: MimeDataMap =
-                                    join_all(res.into_iter().map(|(mime_type, mut pipe)| async move {
-                                        let mut contents = Vec::new();
+                                let mut data = MimeDataMap::new();
 
-                                        match tokio::time::timeout(
-                                            Duration::from_millis(5000),
-                                            pipe.read_to_end(&mut contents),
-                                        )
-                                        .await
-                                        {
-                                            Ok(Ok(len)) => {
-                                                if len == 0 {
-                                                    debug!("data is empty: {mime_type}");
-                                                    None
-                                                } else  {Some((mime_type, contents)) }
-                                            },
-                                            Ok(Err(e)) => {
-                                                warn!("read error on external pipe clipboard: {mime_type} {e}");
-                                                None
-                                            }
-                                            Err(e) => {
-                                                warn!("read timeout on external pipe clipboard: {mime_type} {e}");
-                                                None
+                                for (mime_type, mut pipe) in res {
+                                    let mut contents = Vec::new();
+
+                                    match pipe.read_to_end(&mut contents) {
+                                        Ok(len) => {
+                                            if len == 0 {
+                                                debug!("data is empty: {mime_type}");
+                                            } else {
+                                                data.insert(mime_type, contents);
                                             }
                                         }
-                                    }))
-                                    .await
-                                    .into_iter()
-                                    .flatten()
-                                    .collect();
+                                        Err(e) => {
+                                            warn!(
+                                                "read error on external pipe clipboard: {mime_type} {e}"
+                                            );
+                                        }
+                                    }
+                                }
 
                                 if !data.is_empty() {
                                     let mimes = data

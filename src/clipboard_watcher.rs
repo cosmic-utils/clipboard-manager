@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 use std::{
     collections::{HashMap, HashSet},
-    io,
+    io::{self, PipeReader},
     os::fd::AsFd,
 };
 
@@ -21,7 +21,6 @@ use cosmic::cctk::{
         },
     },
 };
-use tokio::net::unix::pipe::Receiver;
 
 /// Seat to operate on.
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Hash, PartialOrd, Ord, Default)]
@@ -352,7 +351,7 @@ impl Watcher {
     }
 
     // note: returning an iter cause some bugs with pipes
-    pub fn start_watching(&mut self, seat: Seat<'_>) -> Result<Vec<(String, Receiver)>, Error> {
+    pub fn start_watching(&mut self, seat: Seat<'_>) -> Result<Vec<(String, PipeReader)>, Error> {
         self.queue
             .blocking_dispatch(&mut self.state)
             .map_err(Error::WaylandCommunication)?;
@@ -393,8 +392,7 @@ impl Watcher {
 
                 for mime_type in mime_types {
                     // Create a pipe for content transfer.
-                    let (write, read) =
-                        tokio::net::unix::pipe::pipe().map_err(Error::PipeCreation)?;
+                    let (read, write) = std::io::pipe().map_err(Error::PipeCreation)?;
 
                     // Start the transfer.
                     offer.receive(mime_type.clone(), write.as_fd());
