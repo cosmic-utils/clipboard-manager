@@ -19,7 +19,6 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: taiki-e/install-action@just
-      - uses: Swatinem/rust-cache@v2
 
       - name: Install system deps
         run: |
@@ -40,6 +39,7 @@ jobs:
               --verbose \
               --ccache \
               --repo=repo \
+              --default-branch=testing \
               --user \
               flatpak-out \
               io.github.cosmic_utils.cosmic-ext-applet-clipboard-manager.json
