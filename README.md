@@ -36,6 +36,21 @@ journalctl -p 3 -xb --user _EXE=/usr/bin/cosmic-ext-applet-clipboard-manager | l
 - `-x` add information
 - `b` means since last boot
 
+## Testing bundle
+
+```sh
+# install
+flatpak install --user clipboard-manager.flatpak
+# run specific branch
+flatpak run --branch=testing io.github.cosmic_utils.cosmic-ext-applet-clipboard-manager
+# to be sure cosmic-panel will launch the wanted version
+flatpak uninstall --user io.github.cosmic_utils.cosmic-ext-applet-clipboard-manager//master
+# or verify the commit with
+flatpak run io.github.cosmic_utils.cosmic-ext-applet-clipboard-manager -V
+# uninstall testing repo and app
+flatpak remote-delete --user cosmic-ext-applet-clipboard-manager-origin
+```
+
 ## Contributing
 
 Contributions are welcome
