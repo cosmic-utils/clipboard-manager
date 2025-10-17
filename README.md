@@ -6,6 +6,31 @@ The goal is to make a simple yet fast clipboard history, with a focus on UX, rap
 
 There is a quick settings popup when you right click the icon.
 
+## Usage
+
+### Keyboard Shortcut (Recommended)
+
+You can set up a global keyboard shortcut to toggle the clipboard manager from anywhere:
+
+1. Open **COSMIC Settings** → **Keyboard** → **Custom Shortcuts**
+2. Click **Add Custom Shortcut**
+3. Fill in the details:
+   - **Name**: Clipboard Manager
+   - **Command**: `cosmic-ext-applet-clipboard-manager --toggle`
+   - **Shortcut**: Press **Super+V** (or your preferred key combination)
+
+Once set up, press your configured shortcut to open the clipboard manager, use arrow keys to navigate, and press Enter to select an item.
+
+### Command Line
+
+The applet supports the following command-line options:
+
+```sh
+cosmic-ext-applet-clipboard-manager --toggle    # Toggle the clipboard popup
+cosmic-ext-applet-clipboard-manager --help      # Show help message
+cosmic-ext-applet-clipboard-manager --version   # Show version information
+```
+
 ## Install
 
 Use the flatpak version in the cosmic store.
