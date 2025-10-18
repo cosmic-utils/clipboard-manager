@@ -119,8 +119,19 @@ impl<Db: DbTrait> AppState<Db> {
                             } else {
                                 None
                             },
-                        )),
-                )
+                        ))
+                        .push(
+                        icon_button!("trash-bin")
+                            .on_press_maybe(
+                                if self.db.non_favorite_count() > 0 {
+                                    Some(AppMsg::Clear)
+                                } else {
+                                    None
+                                },
+                            )
+                            .padding([8, 12])
+
+                    ))
                 .padding(padding::all(15f32).bottom(0)),
             )
             .push(
