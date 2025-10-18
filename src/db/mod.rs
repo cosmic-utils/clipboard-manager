@@ -208,6 +208,8 @@ pub trait DbTrait: Sized {
     fn is_search_active(&self) -> bool {
         !self.get_query().is_empty()
     }
+
+    fn non_favorite_count(&self) -> usize;
 }
 
 #[derive(Clone, Debug)]

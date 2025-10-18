@@ -707,6 +707,10 @@ impl DbTrait for DbSqlite {
 
         Ok(())
     }
+
+    fn non_favorite_count(&self) -> usize {
+        self.entries.values().filter(|entry| !entry.is_favorite).count()
+    }
 }
 
 /// https://www.sqlite.org/pragma.html#pragma_data_version
