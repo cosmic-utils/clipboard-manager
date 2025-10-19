@@ -19,13 +19,13 @@ jobs:
     if: github.event.issue.pull_request && contains(github.event.comment.body, '/bundle')
     steps:
       - name: Get PR branch
-        uses: xt0rted/pull-request-comment-branch@v1
+        uses: xt0rted/pull-request-comment-branch@v3
         id: comment-branch
 
       - uses: actions/checkout@v5
         with:
-          ref: ''
-          
+          ref: ""
+
       - uses: taiki-e/install-action@just
 
       - name: Install system deps
