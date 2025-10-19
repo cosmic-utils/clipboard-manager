@@ -51,12 +51,10 @@ flatpak run io.github.cosmic_utils.cosmic-ext-applet-clipboard-manager -V
 flatpak remote-delete --user cosmic-ext-applet-clipboard-manager-origin
 ```
 
+## Build from source
+
+Instructions are in [this file](./BUILD.md).
+
 ## Contributing
 
-Contributions are welcome
-
-To build and install the debug build
-
-```sh
-just build-debug && sudo just debug=1 install && pkill cosmic-panel
-```
+See [this file](./CONTRIBUTING.md).
