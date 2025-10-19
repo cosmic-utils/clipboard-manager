@@ -51,24 +51,10 @@ flatpak run io.github.cosmic_utils.cosmic-ext-applet-clipboard-manager -V
 flatpak remote-delete --user cosmic-ext-applet-clipboard-manager-origin
 ```
 
+## Build from source
+
+Instructions are in [this file](./BUILD.md).
+
 ## Contributing
 
-Contributions are welcome
-
-### Installing development libraries
-
-You need to have the development version of `libxkbcommon` to build the crate
-`smithay-client-toolkit`
-
-```sh
-dnf install -y libxkbcommon-devel # RPM-based
-apt install -y libxkbcommon-dev # Debian-based
-```
-
-### Building from source
-
-To build and install the debug build
-
-```sh
-just build-debug && sudo just debug=1 install && pkill cosmic-panel
-```
+See [this file](./CONTRIBUTING.md).
