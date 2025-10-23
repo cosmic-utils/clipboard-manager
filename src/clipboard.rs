@@ -1,15 +1,15 @@
 use std::{
-    io::Read,
     sync::{
         Arc,
         atomic::{self},
     },
+    time::Duration,
 };
 
 use cosmic::iced::{futures::SinkExt, stream::channel};
 use futures::Stream;
 use itertools::Itertools;
-use tokio::sync::mpsc;
+use tokio::{io::AsyncReadExt, sync::mpsc};
 
 use crate::{clipboard_watcher, config::PRIVATE_MODE, db::MimeDataMap};
 
@@ -82,17 +82,27 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
                                 for (mime_type, mut pipe) in res {
                                     let mut contents = Vec::new();
 
-                                    match pipe.read_to_end(&mut contents) {
-                                        Ok(len) => {
+                                    match tokio::time::timeout(
+                                        Duration::from_millis(500),
+                                        pipe.read_to_end(&mut contents),
+                                    )
+                                    .await
+                                    {
+                                        Ok(Ok(len)) => {
                                             if len == 0 {
                                                 debug!("data is empty: {mime_type}");
                                             } else {
                                                 data.insert(mime_type, contents);
                                             }
                                         }
-                                        Err(e) => {
+                                        Ok(Err(e)) => {
                                             warn!(
                                                 "read error on external pipe clipboard: {mime_type} {e}"
+                                            );
+                                        }
+                                        Err(e) => {
+                                            warn!(
+                                                "read timeout on external pipe clipboard: {mime_type} {e}"
                                             );
                                         }
                                     }
