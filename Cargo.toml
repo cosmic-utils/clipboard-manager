@@ -32,13 +32,13 @@ tracing-subscriber = { version = "0.3", features = [
     "env-filter",
     "ansi",
 ] }
+fslock = "0.2"
 tracing-journald = "0.3"
 constcat = "0.6"
 nucleo = "0.5"
 futures = "0.3"
 include_dir = "0.7"
 itertools = "0.14"
-alive_lock_file = "0.2"
 regex = "1"
 open = "5"
 
@@ -62,16 +62,5 @@ lto = "fat"
 # branch = "fix_qr_code_theme"
 # path = "../libcosmic"
 
-# [patch."https://github.com/wiiznokes/wl-clipboard-rs.git".wl-clipboard-rs]
-# path = "../wl-clipboard-rs"
-# git = "https://github.com/wiiznokes//wl-clipboard-rs"
-# rev = "759678ad907fd8e9304f3be9a70ba43b2c920bf5"
-
-
 [patch."https://github.com/smithay/client-toolkit.git"]
 sctk = { package = "smithay-client-toolkit", version = "=0.19.2" }
-
-[patch.crates-io.alive_lock_file]
-git = "https://github.com/wiiznokes/alive_lock_file"
-branch = "master"
-# path = "../alive_lock_file"

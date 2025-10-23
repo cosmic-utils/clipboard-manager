@@ -108,6 +108,7 @@ async fn test_delete_old_one() {
 
     assert_eq!(db.len(), 2);
 
+    drop(db);
     let db = DbSqlite::with_path(&Config::default(), &db_path)
         .await
         .unwrap();
@@ -118,6 +119,7 @@ async fn test_delete_old_one() {
         maximum_entries_lifetime: Some(0),
         ..Default::default()
     };
+    drop(db);
     let db = DbSqlite::with_path(&config, &db_path).await.unwrap();
 
     assert_eq!(db.len(), 0);
@@ -185,6 +187,7 @@ async fn favorites() {
 
     assert_eq!(db.len(), 3);
 
+    drop(db);
     let db = DbSqlite::with_path(
         &Config {
             maximum_entries_lifetime: Some(0),
@@ -199,6 +202,39 @@ async fn favorites() {
 
     assert_eq!(db.favorites.len(), 2);
     assert_eq!(db.favorites.fav(), &vec![now1, now3]);
+}
+
+#[tokio::test]
+#[serial]
+async fn lock() {
+    let db_path = prepare_db_dir();
+
+    let mut db1 = DbSqlite::with_path(&Config::default(), &db_path)
+        .await
+        .unwrap();
+
+    let mut db2 = DbSqlite::with_path(&Config::default(), &db_path)
+        .await
+        .unwrap();
+
+    let now1 = 1000;
+    let data1 = build_content(&[("text/plain", "content1")]);
+    db1.insert_with_time(data1, now1).await.unwrap();
+
+    let now2 = 2000;
+    let data2 = build_content(&[("text/plain", "content2")]);
+    db1.insert_with_time(data2, now2).await.unwrap();
+
+    let now3 = 3000;
+    let data3 = build_content(&[("text/plain", "content3")]);
+    db1.insert_with_time(data3.clone(), now3).await.unwrap();
+
+    let now4 = 4000;
+    let data4 = build_content(&[("text/plain", "content3")]);
+    db2.insert_with_time(data4.clone(), now4).await.unwrap();
+
+    assert_eq!(db1.len(), 3);
+    assert_eq!(db2.len(), 0);
 }
 
 fn remove_dir_contents(dir: &Path) {

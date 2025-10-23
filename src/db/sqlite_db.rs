@@ -1,4 +1,4 @@
-use alive_lock_file::LockResultWithDrop;
+use fslock::LockFile;
 use futures::StreamExt;
 use sqlx::{Sqlite, SqliteConnection, migrate::MigrateDatabase, prelude::*};
 use std::{
@@ -48,7 +48,7 @@ pub struct DbSqlite {
     matcher: RefCell<Matcher>,
     data_version: i64,
     pub(super) favorites: Favorites,
-    lock: Option<LockResultWithDrop>,
+    lock: LockFile,
 }
 
 #[derive(Clone)]
@@ -186,10 +186,6 @@ impl DbTrait for DbSqlite {
     }
 
     async fn with_path(config: &Config, db_dir: &Path) -> Result<Self> {
-        if let Err(e) = alive_lock_file::remove_lock(LOCK_FILE) {
-            error!("can't remove lock {e}");
-        }
-
         let db_path = db_dir.join(DB_PATH);
 
         info!("db_path: {}", db_path.display());
@@ -221,7 +217,12 @@ impl DbTrait for DbSqlite {
         .run(&mut conn)
         .await?;
 
-        if let Some(max_duration) = config.maximum_entries_lifetime() {
+        let mut lock = LockFile::open(LOCK_FILE)?;
+        lock.try_lock()?;
+
+        if lock.owns_lock()
+            && let Some(max_duration) = config.maximum_entries_lifetime()
+        {
             let now_millis = utils::now_millis();
             let max_millis = max_duration.as_millis().try_into().unwrap_or(u64::MAX);
 
@@ -241,7 +242,9 @@ impl DbTrait for DbSqlite {
                 .unwrap();
         }
 
-        if let Some(max_number_of_entries) = &config.maximum_entries_number {
+        if lock.owns_lock()
+            && let Some(max_number_of_entries) = &config.maximum_entries_number
+        {
             let query_get_most_older = r#"
                 SELECT creation
                 FROM ClipboardEntries
@@ -289,7 +292,7 @@ impl DbTrait for DbSqlite {
             needle: None,
             matcher: Matcher::new(nucleo::Config::DEFAULT).into(),
             favorites: Favorites::default(),
-            lock: None,
+            lock,
         };
 
         db.reload().await?;
@@ -403,23 +406,9 @@ impl DbTrait for DbSqlite {
         self.insert_with_time(data, now()).await
     }
     async fn insert_with_time(&mut self, data: MimeDataMap, now: i64) -> Result<()> {
-        match &self.lock {
-            Some(lock) => {
-                if !lock.has_lock() {
-                    info!("db already locked");
-                    return Ok(());
-                }
-            }
-            None => match alive_lock_file::try_lock_until_dropped(LOCK_FILE)? {
-                LockResultWithDrop::Locked(lock) => {
-                    self.lock = Some(LockResultWithDrop::Locked(lock));
-                }
-                LockResultWithDrop::AlreadyLocked => {
-                    info!("db already locked");
-                    self.lock = Some(LockResultWithDrop::AlreadyLocked);
-                    return Ok(());
-                }
-            },
+        if !self.lock.owns_lock() {
+            info!("db already locked");
+            return Ok(());
         }
 
         let hash = get_hash_entry_content(&data);

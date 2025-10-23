@@ -9,7 +9,7 @@ use std::{
 use cosmic::iced::{futures::SinkExt, stream::channel};
 use futures::Stream;
 use itertools::Itertools;
-use tokio::{io::AsyncReadExt, sync::mpsc};
+use tokio::sync::mpsc;
 
 use crate::{clipboard_watcher, config::PRIVATE_MODE, db::MimeDataMap};
 
