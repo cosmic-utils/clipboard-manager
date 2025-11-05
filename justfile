@@ -12,7 +12,6 @@ bin-dst := base-dir / 'bin' / name
 desktop-dst := share-dst / 'applications' / appid + '.desktop'
 metainfo-dst := share-dst / 'metainfo' / appid + '.metainfo.xml'
 icon-dst := share-dst / 'icons/hicolor/scalable/apps' / appid + '-symbolic.svg'
-env-dst := rootdir / 'etc/profile.d/data_control_cosmic.sh'
 schema-dst := share-dst / 'configurator' / appid + '.json'
 
 default: build-release
@@ -32,9 +31,6 @@ install:
     install -Dm0644 res/metainfo.xml {{ metainfo-dst }}
     install -Dm0644 res/app_icon.svg {{ icon-dst }}
 
-install-env:
-    install -Dm0644 res/env.sh {{ env-dst }}
-
 install-schema:
     install -Dm0644 res/config_schema.json {{ schema-dst }}
 
@@ -42,7 +38,6 @@ uninstall:
     rm -f {{ bin-dst }}
     rm -f {{ desktop-dst }} 
     rm -f {{ icon-dst }}
-    rm -f {{ env-dst }}
     rm -f {{ schema-dst }}
     rm -f {{ metainfo-dst }}
 

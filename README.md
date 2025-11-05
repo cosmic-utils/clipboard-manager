@@ -8,23 +8,11 @@ There is a quick settings popup when you right click the icon.
 
 ## Install
 
-Use the flatpak version in the cosmic store.
+> [!WARNING]  
+> The applet is available in the cosmic-store, however, this version will currently not work (https://github.com/cosmic-utils/clipboard-manager/issues/171). 
 
-You will need to enable the [data control protocol](https://wayland.app/protocols/ext-data-control-v1). It allow any privilegied client to access the clipboard, without any action from the user. It is thus kinda insecure.
-
-The protocol is by default disabled on the COSMIC DE, but can be enabled with this command:
-
-```sh
-echo 'export COSMIC_DATA_CONTROL_ENABLED=1' | sudo tee /etc/profile.d/data_control_cosmic.sh > /dev/null
-```
-
-Restart the session for the `COSMIC_DATA_CONTROL_ENABLED` environment variable to take effect.
-
-You can disable it with
-
-```sh
-sudo rm -f /etc/profile.d/data_control_cosmic.sh
-```
+The reason is because this applet use a wayland protocol ([data control protocol](https://wayland.app/protocols/ext-data-control-v1)) which is not available for sandboxed client.
+The only way is to build from source. For this you need to install [rust](https://rust-lang.org/tools/install/), [just](https://github.com/casey/just), and follow the the [build instruction](./BUILD.md).
 
 ## Logs
 
