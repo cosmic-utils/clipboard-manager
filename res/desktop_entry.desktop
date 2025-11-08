@@ -1,21 +1,24 @@
 [Desktop Entry]
 Name=Clipboard Manager
-Name[cs]=Manažer schránky
 Name[ar]=مدير الحافظة
-Name[pt]=Gestor da Área de Transferência
-Name[hu]=Vágólapkezelő
+Name[cs]=Manažer schránky
+Name[de]=Zwischenablage Verwaltung
 Name[es]=Gestor de portapapeles
+Name[hu]=Vágólapkezelő
+Name[pt]=Gestor da Área de Transferência
 Comment=A wayland clipboard manager
-Comment[cs]=Manažer schránky pro Wayland
 Comment[ar]=مدير حافظة وايلاند
-Comment[pt]=Miniaplicativo para gerenciar itens copiados no sistema
-Comment[hu]=Wayland vágólapkezelő
+Comment[cs]=Manažer schránky pro Wayland
+Comment[de]=Eine Zwischenablage Verwaltung für Wayland
 Comment[es]=Gestor de portapapeles wayland
+Comment[hu]=Wayland vágólapkezelő
+Comment[pt]=Miniaplicativo para gerenciar itens copiados no sistema
 Keywords=Cosmic;Iced;history;
 Keywords[cs]=clipboard;schránka;historie;
-Keywords[pt]=clipboard;histórico;
-Keywords[hu]=előzmények
+Keywords[de]=Cosmic;historie;verlauf;Zwischenablage
 Keywords[es]=Cosmic;Iced;historial;portapapeles;
+Keywords[hu]=előzmények
+Keywords[pt]=clipboard;histórico;
 
 # translators: do not translate this part
 Icon=io.github.cosmic_utils.cosmic-ext-applet-clipboard-manager-symbolic
