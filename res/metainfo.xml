@@ -7,9 +7,11 @@
 
     <name>Clipboard Manager</name>
     <name xml:lang="cs">Manažer schránky</name>
+    <name xml:lang="de">Zwischenablage Verwaltung</name>
     <name xml:lang="hu">Vágólapkezelő</name>
     <summary>A wayland clipboard manager</summary>
     <summary xml:lang="cs">Manažer schránky pro Wayland</summary>
+    <summary xml:lang="de">Eine Zwischenablage Verwaltung für Wayland</summary>
     <summary xml:lang="hu">Wayland vágólapkezelő</summary>
 
     <metadata_license>MIT</metadata_license>
@@ -41,6 +43,8 @@
             on Wayland using the data control protocol.</p>
         <p xml:lang="cs">COSMIC applet manažera schránky s podporou pro obrázky a další mime typy.
             Funguje na Waylandu za pomoci data control protokolu.</p>
+        <p xml:lang="de">COSMIC applet mit support für bilder und andere mime typen.
+            Funktioniert nur in Wayland mit dem Datenkontrollprotokoll (data control protocol).</p>    <!--the contents in the parenthesis are for better understanding while troubleshooting-->
         <p xml:lang="hu">Vágólapkezelő COSMIC kisalkalmazás, amely támogatja a képeket és más MIME-típusokat. 
            Csak Waylanden működik az adatvezérlő protokoll használatával.</p>
     </description>
@@ -54,6 +58,7 @@
                 https://media.githubusercontent.com/media/cosmic-utils/clipboard-manager/master/res/screenshots/main_popup.png</image>
             <caption>The applet.</caption>
             <caption xml:lang="cs">Ukázka appletu.</caption>
+            <caption xml:lang="de">Das Applet.</caption>
             <caption xml:lang="hu">A kisalkalmazás.</caption>
         </screenshot>
     </screenshots>
