@@ -51,7 +51,7 @@ jobs:
             testing
 
       - name: Upload Flatpak bundle artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: clipboard-manager-bundle
           path: clipboard-manager.flatpak
