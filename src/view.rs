@@ -166,6 +166,7 @@ impl<Db: DbTrait> AppState<Db> {
                             column,
                             Direction::Horizontal(Scrollbar::new()),
                         )
+                        .id(SCROLLABLE_ID.clone())
                         .scroller_width(8.0)
                         .scrollbar_width(8.0)
                         // scrollable::horizontal(column)
@@ -177,7 +178,7 @@ impl<Db: DbTrait> AppState<Db> {
                             .padding(padding::right(10));
 
                         scrollable(column)
-                            // .id(SCROLLABLE_ID.clone())
+                            .id(SCROLLABLE_ID.clone())
                             // XXX: why ?
                             // .height(Length::FillPortion(2))
                             .into()

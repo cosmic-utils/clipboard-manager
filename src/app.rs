@@ -108,18 +108,31 @@ impl<Db: DbTrait> AppState<Db> {
             );
             debug!("page = {}", self.page);
 
-            // will not work with last page but it is not used anyway because have bug
-            let delta_y = (self.focused % self.config.maximum_entries_by_page.get() as usize)
-                as f32
-                / self.config.maximum_entries_by_page.get() as f32;
+            let max_items = self.config.maximum_entries_by_page.get() as usize;
+            let current_page_start = self.page * max_items;
+            let items_on_current_page = (self.db.len() - current_page_start).min(max_items);
+            let index_on_page = self.focused % max_items;
 
-            debug!("delta_y = {}", delta_y);
+            let delta = if items_on_current_page > 1 {
+                index_on_page as f32 / (items_on_current_page - 1) as f32
+            } else {
+                0.0
+            };
+
+            debug!("delta = {}", delta);
 
             iced_runtime::task::widget(operation::scrollable::snap_to(
                 SCROLLABLE_ID.clone(),
-                RelativeOffset {
-                    x: 0.,
-                    y: delta_y.max(1.).max(0.0),
+                if self.config.horizontal {
+                    RelativeOffset {
+                        x: delta.min(1.).max(0.0),
+                        y: 0.,
+                    }
+                } else {
+                    RelativeOffset {
+                        x: 0.,
+                        y: delta.min(1.).max(0.0),
+                    }
                 },
             ))
         } else {
@@ -141,16 +154,30 @@ impl<Db: DbTrait> AppState<Db> {
             );
             debug!("page = {}", self.page);
 
-            let delta_y = (self.focused % self.config.maximum_entries_by_page.get() as usize)
-                as f32
-                / self.config.maximum_entries_by_page.get() as f32;
+            let max_items = self.config.maximum_entries_by_page.get() as usize;
+            let current_page_start = self.page * max_items;
+            let items_on_current_page = (self.db.len() - current_page_start).min(max_items);
+            let index_on_page = self.focused % max_items;
 
-            debug!("delta_y = {}", delta_y);
+            let delta = if items_on_current_page > 1 {
+                index_on_page as f32 / (items_on_current_page - 1) as f32
+            } else {
+                0.0
+            };
+
+            debug!("delta = {}", delta);
             iced_runtime::task::widget(operation::scrollable::snap_to(
                 SCROLLABLE_ID.clone(),
-                RelativeOffset {
-                    x: 0.,
-                    y: delta_y.max(1.).max(0.0),
+                if self.config.horizontal {
+                    RelativeOffset {
+                        x: delta.min(1.).max(0.0),
+                        y: 0.,
+                    }
+                } else {
+                    RelativeOffset {
+                        x: 0.,
+                        y: delta.min(1.).max(0.0),
+                    }
                 },
             ))
         } else {
