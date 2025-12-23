@@ -48,6 +48,7 @@ pub fn send_toggle_signal() -> std::io::Result<()> {
 pub fn signal_file_watcher() -> Subscription<AppMsg> {
     use notify::{Watcher, RecursiveMode, Event};
     use futures::stream;
+    use tokio::time::{sleep, Duration};
  
     Subscription::run_with_id(
         "signal_file_watcher",
@@ -76,6 +77,9 @@ pub fn signal_file_watcher() -> Subscription<AppMsg> {
 
                 // Wait for file change notification
                 rx.recv().await;
+
+                // Add a 10ms pause to prevent stressing cpu
+                sleep(Duration::from_millis(10)).await;
             }
 
             Some((AppMsg::CheckSignalFile, ()))
