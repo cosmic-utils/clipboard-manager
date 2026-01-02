@@ -1,7 +1,8 @@
 #![allow(dead_code)]
 use std::{
     collections::{HashMap, HashSet},
-    io::{self, PipeReader},
+    io::{self},
+    mem::{self},
     os::fd::AsFd,
 };
 
@@ -21,6 +22,7 @@ use cosmic::cctk::{
         },
     },
 };
+use tokio::net::unix::pipe::Receiver;
 
 /// Seat to operate on.
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Hash, PartialOrd, Ord, Default)]
@@ -36,65 +38,34 @@ pub enum Seat<'a> {
 
 #[derive(Default)]
 pub struct SeatData {
-    /// The name of this seat, if any.
     pub name: Option<String>,
-
-    /// The data device of this seat, if any.
     pub device: Option<ZwlrDataControlDeviceV1>,
-
-    /// The data offer of this seat, if any.
     pub offer: Option<ZwlrDataControlOfferV1>,
-
-    /// The primary-selection data offer of this seat, if any.
     pub primary_offer: Option<ZwlrDataControlOfferV1>,
 }
 
 impl SeatData {
-    /// Sets this seat's name.
     pub fn set_name(&mut self, name: String) {
         self.name = Some(name)
     }
 
-    /// Sets this seat's device.
-    ///
-    /// Destroys the old one, if any.
     pub fn set_device(&mut self, device: Option<ZwlrDataControlDeviceV1>) {
-        let old_device = self.device.take();
-        self.device = device;
-
-        if let Some(device) = old_device {
-            device.destroy();
+        if let Some(old_device) = mem::replace(&mut self.device, device) {
+            old_device.destroy();
         }
     }
 
-    /// Sets this seat's data offer.
-    ///
-    /// Destroys the old one, if any.
     pub fn set_offer(&mut self, new_offer: Option<ZwlrDataControlOfferV1>) {
-        let old_offer = self.offer.take();
-        self.offer = new_offer;
-
-        if let Some(offer) = old_offer {
-            offer.destroy();
+        if let Some(old_offer) = mem::replace(&mut self.offer, new_offer) {
+            old_offer.destroy();
         }
     }
 
-    /// Sets this seat's primary-selection data offer.
-    ///
-    /// Destroys the old one, if any.
     pub fn set_primary_offer(&mut self, new_offer: Option<ZwlrDataControlOfferV1>) {
-        let old_offer = self.primary_offer.take();
-        self.primary_offer = new_offer;
-
-        if let Some(offer) = old_offer {
-            offer.destroy();
+        if let Some(old_offer) = mem::replace(&mut self.primary_offer, new_offer) {
+            old_offer.destroy();
         }
     }
-}
-
-pub struct Event {
-    pub event: ZwlrDataControlOfferV1,
-    pub data: HashSet<String>,
 }
 
 pub struct CommonState {
@@ -138,7 +109,6 @@ struct State {
     offers: HashMap<ZwlrDataControlOfferV1, HashSet<String>>,
     got_primary_selection: bool,
     // waker: Waker,
-    events: Vec<Event>,
 }
 
 delegate_dispatch!(State: [WlSeat: ()] => CommonState);
@@ -185,10 +155,6 @@ impl Dispatch<ZwlrDataControlDeviceV1, WlSeat> for State {
         match event {
             zwlr_data_control_device_v1::Event::DataOffer { id } => {
                 state.offers.insert(id.clone(), HashSet::new());
-                state.events.push(Event {
-                    event: id,
-                    data: HashSet::new(),
-                })
             }
             zwlr_data_control_device_v1::Event::Selection { id } => {
                 state.common.get_mut_seat(seat).unwrap().set_offer(id);
@@ -340,7 +306,6 @@ impl Watcher {
             common,
             offers: HashMap::new(),
             got_primary_selection: false,
-            events: Vec::new(),
         };
 
         Ok(Watcher {
@@ -351,7 +316,7 @@ impl Watcher {
     }
 
     // note: returning an iter cause some bugs with pipes
-    pub fn start_watching(&mut self, seat: Seat<'_>) -> Result<Vec<(String, PipeReader)>, Error> {
+    pub fn start_watching(&mut self, seat: Seat<'_>) -> Result<Vec<(String, Receiver)>, Error> {
         self.queue
             .blocking_dispatch(&mut self.state)
             .map_err(Error::WaylandCommunication)?;
@@ -392,7 +357,8 @@ impl Watcher {
 
                 for mime_type in mime_types {
                     // Create a pipe for content transfer.
-                    let (read, write) = std::io::pipe().map_err(Error::PipeCreation)?;
+                    let (write, read) =
+                        tokio::net::unix::pipe::pipe().map_err(Error::PipeCreation)?;
 
                     // Start the transfer.
                     offer.receive(mime_type.clone(), write.as_fd());
