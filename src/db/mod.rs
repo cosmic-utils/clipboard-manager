@@ -216,15 +216,6 @@ pub enum DbMessage {
 }
 // currently best effort
 fn find_alt(html: &str) -> Option<&str> {
-    const DEB: &str = "alt=\"";
-
-    if let Some(pos) = html.find(DEB) {
-        const OFFSET: usize = DEB.len();
-
-        if let Some(pos_end) = html[pos + OFFSET..].find('"') {
-            return Some(&html[pos + OFFSET..pos + pos_end + OFFSET]);
-        }
-    }
-
-    None
+    let alt = html.split_once("alt=\"")?.1.split_once('"')?.0;
+    Some(alt)
 }
