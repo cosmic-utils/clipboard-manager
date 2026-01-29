@@ -30,7 +30,7 @@ use crate::message::{AppMsg, ConfigMsg, ContextMenuMsg};
 use crate::navigation::EventMsg;
 use crate::utils::task_message;
 use crate::view::SCROLLABLE_ID;
-use crate::{clipboard, clipboard_watcher, config, navigation};
+use crate::{clipboard, clipboard_watcher, config, ipc, navigation};
 
 use cosmic::{cosmic_config, iced_runtime};
 use std::sync::atomic::{self};
@@ -53,6 +53,7 @@ pub struct AppState<Db: DbTrait> {
     pub qr_code: Option<Result<qr_code::Data, ()>>,
     last_quit: Option<(i64, PopupKind)>,
     pub preferred_mime_types_regex: Vec<Regex>,
+    last_signal_content: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -181,9 +182,11 @@ impl<Db: DbTrait> AppState<Db> {
 
             self.last_quit = Some((Utc::now().timestamp_millis(), popup.kind));
 
-            if self.config.horizontal {
+            // Popup now always uses layer surface for reliable keyboard focus
+            if popup.kind == PopupKind::Popup {
                 destroy_layer_surface(popup.id)
             } else {
+                // QuickSettings still uses popup
                 destroy_popup(popup.id)
             }
         } else {
@@ -209,34 +212,28 @@ impl<Db: DbTrait> AppState<Db> {
 
         match kind {
             PopupKind::Popup => {
-                if self.config.horizontal {
-                    get_layer_surface(SctkLayerSurfaceSettings {
-                        id: new_id,
-                        keyboard_interactivity: KeyboardInteractivity::OnDemand,
-                        anchor: layer_surface::Anchor::BOTTOM
+                // Always use layer surface for external toggles to ensure keyboard focus
+                // Popups don't reliably receive keyboard focus when opened programmatically
+                get_layer_surface(SctkLayerSurfaceSettings {
+                    id: new_id,
+                    keyboard_interactivity: KeyboardInteractivity::Exclusive,
+                    anchor: if self.config.horizontal {
+                        layer_surface::Anchor::BOTTOM
                             | layer_surface::Anchor::LEFT
-                            | layer_surface::Anchor::RIGHT,
-                        namespace: "clipboard manager".into(),
-                        size: Some((None, Some(350))),
-                        size_limits: Limits::NONE.min_width(1.0).min_height(1.0),
-                        ..Default::default()
-                    })
-                } else {
-                    let mut popup_settings = self.core.applet.get_popup_settings(
-                        self.core.main_window_id().unwrap(),
-                        new_id,
-                        None,
-                        None,
-                        None,
-                    );
-
-                    popup_settings.positioner.size_limits = Limits::NONE
-                        .min_width(300.0)
-                        .max_width(400.0)
-                        .min_height(200.0)
-                        .max_height(500.0);
-                    get_popup(popup_settings)
-                }
+                            | layer_surface::Anchor::RIGHT
+                    } else {
+                        // Position at top-right for vertical layout
+                        layer_surface::Anchor::TOP | layer_surface::Anchor::RIGHT
+                    },
+                    namespace: "clipboard manager".into(),
+                    size: if self.config.horizontal {
+                        Some((None, Some(350)))
+                    } else {
+                        Some((Some(400), Some(530)))
+                    },
+                    size_limits: Limits::NONE.min_width(1.0).min_height(1.0),
+                    ..Default::default()
+                })
             }
             PopupKind::QuickSettings => {
                 let mut popup_settings = self.core.applet.get_popup_settings(
@@ -301,6 +298,7 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                 })
                 .collect(),
             config,
+            last_signal_content: None,
         };
 
         #[cfg(debug_assertions)]
@@ -336,6 +334,22 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
         }
 
         match message {
+            AppMsg::CheckSignalFile => {
+                // Only check signal file if XDG_RUNTIME_DIR is set
+                if let Some(signal_file) = ipc::get_signal_file_path() {
+                    if let Ok(content) = std::fs::read_to_string(&signal_file) {
+                        if self.last_signal_content.as_ref() != Some(&content) {
+                            self.last_signal_content = Some(content);
+
+                            // Clear last_quit for external toggles to ensure it works
+                            self.last_quit = None;
+
+                            // Toggle the popup using the existing toggle_popup function
+                            return self.toggle_popup(PopupKind::Popup);
+                        }
+                    }
+                }
+            }
             AppMsg::ChangeConfig(config) => {
                 if config.private_mode != self.config.private_mode {
                     PRIVATE_MODE.store(config.private_mode, atomic::Ordering::Relaxed);
@@ -570,6 +584,7 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
             config::sub(),
             navigation::sub().map(AppMsg::Navigation),
             db_sub().map(AppMsg::Db),
+            ipc::signal_file_watcher(),
         ];
 
         if !self.clipboard_state.is_error() {

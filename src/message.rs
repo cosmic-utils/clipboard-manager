@@ -26,6 +26,7 @@ pub enum AppMsg {
     PreviousPage,
     ContextMenu(ContextMenuMsg),
     LinkClicked(markdown::Url),
+    CheckSignalFile,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
