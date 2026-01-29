@@ -94,17 +94,19 @@ impl<Db: DbTrait> AppState<Db> {
             .push(
                 container(
                     row()
-                        .push(
+                        .push({
+                            let focused_id = self.db.get(self.focused).map(|d| d.id());
                             text_input::search_input(fl!("search_entries"), self.db.get_query())
                                 .always_active()
                                 .on_input(AppMsg::Search)
                                 .on_paste(AppMsg::Search)
                                 .on_clear(AppMsg::Search("".into()))
+                                .on_submit_maybe(focused_id.map(|id| move |_| AppMsg::Copy(id)))
                                 .width(match self.config.horizontal {
                                     true => Length::Fixed(250f32),
                                     false => Length::Fill,
-                                }),
-                        )
+                                })
+                        })
                         .push(horizontal_space().width(5))
                         .push(icon_button!("arrow_back_ios_new24").on_press_maybe(
                             if self.page > 0 {
@@ -164,6 +166,7 @@ impl<Db: DbTrait> AppState<Db> {
                             column,
                             Direction::Horizontal(Scrollbar::new()),
                         )
+                        .id(SCROLLABLE_ID.clone())
                         .scroller_width(8.0)
                         .scrollbar_width(8.0)
                         // scrollable::horizontal(column)
@@ -175,7 +178,7 @@ impl<Db: DbTrait> AppState<Db> {
                             .padding(padding::right(10));
 
                         scrollable(column)
-                            // .id(SCROLLABLE_ID.clone())
+                            .id(SCROLLABLE_ID.clone())
                             // XXX: why ?
                             // .height(Length::FillPortion(2))
                             .into()
