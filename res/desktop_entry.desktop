@@ -6,6 +6,7 @@ Name[de]=Zwischenablage Verwaltung
 Name[es]=Gestor de portapapeles
 Name[hu]=Vágólapkezelő
 Name[pt]=Gestor da Área de Transferência
+Name[ru]=Менеджер буфера обмена
 Comment=A wayland clipboard manager
 Comment[ar]=مدير حافظة وايلاند
 Comment[cs]=Manažer schránky pro Wayland
@@ -13,12 +14,14 @@ Comment[de]=Eine Zwischenablage Verwaltung für Wayland
 Comment[es]=Gestor de portapapeles wayland
 Comment[hu]=Wayland vágólapkezelő
 Comment[pt]=Miniaplicativo para gerenciar itens copiados no sistema
+Comment[ru]=Менеджер буфера обмена для Wayland
 Keywords=Cosmic;Iced;history;
 Keywords[cs]=clipboard;schránka;historie;
 Keywords[de]=Cosmic;historie;verlauf;Zwischenablage
 Keywords[es]=Cosmic;Iced;historial;portapapeles;
 Keywords[hu]=előzmények
 Keywords[pt]=clipboard;histórico;
+Keywords[ru]=cosmic;iced;история;буфер;обмен;
 
 # translators: do not translate this part
 Icon=io.github.cosmic_utils.cosmic-ext-applet-clipboard-manager-symbolic
