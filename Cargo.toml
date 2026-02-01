@@ -41,6 +41,7 @@ include_dir = "0.7"
 itertools = "0.14"
 regex = "1"
 open = "5"
+notify = "7.0"
 
 [dependencies.libcosmic]
 git = "https://github.com/pop-os/libcosmic"
