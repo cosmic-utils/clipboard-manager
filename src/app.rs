@@ -41,6 +41,11 @@ pub const ORG: &str = "cosmic_utils";
 pub const APP: &str = "cosmic-ext-applet-clipboard-manager";
 pub const APPID: &str = constcat::concat!(QUALIFIER, ".", ORG, ".", APP);
 
+/// MIME type set by password managers (e.g. KeePassXC) to indicate sensitive clipboard content.
+/// When present, the entry should not be stored in clipboard history and the clipboard should
+/// not be restored when the source application clears it.
+const PASSWORD_MANAGER_HINT_MIME: &str = "x-kde-passwordManagerHint";
+
 pub struct AppState<Db: DbTrait> {
     core: Core,
     config_handler: cosmic_config::Config,
@@ -53,6 +58,9 @@ pub struct AppState<Db: DbTrait> {
     pub qr_code: Option<Result<qr_code::Data, ()>>,
     last_quit: Option<(i64, PopupKind)>,
     pub preferred_mime_types_regex: Vec<Regex>,
+    /// Tracks whether the last clipboard entry was sensitive (e.g. from a password manager).
+    /// When true, the clipboard will not be restored on clear.
+    last_entry_sensitive: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -289,6 +297,7 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
             qr_code: None,
             last_quit: None,
             page: 0,
+            last_entry_sensitive: false,
             preferred_mime_types_regex: config
                 .preferred_mime_types
                 .iter()
@@ -370,8 +379,14 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                     self.clipboard_state = ClipboardState::Connected;
                 }
                 clipboard::ClipboardMessage::Data(data) => {
-                    if let Err(e) = block_on(self.db.insert(data)) {
-                        error!("can't insert data: {e}");
+                    if data.contains_key(PASSWORD_MANAGER_HINT_MIME) {
+                        info!("clipboard contains password manager hint, skipping storage");
+                        self.last_entry_sensitive = true;
+                    } else {
+                        self.last_entry_sensitive = false;
+                        if let Err(e) = block_on(self.db.insert(data)) {
+                            error!("can't insert data: {e}");
+                        }
                     }
                 }
                 #[expect(irrefutable_let_patterns)]
@@ -388,7 +403,10 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                     };
                 }
                 clipboard::ClipboardMessage::EmptyKeyboard => {
-                    if let Some(data) = self.db.get(0) {
+                    if self.last_entry_sensitive {
+                        info!("clipboard cleared by password manager, not restoring");
+                        self.last_entry_sensitive = false;
+                    } else if let Some(data) = self.db.get(0) {
                         return copy_iced(data.raw_content().clone());
                     }
                 }
