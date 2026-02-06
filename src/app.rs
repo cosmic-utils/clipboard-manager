@@ -30,7 +30,7 @@ use crate::message::{AppMsg, ConfigMsg, ContextMenuMsg};
 use crate::navigation::EventMsg;
 use crate::utils::task_message;
 use crate::view::SCROLLABLE_ID;
-use crate::{clipboard, clipboard_watcher, config, navigation};
+use crate::{clipboard, clipboard_watcher, config, ipc, navigation};
 
 use cosmic::{cosmic_config, iced_runtime};
 use std::sync::atomic::{self};
@@ -84,6 +84,9 @@ pub struct Flags {
 struct Popup {
     pub kind: PopupKind,
     pub id: window::Id,
+    /// Whether this popup was opened as a layer surface (for --toggle)
+    /// vs an XDG popup (for icon click).
+    pub is_layer_surface: bool,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -158,16 +161,20 @@ impl<Db: DbTrait> AppState<Db> {
     }
 
     fn toggle_popup(&mut self, kind: PopupKind) -> Task<AppMsg> {
+        self.toggle_popup_ext(kind, false)
+    }
+
+    fn toggle_popup_ext(&mut self, kind: PopupKind, force_layer_surface: bool) -> Task<AppMsg> {
         self.qr_code.take();
         match &self.popup {
             Some(popup) => {
                 if popup.kind == kind {
                     self.close_popup()
                 } else {
-                    Task::batch(vec![self.close_popup(), self.open_popup(kind)])
+                    Task::batch(vec![self.close_popup(), self.open_popup(kind, force_layer_surface)])
                 }
             }
-            None => self.open_popup(kind),
+            None => self.open_popup(kind, force_layer_surface),
         }
     }
 
@@ -181,7 +188,7 @@ impl<Db: DbTrait> AppState<Db> {
 
             self.last_quit = Some((Utc::now().timestamp_millis(), popup.kind));
 
-            if self.config.horizontal {
+            if popup.is_layer_surface {
                 destroy_layer_surface(popup.id)
             } else {
                 destroy_popup(popup.id)
@@ -191,7 +198,7 @@ impl<Db: DbTrait> AppState<Db> {
         }
     }
 
-    fn open_popup(&mut self, kind: PopupKind) -> Task<AppMsg> {
+    fn open_popup(&mut self, kind: PopupKind, force_layer_surface: bool) -> Task<AppMsg> {
         // handle the case where the popup was closed by clicking the icon
         if self
             .last_quit
@@ -202,41 +209,55 @@ impl<Db: DbTrait> AppState<Db> {
         }
 
         let new_id = Id::unique();
-        // info!("will create {:?}", new_id);
+        let use_layer_surface = force_layer_surface || self.config.horizontal;
 
-        let popup = Popup { kind, id: new_id };
+        let popup = Popup {
+            kind,
+            id: new_id,
+            is_layer_surface: use_layer_surface && kind == PopupKind::Popup,
+        };
         self.popup.replace(popup);
 
         match kind {
-            PopupKind::Popup => {
-                if self.config.horizontal {
-                    get_layer_surface(SctkLayerSurfaceSettings {
-                        id: new_id,
-                        keyboard_interactivity: KeyboardInteractivity::OnDemand,
-                        anchor: layer_surface::Anchor::BOTTOM
+            PopupKind::Popup if use_layer_surface => {
+                // Use layer surface for --toggle or horizontal layout.
+                // Empty anchor = centered on screen (no edge attachment).
+                get_layer_surface(SctkLayerSurfaceSettings {
+                    id: new_id,
+                    keyboard_interactivity: KeyboardInteractivity::Exclusive,
+                    anchor: if self.config.horizontal {
+                        layer_surface::Anchor::BOTTOM
                             | layer_surface::Anchor::LEFT
-                            | layer_surface::Anchor::RIGHT,
-                        namespace: "clipboard manager".into(),
-                        size: Some((None, Some(350))),
-                        size_limits: Limits::NONE.min_width(1.0).min_height(1.0),
-                        ..Default::default()
-                    })
-                } else {
-                    let mut popup_settings = self.core.applet.get_popup_settings(
-                        self.core.main_window_id().unwrap(),
-                        new_id,
-                        None,
-                        None,
-                        None,
-                    );
+                            | layer_surface::Anchor::RIGHT
+                    } else {
+                        layer_surface::Anchor::empty()
+                    },
+                    namespace: "clipboard manager".into(),
+                    size: if self.config.horizontal {
+                        Some((None, Some(350)))
+                    } else {
+                        Some((Some(400), Some(530)))
+                    },
+                    size_limits: Limits::NONE.min_width(1.0).min_height(1.0),
+                    ..Default::default()
+                })
+            }
+            PopupKind::Popup => {
+                // Use XDG popup anchored to applet icon for normal click
+                let mut popup_settings = self.core.applet.get_popup_settings(
+                    self.core.main_window_id().unwrap(),
+                    new_id,
+                    None,
+                    None,
+                    None,
+                );
 
-                    popup_settings.positioner.size_limits = Limits::NONE
-                        .min_width(300.0)
-                        .max_width(400.0)
-                        .min_height(200.0)
-                        .max_height(500.0);
-                    get_popup(popup_settings)
-                }
+                popup_settings.positioner.size_limits = Limits::NONE
+                    .min_width(300.0)
+                    .max_width(400.0)
+                    .min_height(200.0)
+                    .max_height(500.0);
+                get_popup(popup_settings)
             }
             PopupKind::QuickSettings => {
                 let mut popup_settings = self.core.applet.get_popup_settings(
@@ -336,6 +357,12 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
         }
 
         match message {
+            AppMsg::CheckSignalFile => {
+                // Signal file already verified and deleted by the polling loop.
+                // Just toggle the popup.
+                self.last_quit = None;
+                return self.toggle_popup_ext(PopupKind::Popup, true);
+            }
             AppMsg::ChangeConfig(config) => {
                 if config.private_mode != self.config.private_mode {
                     PRIVATE_MODE.store(config.private_mode, atomic::Ordering::Relaxed);
@@ -570,6 +597,7 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
             config::sub(),
             navigation::sub().map(AppMsg::Navigation),
             db_sub().map(AppMsg::Db),
+            ipc::signal_file_watcher(),
         ];
 
         if !self.clipboard_state.is_error() {

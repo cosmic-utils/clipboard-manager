@@ -14,6 +14,7 @@ mod clipboard_watcher;
 mod config;
 mod db;
 mod icon;
+mod ipc;
 mod localize;
 mod message;
 mod my_widget;
@@ -53,6 +54,34 @@ fn main() {
             let commit = option_env!("CLIPBOARD_MANAGER_COMMIT").unwrap_or("unknown");
 
             println!("clipboard-manager {version} (commit {commit})");
+            return;
+        }
+
+        if arg == "--toggle" || arg == "-t" {
+            if let Err(e) = ipc::send_toggle_signal() {
+                eprintln!("Failed to toggle clipboard manager: {e}");
+                std::process::exit(1);
+            }
+            return;
+        }
+
+        if arg == "-h" || arg == "--help" {
+            println!("COSMIC Clipboard Manager");
+            println!();
+            println!("USAGE:");
+            println!("    cosmic-ext-applet-clipboard-manager [OPTIONS]");
+            println!();
+            println!("OPTIONS:");
+            println!("    -t, --toggle     Toggle the clipboard manager popup");
+            println!("    -V, --version    Print version information");
+            println!("    -h, --help       Print this help message");
+            println!();
+            println!("KEYBOARD SHORTCUT SETUP:");
+            println!("    1. Open COSMIC Settings > Keyboard > Custom Shortcuts");
+            println!("    2. Click 'Add Custom Shortcut'");
+            println!("    3. Name: Clipboard Manager");
+            println!("    4. Command: cosmic-ext-applet-clipboard-manager --toggle");
+            println!("    5. Shortcut: Press Super+V (or your preferred shortcut)");
             return;
         }
     }
