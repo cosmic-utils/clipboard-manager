@@ -373,6 +373,13 @@ impl Watcher {
                     res.push((mime_type, read));
                 }
 
+                // Flush the connection so the compositor receives the receive
+                // requests and tells the source app to write pipe data before
+                // we attempt to read.
+                if let Err(e) = self.queue.flush() {
+                    warn!("failed to flush Wayland connection: {e}");
+                }
+
                 Ok(res)
             }
             None => {

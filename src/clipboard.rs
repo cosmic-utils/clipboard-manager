@@ -50,17 +50,21 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
                             {
                                 Ok(res) => {
                                     if !PRIVATE_MODE.load(atomic::Ordering::Relaxed) {
-                                        tx.blocking_send(WatchRes::Some(res)).unwrap();
+                                        if tx.blocking_send(WatchRes::Some(res)).is_err() {
+                                            break;
+                                        }
                                     } else {
                                         info!("private mode")
                                     }
                                 }
                                 Err(e) => match e {
                                     clipboard_watcher::Error::ClipboardEmpty => {
-                                        tx.blocking_send(WatchRes::None).unwrap();
+                                        if tx.blocking_send(WatchRes::None).is_err() {
+                                            break;
+                                        }
                                     }
                                     _ => {
-                                        tx.blocking_send(WatchRes::Err(e)).unwrap();
+                                        let _ = tx.blocking_send(WatchRes::Err(e));
                                         break;
                                     }
                                 },

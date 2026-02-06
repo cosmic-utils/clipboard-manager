@@ -590,7 +590,7 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
     }
     fn subscription(&self) -> Subscription<Self::Message> {
         pub fn db_sub() -> Subscription<DbMessage> {
-            cosmic::iced::time::every(Duration::from_millis(1000)).map(|_| DbMessage::CheckUpdate)
+            cosmic::iced::time::every(Duration::from_millis(5000)).map(|_| DbMessage::CheckUpdate)
         }
 
         let mut subscriptions = vec![
