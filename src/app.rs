@@ -545,8 +545,10 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                 self.focused = self.page * self.config.maximum_entries_by_page.get() as usize;
             }
             AppMsg::PreviousPage => {
-                self.page -= 1;
-                self.focused = self.page * self.config.maximum_entries_by_page.get() as usize;
+                if self.page > 0 {
+                    self.page -= 1;
+                    self.focused = self.page * self.config.maximum_entries_by_page.get() as usize;
+                }
             }
             AppMsg::ContextMenu(msg) => match msg {
                 ContextMenuMsg::RemoveFavorite(entry) => {
