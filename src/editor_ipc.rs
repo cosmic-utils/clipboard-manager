@@ -1,5 +1,9 @@
-//! IPC protocol for applet ↔ editor communication via stdin/stdout pipes.
+//! IPC protocol for applet ↔ editor communication.
 //! Uses length-prefixed JSON frames for robust message framing.
+//!
+//! Channels:
+//! - Applet → Editor: child's stdin pipe
+//! - Editor → Applet: dedicated FD 3 pipe (avoids stdout, which COSMIC writes to)
 
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::io::{self, Read, Write};

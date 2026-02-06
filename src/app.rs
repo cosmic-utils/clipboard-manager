@@ -300,13 +300,24 @@ impl<Db: DbTrait> AppState<Db> {
         }
     }
 
-    /// Spawn the editor as a separate process with piped stdin/stdout.
+    /// Spawn the editor as a separate process.
+    ///
+    /// IPC channels:
+    /// - Applet → Editor: child's stdin pipe (length-prefixed JSON frames)
+    /// - Editor → Applet: dedicated pipe on FD 3 (avoids stdout, which COSMIC writes to)
     fn open_editor_process(
         &mut self,
         entry_id: EntryId,
         text: &str,
         mime: String,
     ) -> Task<AppMsg> {
+        use std::os::unix::io::{FromRawFd, IntoRawFd};
+        use std::os::unix::process::CommandExt;
+        use nix::unistd::{close, dup2, pipe};
+
+        /// The file descriptor number the child uses for IPC writes back to the applet.
+        const IPC_FD: i32 = 3;
+
         // Close existing editor if open
         if let Some(mut old_editor) = self.editor.take() {
             let _ = editor_ipc::write_frame(
@@ -322,22 +333,62 @@ impl<Db: DbTrait> AppState<Db> {
         let exe = std::env::current_exe()
             .unwrap_or_else(|_| "cosmic-ext-applet-clipboard-manager".into());
 
-        let mut child = match std::process::Command::new(&exe)
-            .arg("--editor-window")
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::inherit())
-            .spawn()
-        {
-            Ok(child) => child,
+        // Create a dedicated pipe for Editor → Applet IPC.
+        // The child writes to IPC_FD (3), the parent reads from ipc_read_fd.
+        let (ipc_read_owned, ipc_write_owned) = match pipe() {
+            Ok(fds) => fds,
             Err(e) => {
-                error!("failed to spawn editor: {e}");
+                error!("failed to create IPC pipe: {e}");
                 return Task::none();
             }
         };
 
+        // Extract raw fd values for use in pre_exec and manual management.
+        // into_raw_fd() transfers ownership — we manage lifetimes manually from here.
+        let ipc_read_raw = ipc_read_owned.into_raw_fd();
+        let ipc_write_raw = ipc_write_owned.into_raw_fd();
+
+        let mut cmd = std::process::Command::new(&exe);
+        cmd.arg("--editor-window")
+            .stdin(std::process::Stdio::piped())
+            // stdout/stderr are inherited — COSMIC can write freely without corrupting IPC
+            .stdout(std::process::Stdio::inherit())
+            .stderr(std::process::Stdio::inherit());
+
+        // In the child (pre-fork), place the IPC write end at FD 3.
+        unsafe {
+            cmd.pre_exec(move || {
+                // Move write end to the well-known IPC_FD
+                dup2(ipc_write_raw, IPC_FD)
+                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+                // Close the original write-end fd (now duplicated at IPC_FD)
+                if ipc_write_raw != IPC_FD {
+                    close(ipc_write_raw).ok();
+                }
+                // Close the read end in the child — only the parent reads from it
+                close(ipc_read_raw).ok();
+                Ok(())
+            });
+        }
+
+        let mut child = match cmd.spawn() {
+            Ok(child) => child,
+            Err(e) => {
+                error!("failed to spawn editor: {e}");
+                // Clean up pipe fds on failure
+                close(ipc_read_raw).ok();
+                close(ipc_write_raw).ok();
+                return Task::none();
+            }
+        };
+
+        // Parent: close the write end (only the child writes)
+        close(ipc_write_raw).ok();
+
+        // Wrap the read end as a File for the reader thread
+        let ipc_read_file = unsafe { std::fs::File::from_raw_fd(ipc_read_raw) };
+
         let mut stdin_handle = child.stdin.take().unwrap();
-        let stdout_handle = child.stdout.take().unwrap();
 
         // Send Init message
         if let Err(e) = editor_ipc::write_frame(
@@ -352,10 +403,10 @@ impl<Db: DbTrait> AppState<Db> {
             return Task::none();
         }
 
-        // Spawn reader thread for child's stdout
+        // Spawn reader thread for the dedicated IPC pipe (not stdout)
         let (tx, rx) = tokio::sync::mpsc::channel::<EditorToApp>(8);
         std::thread::spawn(move || {
-            let mut reader = std::io::BufReader::new(stdout_handle);
+            let mut reader = std::io::BufReader::new(ipc_read_file);
             loop {
                 match editor_ipc::read_frame::<EditorToApp>(&mut reader) {
                     Ok(msg) => {

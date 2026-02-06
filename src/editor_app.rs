@@ -1,7 +1,8 @@
 //! Standalone COSMIC editor application.
 //! Runs as a separate process, communicates with the applet via pipes.
-//! stdout is redirected to stderr before COSMIC starts (COSMIC writes to stdout),
-//! so IPC uses a dup'd fd saved before the redirect.
+//! Applet → Editor: stdin (length-prefixed JSON frames).
+//! Editor → Applet: dedicated FD 3 pipe (set up by the parent at spawn time).
+//! stdout/stderr are left untouched — COSMIC can write to them freely.
 
 use cosmic::app::{Core, Task};
 use cosmic::iced::Length;
@@ -211,21 +212,14 @@ impl cosmic::Application for EditorApp {
 
 /// Entry point for the editor process.
 pub fn run_editor() {
-    use std::os::unix::io::{AsRawFd, FromRawFd};
+    use std::os::unix::io::{FromRawFd, RawFd};
 
-    // Save the original stdout pipe fd for IPC BEFORE COSMIC app init.
-    // COSMIC/iced writes to stdout during app startup, which would corrupt
-    // our length-prefixed IPC frames. We dup stdout, then redirect fd 1 to stderr.
-    let ipc_fd = unsafe { libc::dup(std::io::stdout().as_raw_fd()) };
-    if ipc_fd < 0 {
-        eprintln!("Failed to dup stdout for IPC");
-        std::process::exit(1);
-    }
-    // Redirect stdout to stderr so COSMIC's writes don't go through the pipe
-    unsafe {
-        libc::dup2(std::io::stderr().as_raw_fd(), std::io::stdout().as_raw_fd());
-    }
-    let ipc_file = unsafe { std::fs::File::from_raw_fd(ipc_fd) };
+    /// The well-known FD for Editor → Applet IPC, set up by the parent process.
+    const IPC_FD: RawFd = 3;
+
+    // The parent process sets up FD 3 as a dedicated IPC pipe.
+    // No stdout manipulation needed — COSMIC can write to stdout freely.
+    let ipc_file = unsafe { std::fs::File::from_raw_fd(IPC_FD) };
     IPC_WRITER
         .set(std::sync::Mutex::new(ipc_file))
         .expect("IPC_WRITER already set");
