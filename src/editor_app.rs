@@ -31,14 +31,11 @@ pub enum EditorMsg {
 
 pub struct EditorApp {
     core: Core,
-    entry_id: i64,
     content: text_editor::Content,
     original_text: String,
 }
 
 pub struct EditorFlags {
-    pub entry_id: i64,
-    pub mime: String,
     pub text: String,
 }
 
@@ -61,8 +58,7 @@ impl EditorApp {
         let is_dirty = text.trim() != self.original_text.trim();
         eprintln!("[editor] save_and_exit: dirty={is_dirty}, text_len={}, original_len={}", text.len(), self.original_text.len());
         let msg = if is_dirty {
-            EditorToApp::SaveFinal {
-                entry_id: self.entry_id,
+            EditorToApp::SaveAsNew {
                 content: text,
             }
         } else {
@@ -88,13 +84,15 @@ impl cosmic::Application for EditorApp {
     }
 
     fn init(mut core: Core, flags: Self::Flags) -> (Self, Task<Self::Message>) {
-        core.window.show_headerbar = false;
+        core.window.show_headerbar = true;
+        core.window.show_minimize = false;
+        core.window.show_maximize = false;
+        core.window.header_title = "Clipboard Editor".into();
 
         Self::send_to_applet(&EditorToApp::Ready);
 
         let app = EditorApp {
             core,
-            entry_id: flags.entry_id,
             content: text_editor::Content::with_text(&flags.text),
             original_text: flags.text,
         };
@@ -107,7 +105,8 @@ impl cosmic::Application for EditorApp {
                 self.content.perform(action);
             }
             EditorMsg::FocusLost => {
-                self.save_and_exit();
+                // No-op: editor stays open on focus loss so user can
+                // switch windows to copy text and come back.
             }
             EditorMsg::CloseWindow => {
                 self.save_and_exit();
@@ -127,24 +126,14 @@ impl cosmic::Application for EditorApp {
     }
 
     fn view(&self) -> Element<'_, Self::Message> {
-        let title = cosmic::widget::text::title3("Clipboard Manager Editor")
-            .width(Length::Fill)
-            .align_x(cosmic::iced::alignment::Horizontal::Center);
-
         let editor = cosmic::widget::text_editor(&self.content)
             .on_action(EditorMsg::EditorAction)
             .wrapping(Wrapping::Word)
             .height(Length::Fill)
             .padding(10);
 
-        cosmic::widget::column()
-            .push(container(title).padding([8, 10]))
-            .push(
-                container(editor)
-                    .padding(10)
-                    .height(Length::Fill)
-                    .width(Length::Fill),
-            )
+        container(editor)
+            .padding(10)
             .height(Length::Fill)
             .width(Length::Fill)
             .into()
@@ -236,12 +225,8 @@ pub fn run_editor() {
         }
     };
 
-    let (entry_id, mime, content) = match init_msg {
-        AppToEditor::Init {
-            entry_id,
-            mime,
-            content,
-        } => (entry_id, mime, content),
+    let content = match init_msg {
+        AppToEditor::Init { content, .. } => content,
         other => {
             eprintln!("Expected Init message, got: {other:?}");
             std::process::exit(1);
@@ -254,8 +239,6 @@ pub fn run_editor() {
         .exit_on_close(false);
 
     let flags = EditorFlags {
-        entry_id,
-        mime,
         text: content,
     };
 

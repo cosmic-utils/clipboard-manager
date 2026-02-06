@@ -857,51 +857,16 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                 eprintln!("[applet] EditorEvent: {msg:?}");
                 match msg {
                     EditorToApp::Ready => {}
-                    EditorToApp::SaveDraft {
-                        entry_id,
-                        content,
-                    } => {
-                        eprintln!("[applet] SaveDraft entry_id={entry_id}, content_len={}", content.len());
-                        let mime = self
-                            .editor
-                            .as_ref()
-                            .map(|e| e.mime.clone())
-                            .unwrap_or_else(|| "text/plain".to_string());
+                    EditorToApp::SaveAsNew { content } => {
+                        eprintln!("[applet] SaveAsNew content_len={}", content.len());
                         let mut data = MimeDataMap::new();
-                        data.insert(mime.clone(), content.as_bytes().to_vec());
-                        if mime != "text/plain" {
-                            data.insert("text/plain".to_string(), content.as_bytes().to_vec());
-                        }
-                        if let Err(e) = block_on(self.db.update_content(entry_id, data)) {
-                            error!("failed to save draft: {e}");
-                        }
-                    }
-                    EditorToApp::SaveFinal {
-                        entry_id,
-                        content,
-                    } => {
-                        eprintln!("[applet] SaveFinal entry_id={entry_id}, content_len={}", content.len());
-                        let mime = self
-                            .editor
-                            .as_ref()
-                            .map(|e| e.mime.clone())
-                            .unwrap_or_else(|| "text/plain".to_string());
-                        let mut data = MimeDataMap::new();
-                        data.insert(mime.clone(), content.as_bytes().to_vec());
-                        if mime != "text/plain" {
-                            data.insert("text/plain".to_string(), content.as_bytes().to_vec());
-                        }
-                        match block_on(self.db.update_content(entry_id, data.clone())) {
-                            Ok(id) => {
-                                eprintln!("[applet] SaveFinal: DB update OK, new id={id}");
-                                let clip_data = self
-                                    .db
-                                    .get_from_id(id)
-                                    .map(|e| e.raw_content().clone())
-                                    .unwrap_or(data);
-                                return copy_iced(clip_data);
+                        data.insert("text/plain".to_string(), content.as_bytes().to_vec());
+                        match block_on(self.db.insert(data.clone())) {
+                            Ok(()) => {
+                                eprintln!("[applet] SaveAsNew: inserted as new entry");
+                                return copy_iced(data);
                             }
-                            Err(e) => error!("failed to save final: {e}"),
+                            Err(e) => error!("failed to save as new entry: {e}"),
                         }
                     }
                     EditorToApp::Closed => {

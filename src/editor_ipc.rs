@@ -28,10 +28,8 @@ pub enum AppToEditor {
 pub enum EditorToApp {
     /// Editor is ready and displaying content.
     Ready,
-    /// Auto-save on focus loss (keep editor open, don't recopy to clipboard).
-    SaveDraft { entry_id: i64, content: String },
-    /// Final save on close (update DB + copy to clipboard).
-    SaveFinal { entry_id: i64, content: String },
+    /// Save edited content as a new clipboard entry + copy to clipboard.
+    SaveAsNew { content: String },
     /// Editor closed without changes.
     Closed,
 }
