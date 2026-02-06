@@ -137,7 +137,7 @@ impl<Db: DbTrait> AppState<Db> {
                 SCROLLABLE_ID.clone(),
                 RelativeOffset {
                     x: 0.,
-                    y: delta_y.max(1.).max(0.0),
+                    y: delta_y.clamp(0.0, 1.0),
                 },
             ))
         } else {
@@ -168,7 +168,7 @@ impl<Db: DbTrait> AppState<Db> {
                 SCROLLABLE_ID.clone(),
                 RelativeOffset {
                     x: 0.,
-                    y: delta_y.max(1.).max(0.0),
+                    y: delta_y.clamp(0.0, 1.0),
                 },
             ))
         } else {
