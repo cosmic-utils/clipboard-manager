@@ -92,11 +92,6 @@ impl SeatData {
     }
 }
 
-pub struct Event {
-    pub event: ZwlrDataControlOfferV1,
-    pub data: HashSet<String>,
-}
-
 pub struct CommonState {
     pub seats: Vec<(WlSeat, SeatData)>,
     pub clipboard_manager: ZwlrDataControlManagerV1,
@@ -137,8 +132,6 @@ struct State {
     // TODO: We never remove offers from here, even if we don't use them or after destroying them.
     offers: HashMap<ZwlrDataControlOfferV1, HashSet<String>>,
     got_primary_selection: bool,
-    // waker: Waker,
-    events: Vec<Event>,
 }
 
 delegate_dispatch!(State: [WlSeat: ()] => CommonState);
@@ -184,14 +177,16 @@ impl Dispatch<ZwlrDataControlDeviceV1, WlSeat> for State {
     ) {
         match event {
             zwlr_data_control_device_v1::Event::DataOffer { id } => {
-                state.offers.insert(id.clone(), HashSet::new());
-                state.events.push(Event {
-                    event: id,
-                    data: HashSet::new(),
-                })
+                state.offers.insert(id, HashSet::new());
             }
             zwlr_data_control_device_v1::Event::Selection { id } => {
-                state.common.get_mut_seat(seat).unwrap().set_offer(id);
+                let seat_data = state.common.get_mut_seat(seat).unwrap();
+                // Remove the old offer from state.offers to prevent unbounded growth
+                if let Some(old_offer) = seat_data.offer.take() {
+                    state.offers.remove(&old_offer);
+                    old_offer.destroy();
+                }
+                seat_data.offer = id;
             }
             zwlr_data_control_device_v1::Event::Finished => {
                 // Destroy the device stored in the seat as it's no longer valid.
@@ -199,11 +194,13 @@ impl Dispatch<ZwlrDataControlDeviceV1, WlSeat> for State {
             }
             zwlr_data_control_device_v1::Event::PrimarySelection { id } => {
                 state.got_primary_selection = true;
-                state
-                    .common
-                    .get_mut_seat(seat)
-                    .unwrap()
-                    .set_primary_offer(id);
+                let seat_data = state.common.get_mut_seat(seat).unwrap();
+                // Remove the old primary offer from state.offers to prevent unbounded growth
+                if let Some(old_offer) = seat_data.primary_offer.take() {
+                    state.offers.remove(&old_offer);
+                    old_offer.destroy();
+                }
+                seat_data.primary_offer = id;
             }
             _ => (),
         }
@@ -340,7 +337,6 @@ impl Watcher {
             common,
             offers: HashMap::new(),
             got_primary_selection: false,
-            events: Vec::new(),
         };
 
         Ok(Watcher {

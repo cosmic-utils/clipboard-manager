@@ -36,7 +36,7 @@ enum WatchRes<I> {
 }
 
 pub fn sub() -> impl Stream<Item = ClipboardMessage> {
-    channel(500, move |mut output| {
+    channel(50, move |mut output| {
         async move {
             match clipboard_watcher::Watcher::init() {
                 Ok(mut clipboard_watcher) => {
