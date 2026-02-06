@@ -1061,6 +1061,7 @@ dependencies = [
  "i18n-embed-fl",
  "include_dir",
  "itertools",
+ "libc",
  "libcosmic",
  "mime 0.3.17",
  "nucleo",

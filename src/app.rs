@@ -355,17 +355,23 @@ impl<Db: DbTrait> AppState<Db> {
         // Spawn reader thread for child's stdout
         let (tx, rx) = tokio::sync::mpsc::channel::<EditorToApp>(8);
         std::thread::spawn(move || {
-            let mut reader = stdout_handle;
+            let mut reader = std::io::BufReader::new(stdout_handle);
             loop {
                 match editor_ipc::read_frame::<EditorToApp>(&mut reader) {
                     Ok(msg) => {
+                        eprintln!("[applet-reader] Read frame: {msg:?}");
                         if tx.blocking_send(msg).is_err() {
+                            eprintln!("[applet-reader] mpsc send failed, breaking");
                             break;
                         }
                     }
-                    Err(_) => break,
+                    Err(e) => {
+                        eprintln!("[applet-reader] read_frame error: {e}");
+                        break;
+                    }
                 }
             }
+            eprintln!("[applet-reader] Reader thread exiting");
         });
 
         let session_id = EDITOR_SESSION_COUNTER.fetch_add(1, atomic::Ordering::Relaxed);
@@ -736,55 +742,64 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                     return self.open_editor_process(id, &text, mime);
                 }
             }
-            AppMsg::EditorEvent(msg) => match msg {
-                EditorToApp::Ready => {}
-                EditorToApp::SaveDraft {
-                    entry_id,
-                    content,
-                } => {
-                    let mime = self
-                        .editor
-                        .as_ref()
-                        .map(|e| e.mime.clone())
-                        .unwrap_or_else(|| "text/plain".to_string());
-                    let mut data = MimeDataMap::new();
-                    data.insert(mime.clone(), content.as_bytes().to_vec());
-                    if mime != "text/plain" {
-                        data.insert("text/plain".to_string(), content.as_bytes().to_vec());
-                    }
-                    if let Err(e) = block_on(self.db.update_content(entry_id, data)) {
-                        error!("failed to save draft: {e}");
-                    }
-                }
-                EditorToApp::SaveFinal {
-                    entry_id,
-                    content,
-                } => {
-                    let mime = self
-                        .editor
-                        .as_ref()
-                        .map(|e| e.mime.clone())
-                        .unwrap_or_else(|| "text/plain".to_string());
-                    let mut data = MimeDataMap::new();
-                    data.insert(mime.clone(), content.as_bytes().to_vec());
-                    if mime != "text/plain" {
-                        data.insert("text/plain".to_string(), content.as_bytes().to_vec());
-                    }
-                    match block_on(self.db.update_content(entry_id, data.clone())) {
-                        Ok(id) => {
-                            let clip_data = self
-                                .db
-                                .get_from_id(id)
-                                .map(|e| e.raw_content().clone())
-                                .unwrap_or(data);
-                            return copy_iced(clip_data);
+            AppMsg::EditorEvent(msg) => {
+                eprintln!("[applet] EditorEvent: {msg:?}");
+                match msg {
+                    EditorToApp::Ready => {}
+                    EditorToApp::SaveDraft {
+                        entry_id,
+                        content,
+                    } => {
+                        eprintln!("[applet] SaveDraft entry_id={entry_id}, content_len={}", content.len());
+                        let mime = self
+                            .editor
+                            .as_ref()
+                            .map(|e| e.mime.clone())
+                            .unwrap_or_else(|| "text/plain".to_string());
+                        let mut data = MimeDataMap::new();
+                        data.insert(mime.clone(), content.as_bytes().to_vec());
+                        if mime != "text/plain" {
+                            data.insert("text/plain".to_string(), content.as_bytes().to_vec());
                         }
-                        Err(e) => error!("failed to save final: {e}"),
+                        if let Err(e) = block_on(self.db.update_content(entry_id, data)) {
+                            error!("failed to save draft: {e}");
+                        }
+                    }
+                    EditorToApp::SaveFinal {
+                        entry_id,
+                        content,
+                    } => {
+                        eprintln!("[applet] SaveFinal entry_id={entry_id}, content_len={}", content.len());
+                        let mime = self
+                            .editor
+                            .as_ref()
+                            .map(|e| e.mime.clone())
+                            .unwrap_or_else(|| "text/plain".to_string());
+                        let mut data = MimeDataMap::new();
+                        data.insert(mime.clone(), content.as_bytes().to_vec());
+                        if mime != "text/plain" {
+                            data.insert("text/plain".to_string(), content.as_bytes().to_vec());
+                        }
+                        match block_on(self.db.update_content(entry_id, data.clone())) {
+                            Ok(id) => {
+                                eprintln!("[applet] SaveFinal: DB update OK, new id={id}");
+                                let clip_data = self
+                                    .db
+                                    .get_from_id(id)
+                                    .map(|e| e.raw_content().clone())
+                                    .unwrap_or(data);
+                                return copy_iced(clip_data);
+                            }
+                            Err(e) => error!("failed to save final: {e}"),
+                        }
+                    }
+                    EditorToApp::Closed => {
+                        eprintln!("[applet] Editor sent Closed (no changes)");
                     }
                 }
-                EditorToApp::Closed => {}
             },
             AppMsg::EditorProcessExited => {
+                eprintln!("[applet] EditorProcessExited");
                 if let Some(mut editor) = self.editor.take() {
                     let _ = editor.child.wait();
                 }
@@ -845,9 +860,11 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                     loop {
                         match rx.recv().await {
                             Some(msg) => {
+                                eprintln!("[applet-sub] Received from editor: {msg:?}");
                                 output.send(AppMsg::EditorEvent(msg)).await.ok();
                             }
                             None => {
+                                eprintln!("[applet-sub] Editor channel closed, sending EditorProcessExited");
                                 output.send(AppMsg::EditorProcessExited).await.ok();
                                 futures::future::pending::<()>().await;
                             }

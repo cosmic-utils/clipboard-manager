@@ -1,5 +1,7 @@
 //! Standalone COSMIC editor application.
-//! Runs as a separate process, communicates with the applet via stdin/stdout pipes.
+//! Runs as a separate process, communicates with the applet via pipes.
+//! stdout is redirected to stderr before COSMIC starts (COSMIC writes to stdout),
+//! so IPC uses a dup'd fd saved before the redirect.
 
 use cosmic::app::{Core, Task};
 use cosmic::iced::Length;
@@ -8,8 +10,12 @@ use cosmic::iced_futures::Subscription;
 use cosmic::iced_widget::text_editor;
 use cosmic::widget::container;
 use cosmic::Element;
+use std::sync::OnceLock;
 
 use crate::editor_ipc::{self, AppToEditor, EditorToApp};
+
+/// Holds the original stdout pipe fd (saved before COSMIC redirects stdout).
+static IPC_WRITER: OnceLock<std::sync::Mutex<std::fs::File>> = OnceLock::new();
 
 const EDITOR_APP_ID: &str = "io.github.cosmic_utils.clipboard-editor";
 
@@ -37,14 +43,23 @@ pub struct EditorFlags {
 
 impl EditorApp {
     fn send_to_applet(msg: &EditorToApp) {
-        let stdout = std::io::stdout();
-        let mut lock = stdout.lock();
-        let _ = editor_ipc::write_frame(&mut lock, msg);
+        if let Some(writer) = IPC_WRITER.get() {
+            let mut guard = writer.lock().unwrap();
+            if let Err(e) = editor_ipc::write_frame(&mut *guard, msg) {
+                eprintln!("[editor] Failed to send {msg:?}: {e}");
+            } else {
+                eprintln!("[editor] Sent: {msg:?}");
+            }
+        } else {
+            eprintln!("[editor] IPC_WRITER not initialized, can't send {msg:?}");
+        }
     }
 
     fn save_and_exit(&mut self) -> ! {
         let text = self.content.text();
-        let msg = if text.trim() != self.original_text.trim() {
+        let is_dirty = text.trim() != self.original_text.trim();
+        eprintln!("[editor] save_and_exit: dirty={is_dirty}, text_len={}, original_len={}", text.len(), self.original_text.len());
+        let msg = if is_dirty {
             EditorToApp::SaveFinal {
                 entry_id: self.entry_id,
                 content: text,
@@ -72,10 +87,7 @@ impl cosmic::Application for EditorApp {
     }
 
     fn init(mut core: Core, flags: Self::Flags) -> (Self, Task<Self::Message>) {
-        core.window.show_close = false;
-        core.window.show_minimize = false;
-        core.window.show_maximize = false;
-        core.window.header_title = "Edit".into();
+        core.window.show_headerbar = false;
 
         Self::send_to_applet(&EditorToApp::Ready);
 
@@ -114,14 +126,24 @@ impl cosmic::Application for EditorApp {
     }
 
     fn view(&self) -> Element<'_, Self::Message> {
+        let title = cosmic::widget::text::title3("Clipboard Manager Editor")
+            .width(Length::Fill)
+            .align_x(cosmic::iced::alignment::Horizontal::Center);
+
         let editor = cosmic::widget::text_editor(&self.content)
             .on_action(EditorMsg::EditorAction)
             .wrapping(Wrapping::Word)
             .height(Length::Fill)
             .padding(10);
 
-        container(editor)
-            .padding(10)
+        cosmic::widget::column()
+            .push(container(title).padding([8, 10]))
+            .push(
+                container(editor)
+                    .padding(10)
+                    .height(Length::Fill)
+                    .width(Length::Fill),
+            )
             .height(Length::Fill)
             .width(Length::Fill)
             .into()
@@ -189,6 +211,25 @@ impl cosmic::Application for EditorApp {
 
 /// Entry point for the editor process.
 pub fn run_editor() {
+    use std::os::unix::io::{AsRawFd, FromRawFd};
+
+    // Save the original stdout pipe fd for IPC BEFORE COSMIC app init.
+    // COSMIC/iced writes to stdout during app startup, which would corrupt
+    // our length-prefixed IPC frames. We dup stdout, then redirect fd 1 to stderr.
+    let ipc_fd = unsafe { libc::dup(std::io::stdout().as_raw_fd()) };
+    if ipc_fd < 0 {
+        eprintln!("Failed to dup stdout for IPC");
+        std::process::exit(1);
+    }
+    // Redirect stdout to stderr so COSMIC's writes don't go through the pipe
+    unsafe {
+        libc::dup2(std::io::stderr().as_raw_fd(), std::io::stdout().as_raw_fd());
+    }
+    let ipc_file = unsafe { std::fs::File::from_raw_fd(ipc_fd) };
+    IPC_WRITER
+        .set(std::sync::Mutex::new(ipc_file))
+        .expect("IPC_WRITER already set");
+
     let init_msg = {
         let stdin = std::io::stdin();
         let mut locked = stdin.lock();
