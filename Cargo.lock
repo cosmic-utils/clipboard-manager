@@ -1069,6 +1069,7 @@ dependencies = [
  "regex",
  "rust-embed",
  "serde",
+ "serde_json",
  "serial_test",
  "sqlx",
  "thiserror 2.0.17",

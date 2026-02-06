@@ -2,6 +2,7 @@ use crate::{
     clipboard::ClipboardMessage,
     config::Config,
     db::{DbMessage, EntryId, MimeDataMap},
+    editor_ipc::EditorToApp,
     navigation::EventMsg,
 };
 
@@ -28,9 +29,8 @@ pub enum AppMsg {
     LinkClicked(markdown::Url),
     DbusToggle,
     EditLatest,
-    EditorAction(cosmic::iced_widget::text_editor::Action),
-    EditorSave,
-    EditorCancel,
+    EditorEvent(EditorToApp),
+    EditorProcessExited,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]

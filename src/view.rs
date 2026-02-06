@@ -3,7 +3,6 @@ use std::{borrow::Cow, cmp::min, sync::LazyLock};
 use cosmic::{
     Apply, Element,
     iced::{Alignment, Length, alignment::Horizontal, padding},
-    iced_core::text::Wrapping,
     iced_widget::{
         Stack,
         scrollable::{Direction, Scrollbar},
@@ -19,7 +18,7 @@ use cosmic::{
 use itertools::Itertools;
 
 use crate::{
-    app::{AppState, ClipboardState, EditorState, ErrorState},
+    app::{AppState, ClipboardState, ErrorState},
     db::{Content, DbTrait, EntryTrait, MimeDataMap},
     fl, icon, icon_button,
     message::{AppMsg, ConfigMsg, ContextMenuMsg},
@@ -71,8 +70,6 @@ impl<Db: DbTrait> AppState<Db> {
             self.error_view(e)
         } else if let Some(qr_code_res) = &self.qr_code {
             self.qr_code_view(qr_code_res)
-        } else if let Some(editor_state) = &self.editor {
-            self.editor_view(editor_state)
         } else {
             self.list_view()
         })
@@ -87,34 +84,6 @@ impl<Db: DbTrait> AppState<Db> {
             Length::Fixed(400f32)
         })
         .into()
-    }
-    fn editor_view<'a>(&self, state: &'a EditorState) -> Element<'a, AppMsg> {
-        let header = row()
-            .push(
-                button::text(fl!("cancel"))
-                    .on_press(AppMsg::EditorCancel)
-                    .width(Length::Shrink),
-            )
-            .push(horizontal_space())
-            .push(
-                button::suggested(fl!("save"))
-                    .on_press(AppMsg::EditorSave)
-                    .width(Length::Shrink),
-            )
-            .width(Length::Fill);
-
-        let editor = cosmic::widget::text_editor(&state.content)
-            .on_action(AppMsg::EditorAction)
-            .wrapping(Wrapping::Word)
-            .height(Length::Fill)
-            .padding(10);
-
-        column()
-            .push(container(header).padding(padding::all(15f32).bottom(0)))
-            .push(container(editor).padding(padding::all(10).top(5)).height(Length::Fill))
-            .spacing(10)
-            .height(Length::Fill)
-            .into()
     }
 
     pub fn page_count(&self) -> usize {

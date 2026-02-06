@@ -13,6 +13,8 @@ mod clipboard;
 mod clipboard_watcher;
 mod config;
 mod db;
+mod editor_app;
+mod editor_ipc;
 mod icon;
 mod ipc;
 mod localize;
@@ -49,6 +51,13 @@ fn setup_logs() {
 
 fn main() {
     for arg in std::env::args().skip(1) {
+        if arg == "--editor-window" {
+            localize::localize();
+            setup_logs();
+            editor_app::run_editor();
+            return;
+        }
+
         if arg == "-V" || arg == "--version" {
             let version = env!("CARGO_PKG_VERSION");
             let commit = option_env!("CLIPBOARD_MANAGER_COMMIT").unwrap_or("unknown");

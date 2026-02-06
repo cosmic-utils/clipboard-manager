@@ -12,8 +12,6 @@ unique_session = Unique session
 unknown_mime_types_title = Mime types
 
 edit-entry = Edit
-save = Save
-cancel = Cancel
 
 data_control = Dummy
     .title = You need to activate the data control Wayland protocol on your device

@@ -11,7 +11,6 @@ use cosmic::iced_futures::Subscription;
 use cosmic::iced_runtime::core::window;
 use cosmic::iced_runtime::platform_specific::wayland::layer_surface::SctkLayerSurfaceSettings;
 use cosmic::iced_widget::qr_code;
-use cosmic::iced_widget::text_editor;
 use cosmic::iced_widget::scrollable::RelativeOffset;
 use cosmic::iced_winit::commands::layer_surface::{
     self, KeyboardInteractivity, destroy_layer_surface, get_layer_surface,
@@ -27,6 +26,7 @@ use regex::Regex;
 use crate::clipboard::ClipboardError;
 use crate::config::{Config, PRIVATE_MODE};
 use crate::db::{Content, DbMessage, DbTrait, EntryId, EntryTrait, MimeDataMap};
+use crate::editor_ipc::{self, EditorToApp};
 use crate::message::{AppMsg, ConfigMsg, ContextMenuMsg};
 use crate::navigation::EventMsg;
 use crate::utils::task_message;
@@ -34,7 +34,8 @@ use crate::view::SCROLLABLE_ID;
 use crate::{clipboard, clipboard_watcher, config, ipc, navigation};
 
 use cosmic::{cosmic_config, iced_runtime};
-use std::sync::atomic::{self};
+use std::sync::atomic::{self, AtomicU64};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 pub const QUALIFIER: &str = "io.github";
@@ -47,10 +48,16 @@ pub const APPID: &str = constcat::concat!(QUALIFIER, ".", ORG, ".", APP);
 /// not be restored when the source application clears it.
 const PASSWORD_MANAGER_HINT_MIME: &str = "x-kde-passwordManagerHint";
 
-pub struct EditorState {
+static EDITOR_SESSION_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+/// Tracks the editor subprocess spawned by the applet.
+pub struct EditorProcess {
     pub entry_id: EntryId,
-    pub content: text_editor::Content,
     pub mime: String,
+    pub stdin_handle: std::process::ChildStdin,
+    pub child: std::process::Child,
+    pub stdout_rx: Arc<Mutex<Option<tokio::sync::mpsc::Receiver<EditorToApp>>>>,
+    pub session_id: u64,
 }
 
 pub struct AppState<Db: DbTrait> {
@@ -68,7 +75,7 @@ pub struct AppState<Db: DbTrait> {
     /// Tracks whether the last clipboard entry was sensitive (e.g. from a password manager).
     /// When true, the clipboard will not be restored on clear.
     last_entry_sensitive: bool,
-    pub editor: Option<EditorState>,
+    pub editor: Option<EditorProcess>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -197,12 +204,9 @@ impl<Db: DbTrait> AppState<Db> {
     fn close_popup(&mut self) -> Task<AppMsg> {
         self.focused = 0;
         self.page = 0;
-        self.editor.take();
         self.db.set_query_and_search("".into());
 
         if let Some(popup) = self.popup.take() {
-            // info!("destroy {:?}", popup.id);
-
             self.last_quit = Some((Utc::now().timestamp_millis(), popup.kind));
 
             if popup.is_layer_surface {
@@ -293,6 +297,101 @@ impl<Db: DbTrait> AppState<Db> {
 
                 get_popup(popup_settings)
             }
+        }
+    }
+
+    /// Spawn the editor as a separate process with piped stdin/stdout.
+    fn open_editor_process(
+        &mut self,
+        entry_id: EntryId,
+        text: &str,
+        mime: String,
+    ) -> Task<AppMsg> {
+        // Close existing editor if open
+        if let Some(mut old_editor) = self.editor.take() {
+            let _ = editor_ipc::write_frame(
+                &mut old_editor.stdin_handle,
+                &editor_ipc::AppToEditor::CloseRequested,
+            );
+            // Reap in background to avoid zombies
+            std::thread::spawn(move || {
+                let _ = old_editor.child.wait();
+            });
+        }
+
+        let exe = std::env::current_exe()
+            .unwrap_or_else(|_| "cosmic-ext-applet-clipboard-manager".into());
+
+        let mut child = match std::process::Command::new(&exe)
+            .arg("--editor-window")
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::inherit())
+            .spawn()
+        {
+            Ok(child) => child,
+            Err(e) => {
+                error!("failed to spawn editor: {e}");
+                return Task::none();
+            }
+        };
+
+        let mut stdin_handle = child.stdin.take().unwrap();
+        let stdout_handle = child.stdout.take().unwrap();
+
+        // Send Init message
+        if let Err(e) = editor_ipc::write_frame(
+            &mut stdin_handle,
+            &editor_ipc::AppToEditor::Init {
+                entry_id,
+                mime: mime.clone(),
+                content: text.to_string(),
+            },
+        ) {
+            error!("failed to send Init to editor: {e}");
+            return Task::none();
+        }
+
+        // Spawn reader thread for child's stdout
+        let (tx, rx) = tokio::sync::mpsc::channel::<EditorToApp>(8);
+        std::thread::spawn(move || {
+            let mut reader = stdout_handle;
+            loop {
+                match editor_ipc::read_frame::<EditorToApp>(&mut reader) {
+                    Ok(msg) => {
+                        if tx.blocking_send(msg).is_err() {
+                            break;
+                        }
+                    }
+                    Err(_) => break,
+                }
+            }
+        });
+
+        let session_id = EDITOR_SESSION_COUNTER.fetch_add(1, atomic::Ordering::Relaxed);
+
+        self.editor = Some(EditorProcess {
+            entry_id,
+            mime,
+            stdin_handle,
+            child,
+            stdout_rx: Arc::new(Mutex::new(Some(rx))),
+            session_id,
+        });
+
+        Task::none()
+    }
+
+    /// Send a message to the editor process. Returns false if send failed.
+    fn send_to_editor(&mut self, msg: &editor_ipc::AppToEditor) -> bool {
+        if let Some(editor) = &mut self.editor {
+            if editor_ipc::write_frame(&mut editor.stdin_handle, msg).is_err() {
+                warn!("failed to send to editor (pipe broken)");
+                return false;
+            }
+            true
+        } else {
+            false
         }
     }
 }
@@ -470,14 +569,6 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                 self.clipboard_state = ClipboardState::Init;
             }
             AppMsg::Navigation(message) => {
-                // When editor is open, intercept Escape to cancel editor,
-                // and ignore all other nav keys (let TextEditor handle them)
-                if self.editor.is_some() {
-                    if let EventMsg::Event(Named::Escape) = &message {
-                        self.editor.take();
-                    }
-                    return Task::none();
-                }
                 match message {
                 EventMsg::Event(e) => {
                     let message = match e {
@@ -526,7 +617,6 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
             }
             AppMsg::ReturnToClipboard => {
                 self.qr_code.take();
-                self.editor.take();
             }
             AppMsg::Config(msg) => match msg {
                 ConfigMsg::PrivateMode(private_mode) => {
@@ -562,16 +652,17 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                     }
                 }
                 ContextMenuMsg::Edit(id) => {
-                    if let Some(entry) = self.db.get_from_id(id) {
+                    let edit_info = self.db.get_from_id(id).and_then(|entry| {
                         if let Some(((mime, _), Content::Text(text))) =
                             entry.preferred_content(&self.preferred_mime_types_regex)
                         {
-                            self.editor = Some(EditorState {
-                                entry_id: id,
-                                content: text_editor::Content::with_text(text),
-                                mime: mime.to_string(),
-                            });
+                            Some((text.to_string(), mime.to_string()))
+                        } else {
+                            None
                         }
+                    });
+                    if let Some((text, mime)) = edit_info {
+                        return self.open_editor_process(id, &text, mime);
                     }
                 }
                 ContextMenuMsg::ShowQrCode(id) => {
@@ -601,6 +692,14 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                     }
                 }
                 ContextMenuMsg::Delete(id) => {
+                    // If editing this entry, tell editor to close without saving
+                    if self
+                        .editor
+                        .as_ref()
+                        .is_some_and(|e| e.entry_id == id)
+                    {
+                        self.send_to_editor(&editor_ipc::AppToEditor::EntryDeleted);
+                    }
                     if let Err(e) = block_on(self.db.delete(id)) {
                         error!("can't delete {}: {}", id, e);
                     }
@@ -612,20 +711,66 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                     error!("{e}");
                 }
             }
-            AppMsg::EditorAction(action) => {
-                if let Some(editor) = &mut self.editor {
-                    editor.content.perform(action);
+            AppMsg::EditLatest => {
+                self.last_quit = None;
+                // Find the most recent text entry and open editor process
+                let edit_info = self
+                    .db
+                    .iter()
+                    .find(|e| {
+                        matches!(
+                            e.preferred_content(&self.preferred_mime_types_regex),
+                            Some((_, Content::Text(_)))
+                        )
+                    })
+                    .and_then(|entry| {
+                        if let Some(((mime, _), Content::Text(text))) =
+                            entry.preferred_content(&self.preferred_mime_types_regex)
+                        {
+                            Some((entry.id(), text.to_string(), mime.to_string()))
+                        } else {
+                            None
+                        }
+                    });
+                if let Some((id, text, mime)) = edit_info {
+                    return self.open_editor_process(id, &text, mime);
                 }
             }
-            AppMsg::EditorSave => {
-                if let Some(editor) = self.editor.take() {
-                    let text = editor.content.text();
+            AppMsg::EditorEvent(msg) => match msg {
+                EditorToApp::Ready => {}
+                EditorToApp::SaveDraft {
+                    entry_id,
+                    content,
+                } => {
+                    let mime = self
+                        .editor
+                        .as_ref()
+                        .map(|e| e.mime.clone())
+                        .unwrap_or_else(|| "text/plain".to_string());
                     let mut data = MimeDataMap::new();
-                    data.insert(editor.mime.clone(), text.as_bytes().to_vec());
-                    if editor.mime != "text/plain" {
-                        data.insert("text/plain".to_string(), text.as_bytes().to_vec());
+                    data.insert(mime.clone(), content.as_bytes().to_vec());
+                    if mime != "text/plain" {
+                        data.insert("text/plain".to_string(), content.as_bytes().to_vec());
                     }
-                    match block_on(self.db.update_content(editor.entry_id, data.clone())) {
+                    if let Err(e) = block_on(self.db.update_content(entry_id, data)) {
+                        error!("failed to save draft: {e}");
+                    }
+                }
+                EditorToApp::SaveFinal {
+                    entry_id,
+                    content,
+                } => {
+                    let mime = self
+                        .editor
+                        .as_ref()
+                        .map(|e| e.mime.clone())
+                        .unwrap_or_else(|| "text/plain".to_string());
+                    let mut data = MimeDataMap::new();
+                    data.insert(mime.clone(), content.as_bytes().to_vec());
+                    if mime != "text/plain" {
+                        data.insert("text/plain".to_string(), content.as_bytes().to_vec());
+                    }
+                    match block_on(self.db.update_content(entry_id, data.clone())) {
                         Ok(id) => {
                             let clip_data = self
                                 .db
@@ -634,35 +779,15 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                                 .unwrap_or(data);
                             return copy_iced(clip_data);
                         }
-                        Err(e) => error!("failed to update entry: {e}"),
+                        Err(e) => error!("failed to save final: {e}"),
                     }
                 }
-            }
-            AppMsg::EditorCancel => {
-                self.editor.take();
-            }
-            AppMsg::EditLatest => {
-                self.last_quit = None;
-                // Find the most recent text entry and open it in editor
-                let text_entry = self.db.iter().find(|e| {
-                    matches!(
-                        e.preferred_content(&self.preferred_mime_types_regex),
-                        Some((_, Content::Text(_)))
-                    )
-                });
-                if let Some(entry) = text_entry {
-                    if let Some(((mime, _), Content::Text(text))) =
-                        entry.preferred_content(&self.preferred_mime_types_regex)
-                    {
-                        let id = entry.id();
-                        self.editor = Some(EditorState {
-                            entry_id: id,
-                            content: text_editor::Content::with_text(text),
-                            mime: mime.to_string(),
-                        });
-                    }
+                EditorToApp::Closed => {}
+            },
+            AppMsg::EditorProcessExited => {
+                if let Some(mut editor) = self.editor.take() {
+                    let _ = editor.child.wait();
                 }
-                return self.toggle_popup_ext(PopupKind::Popup, true);
             }
         }
         Task::none()
@@ -704,6 +829,34 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
             ipc::dbus_toggle_subscription(),
         ];
 
+        // Editor process IPC subscription
+        if let Some(editor) = &self.editor {
+            let rx_arc = editor.stdout_rx.clone();
+            let session_id = editor.session_id;
+            subscriptions.push(Subscription::run_with_id(
+                session_id,
+                cosmic::iced::stream::channel(8, move |mut output| async move {
+                    use cosmic::iced::futures::SinkExt;
+                    let rx_opt = rx_arc.lock().unwrap().take();
+                    let Some(mut rx) = rx_opt else {
+                        futures::future::pending::<()>().await;
+                        unreachable!();
+                    };
+                    loop {
+                        match rx.recv().await {
+                            Some(msg) => {
+                                output.send(AppMsg::EditorEvent(msg)).await.ok();
+                            }
+                            None => {
+                                output.send(AppMsg::EditorProcessExited).await.ok();
+                                futures::future::pending::<()>().await;
+                            }
+                        }
+                    }
+                }),
+            ));
+        }
+
         if !self.clipboard_state.is_error() {
             subscriptions.push(Subscription::run(|| {
                 clipboard::sub().map(AppMsg::ClipboardEvent)
@@ -714,6 +867,15 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
     }
 
     fn on_app_exit(&mut self) -> Option<Self::Message> {
+        // Tell editor to close gracefully before applet exits
+        if let Some(mut editor) = self.editor.take() {
+            let _ = editor_ipc::write_frame(
+                &mut editor.stdin_handle,
+                &editor_ipc::AppToEditor::CloseRequested,
+            );
+            let _ = editor.child.wait();
+        }
+
         if self.config.unique_session
             && let Err(err) = block_on(self.db.clear())
         {
