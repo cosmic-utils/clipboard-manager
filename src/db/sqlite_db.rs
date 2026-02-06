@@ -49,6 +49,7 @@ pub struct DbSqlite {
     data_version: i64,
     pub(super) favorites: Favorites,
     lock: LockFile,
+    max_entries: Option<u32>,
 }
 
 #[derive(Clone)]
@@ -293,6 +294,7 @@ impl DbTrait for DbSqlite {
             matcher: Matcher::new(nucleo::Config::DEFAULT).into(),
             favorites: Favorites::default(),
             lock,
+            max_entries: config.maximum_entries_number,
         };
 
         db.reload().await?;
@@ -471,6 +473,37 @@ impl DbTrait for DbSqlite {
             self.times.insert(entry.creation, id);
             self.hashs.insert(hash, id);
             self.entries.insert(id, entry);
+        }
+
+        // Evict oldest non-favorite entries if over the max_entries limit
+        if let Some(max) = self.max_entries {
+            while self.entries.len() > max as usize {
+                // Find oldest non-favorite entry (earliest time in BTreeMap)
+                let oldest = self
+                    .times
+                    .iter()
+                    .find(|(_, id)| !self.favorites.contains(id))
+                    .map(|(time, id)| (*time, *id));
+
+                match oldest {
+                    Some((time, id)) => {
+                        self.times.remove(&time);
+                        if let Some(entry) = self.entries.remove(&id) {
+                            self.hashs.remove(&entry.get_hash());
+                        }
+
+                        let query_evict = r#"
+                            DELETE FROM ClipboardEntries
+                            WHERE id = ?;
+                        "#;
+                        sqlx::query(query_evict)
+                            .bind(id)
+                            .execute(&mut self.conn)
+                            .await?;
+                    }
+                    None => break, // Only favorites remain
+                }
+            }
         }
 
         self.search();
