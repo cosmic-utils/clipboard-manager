@@ -510,6 +510,78 @@ impl DbTrait for DbSqlite {
         Ok(())
     }
 
+    async fn update_content(&mut self, id: EntryId, data: MimeDataMap) -> Result<EntryId> {
+        let new_hash = get_hash_entry_content(&data);
+        let now = now();
+
+        // Check if the new content matches a *different* existing entry (dedup)
+        if let Some(&existing_id) = self.hashs.get(&new_hash) {
+            if existing_id != id {
+                // Dedup: delete the entry being edited, bump the duplicate's timestamp
+                self.delete(id).await?;
+
+                let entry = self.entries.get_mut(&existing_id).unwrap();
+                let old_creation = entry.creation;
+                entry.creation = now;
+                self.times.remove(&old_creation);
+                self.times.insert(now, existing_id);
+
+                sqlx::query("UPDATE ClipboardEntries SET creation = $1 WHERE id = $2")
+                    .bind(now)
+                    .bind(existing_id)
+                    .execute(&mut self.conn)
+                    .await?;
+
+                self.search();
+                return Ok(existing_id);
+            }
+        }
+
+        // Remove old hash
+        if let Some(entry) = self.entries.get(&id) {
+            let old_hash = entry.get_hash();
+            self.hashs.remove(&old_hash);
+        }
+
+        // Delete old content rows
+        sqlx::query("DELETE FROM ClipboardContents WHERE id = ?")
+            .bind(id)
+            .execute(&mut self.conn)
+            .await?;
+
+        // Insert new content rows
+        for (mime, content) in &data {
+            sqlx::query("INSERT INTO ClipboardContents (id, mime, content) SELECT $1, $2, $3")
+                .bind(id)
+                .bind(mime)
+                .bind(content)
+                .execute(&mut self.conn)
+                .await?;
+        }
+
+        // Update creation time (bump to top)
+        sqlx::query("UPDATE ClipboardEntries SET creation = $1 WHERE id = $2")
+            .bind(now)
+            .bind(id)
+            .execute(&mut self.conn)
+            .await?;
+
+        // Update in-memory state
+        if let Some(entry) = self.entries.get_mut(&id) {
+            let old_creation = entry.creation;
+            self.times.remove(&old_creation);
+            entry.creation = now;
+            entry.raw_content = data;
+            self.times.insert(now, id);
+        }
+
+        // Insert new hash
+        self.hashs.insert(new_hash, id);
+
+        self.search();
+        Ok(id)
+    }
+
     async fn delete(&mut self, id: EntryId) -> Result<()> {
         let query = r#"
             DELETE FROM ClipboardEntries

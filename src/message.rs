@@ -26,13 +26,18 @@ pub enum AppMsg {
     PreviousPage,
     ContextMenu(ContextMenuMsg),
     LinkClicked(markdown::Url),
-    CheckSignalFile,
+    DbusToggle,
+    EditLatest,
+    EditorAction(cosmic::iced_widget::text_editor::Action),
+    EditorSave,
+    EditorCancel,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub enum ContextMenuMsg {
     RemoveFavorite(EntryId),
     AddFavorite(EntryId),
+    Edit(EntryId),
     ShowQrCode(EntryId),
     Delete(EntryId),
 }

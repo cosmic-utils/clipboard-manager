@@ -11,6 +11,7 @@ use cosmic::iced_futures::Subscription;
 use cosmic::iced_runtime::core::window;
 use cosmic::iced_runtime::platform_specific::wayland::layer_surface::SctkLayerSurfaceSettings;
 use cosmic::iced_widget::qr_code;
+use cosmic::iced_widget::text_editor;
 use cosmic::iced_widget::scrollable::RelativeOffset;
 use cosmic::iced_winit::commands::layer_surface::{
     self, KeyboardInteractivity, destroy_layer_surface, get_layer_surface,
@@ -25,7 +26,7 @@ use regex::Regex;
 
 use crate::clipboard::ClipboardError;
 use crate::config::{Config, PRIVATE_MODE};
-use crate::db::{DbMessage, DbTrait, EntryTrait, MimeDataMap};
+use crate::db::{Content, DbMessage, DbTrait, EntryId, EntryTrait, MimeDataMap};
 use crate::message::{AppMsg, ConfigMsg, ContextMenuMsg};
 use crate::navigation::EventMsg;
 use crate::utils::task_message;
@@ -41,6 +42,17 @@ pub const ORG: &str = "cosmic_utils";
 pub const APP: &str = "cosmic-ext-applet-clipboard-manager";
 pub const APPID: &str = constcat::concat!(QUALIFIER, ".", ORG, ".", APP);
 
+/// MIME type set by password managers (e.g. KeePassXC) to indicate sensitive clipboard content.
+/// When present, the entry should not be stored in clipboard history and the clipboard should
+/// not be restored when the source application clears it.
+const PASSWORD_MANAGER_HINT_MIME: &str = "x-kde-passwordManagerHint";
+
+pub struct EditorState {
+    pub entry_id: EntryId,
+    pub content: text_editor::Content,
+    pub mime: String,
+}
+
 pub struct AppState<Db: DbTrait> {
     core: Core,
     config_handler: cosmic_config::Config,
@@ -53,6 +65,10 @@ pub struct AppState<Db: DbTrait> {
     pub qr_code: Option<Result<qr_code::Data, ()>>,
     last_quit: Option<(i64, PopupKind)>,
     pub preferred_mime_types_regex: Vec<Regex>,
+    /// Tracks whether the last clipboard entry was sensitive (e.g. from a password manager).
+    /// When true, the clipboard will not be restored on clear.
+    last_entry_sensitive: bool,
+    pub editor: Option<EditorState>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -181,6 +197,7 @@ impl<Db: DbTrait> AppState<Db> {
     fn close_popup(&mut self) -> Task<AppMsg> {
         self.focused = 0;
         self.page = 0;
+        self.editor.take();
         self.db.set_query_and_search("".into());
 
         if let Some(popup) = self.popup.take() {
@@ -310,6 +327,8 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
             qr_code: None,
             last_quit: None,
             page: 0,
+            last_entry_sensitive: false,
+            editor: None,
             preferred_mime_types_regex: config
                 .preferred_mime_types
                 .iter()
@@ -357,9 +376,7 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
         }
 
         match message {
-            AppMsg::CheckSignalFile => {
-                // Signal file already verified and deleted by the polling loop.
-                // Just toggle the popup.
+            AppMsg::DbusToggle => {
                 self.last_quit = None;
                 return self.toggle_popup_ext(PopupKind::Popup, true);
             }
@@ -397,8 +414,14 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                     self.clipboard_state = ClipboardState::Connected;
                 }
                 clipboard::ClipboardMessage::Data(data) => {
-                    if let Err(e) = block_on(self.db.insert(data)) {
-                        error!("can't insert data: {e}");
+                    if data.contains_key(PASSWORD_MANAGER_HINT_MIME) {
+                        info!("clipboard contains password manager hint, skipping storage");
+                        self.last_entry_sensitive = true;
+                    } else {
+                        self.last_entry_sensitive = false;
+                        if let Err(e) = block_on(self.db.insert(data)) {
+                            error!("can't insert data: {e}");
+                        }
                     }
                 }
                 #[expect(irrefutable_let_patterns)]
@@ -415,7 +438,10 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                     };
                 }
                 clipboard::ClipboardMessage::EmptyKeyboard => {
-                    if let Some(data) = self.db.get(0) {
+                    if self.last_entry_sensitive {
+                        info!("clipboard cleared by password manager, not restoring");
+                        self.last_entry_sensitive = false;
+                    } else if let Some(data) = self.db.get(0) {
                         return copy_iced(data.raw_content().clone());
                     }
                 }
@@ -443,7 +469,16 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
             AppMsg::RetryConnectingClipboard => {
                 self.clipboard_state = ClipboardState::Init;
             }
-            AppMsg::Navigation(message) => match message {
+            AppMsg::Navigation(message) => {
+                // When editor is open, intercept Escape to cancel editor,
+                // and ignore all other nav keys (let TextEditor handle them)
+                if self.editor.is_some() {
+                    if let EventMsg::Event(Named::Escape) = &message {
+                        self.editor.take();
+                    }
+                    return Task::none();
+                }
+                match message {
                 EventMsg::Event(e) => {
                     let message = match e {
                         Named::Enter => EventMsg::Enter,
@@ -482,7 +517,8 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                     return self.close_popup();
                 }
                 EventMsg::None => {}
-            },
+            }
+            }
             AppMsg::Db(inner) => {
                 if let Err(err) = block_on(self.db.handle_message(inner)) {
                     error!("{err}");
@@ -490,6 +526,7 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
             }
             AppMsg::ReturnToClipboard => {
                 self.qr_code.take();
+                self.editor.take();
             }
             AppMsg::Config(msg) => match msg {
                 ConfigMsg::PrivateMode(private_mode) => {
@@ -520,6 +557,19 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                 ContextMenuMsg::AddFavorite(entry) => {
                     if let Err(err) = block_on(self.db.add_favorite(entry, None)) {
                         error!("{err}");
+                    }
+                }
+                ContextMenuMsg::Edit(id) => {
+                    if let Some(entry) = self.db.get_from_id(id) {
+                        if let Some(((mime, _), Content::Text(text))) =
+                            entry.preferred_content(&self.preferred_mime_types_regex)
+                        {
+                            self.editor = Some(EditorState {
+                                entry_id: id,
+                                content: text_editor::Content::with_text(text),
+                                mime: mime.to_string(),
+                            });
+                        }
                     }
                 }
                 ContextMenuMsg::ShowQrCode(id) => {
@@ -560,6 +610,58 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                     error!("{e}");
                 }
             }
+            AppMsg::EditorAction(action) => {
+                if let Some(editor) = &mut self.editor {
+                    editor.content.perform(action);
+                }
+            }
+            AppMsg::EditorSave => {
+                if let Some(editor) = self.editor.take() {
+                    let text = editor.content.text();
+                    let mut data = MimeDataMap::new();
+                    data.insert(editor.mime.clone(), text.as_bytes().to_vec());
+                    if editor.mime != "text/plain" {
+                        data.insert("text/plain".to_string(), text.as_bytes().to_vec());
+                    }
+                    match block_on(self.db.update_content(editor.entry_id, data.clone())) {
+                        Ok(id) => {
+                            let clip_data = self
+                                .db
+                                .get_from_id(id)
+                                .map(|e| e.raw_content().clone())
+                                .unwrap_or(data);
+                            return copy_iced(clip_data);
+                        }
+                        Err(e) => error!("failed to update entry: {e}"),
+                    }
+                }
+            }
+            AppMsg::EditorCancel => {
+                self.editor.take();
+            }
+            AppMsg::EditLatest => {
+                self.last_quit = None;
+                // Find the most recent text entry and open it in editor
+                let text_entry = self.db.iter().find(|e| {
+                    matches!(
+                        e.preferred_content(&self.preferred_mime_types_regex),
+                        Some((_, Content::Text(_)))
+                    )
+                });
+                if let Some(entry) = text_entry {
+                    if let Some(((mime, _), Content::Text(text))) =
+                        entry.preferred_content(&self.preferred_mime_types_regex)
+                    {
+                        let id = entry.id();
+                        self.editor = Some(EditorState {
+                            entry_id: id,
+                            content: text_editor::Content::with_text(text),
+                            mime: mime.to_string(),
+                        });
+                    }
+                }
+                return self.toggle_popup_ext(PopupKind::Popup, true);
+            }
         }
         Task::none()
     }
@@ -597,7 +699,7 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
             config::sub(),
             navigation::sub().map(AppMsg::Navigation),
             db_sub().map(AppMsg::Db),
-            ipc::signal_file_watcher(),
+            ipc::dbus_toggle_subscription(),
         ];
 
         if !self.clipboard_state.is_error() {

@@ -172,6 +172,8 @@ pub trait DbTrait: Sized {
 
     async fn insert_with_time(&mut self, data: MimeDataMap, time: i64) -> Result<()>;
 
+    async fn update_content(&mut self, id: EntryId, data: MimeDataMap) -> Result<EntryId>;
+
     async fn delete(&mut self, data: EntryId) -> Result<()>;
 
     async fn clear(&mut self) -> Result<()>;

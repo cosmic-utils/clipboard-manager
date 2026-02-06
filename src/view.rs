@@ -3,6 +3,7 @@ use std::{borrow::Cow, cmp::min, sync::LazyLock};
 use cosmic::{
     Apply, Element,
     iced::{Alignment, Length, alignment::Horizontal, padding},
+    iced_core::text::Wrapping,
     iced_widget::{
         Stack,
         scrollable::{Direction, Scrollbar},
@@ -18,7 +19,7 @@ use cosmic::{
 use itertools::Itertools;
 
 use crate::{
-    app::{AppState, ClipboardState, ErrorState},
+    app::{AppState, ClipboardState, EditorState, ErrorState},
     db::{Content, DbTrait, EntryTrait, MimeDataMap},
     fl, icon, icon_button,
     message::{AppMsg, ConfigMsg, ContextMenuMsg},
@@ -70,6 +71,8 @@ impl<Db: DbTrait> AppState<Db> {
             self.error_view(e)
         } else if let Some(qr_code_res) = &self.qr_code {
             self.qr_code_view(qr_code_res)
+        } else if let Some(editor_state) = &self.editor {
+            self.editor_view(editor_state)
         } else {
             self.list_view()
         })
@@ -85,6 +88,35 @@ impl<Db: DbTrait> AppState<Db> {
         })
         .into()
     }
+    fn editor_view<'a>(&self, state: &'a EditorState) -> Element<'a, AppMsg> {
+        let header = row()
+            .push(
+                button::text(fl!("cancel"))
+                    .on_press(AppMsg::EditorCancel)
+                    .width(Length::Shrink),
+            )
+            .push(horizontal_space())
+            .push(
+                button::suggested(fl!("save"))
+                    .on_press(AppMsg::EditorSave)
+                    .width(Length::Shrink),
+            )
+            .width(Length::Fill);
+
+        let editor = cosmic::widget::text_editor(&state.content)
+            .on_action(AppMsg::EditorAction)
+            .wrapping(Wrapping::Word)
+            .height(Length::Fill)
+            .padding(10);
+
+        column()
+            .push(container(header).padding(padding::all(15f32).bottom(0)))
+            .push(container(editor).padding(padding::all(10).top(5)).height(Length::Fill))
+            .spacing(10)
+            .height(Length::Fill)
+            .into()
+    }
+
     pub fn page_count(&self) -> usize {
         self.db.len() / self.config.maximum_entries_by_page.get() as usize
     }
@@ -409,14 +441,27 @@ impl<Db: DbTrait> AppState<Db> {
             btn
         };
 
-        let overlay: Element<_> = column()
+        let has_text = matches!(
+            entry.preferred_content(&self.preferred_mime_types_regex),
+            Some((_, Content::Text(_)))
+        );
+
+        let mut overlay_col = column()
             .padding(3)
             .push(if entry.is_favorite() {
                 button::text(fl!("remove_favorite"))
                     .on_press(ContextMenuMsg::RemoveFavorite(entry.id()))
             } else {
                 button::text(fl!("add_favorite")).on_press(ContextMenuMsg::AddFavorite(entry.id()))
-            })
+            });
+
+        if has_text {
+            overlay_col = overlay_col.push(
+                button::text(fl!("edit-entry")).on_press(ContextMenuMsg::Edit(entry.id())),
+            );
+        }
+
+        let overlay: Element<_> = overlay_col
             .push(
                 button::text(fl!("show_qr_code")).on_press(ContextMenuMsg::ShowQrCode(entry.id())),
             )

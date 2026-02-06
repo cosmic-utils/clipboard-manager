@@ -1076,6 +1076,7 @@ dependencies = [
  "tracing",
  "tracing-journald",
  "tracing-subscriber",
+ "zbus 5.12.0",
 ]
 
 [[package]]

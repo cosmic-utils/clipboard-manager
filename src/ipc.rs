@@ -1,71 +1,111 @@
-//! IPC mechanism for external toggle functionality via file-based signaling.
+//! D-Bus IPC for toggling the clipboard manager popup and editing entries
+//! from external commands (keyboard shortcuts).
 //!
-//! When the `--toggle` command is invoked, it writes a timestamp to a signal file
-//! in XDG_RUNTIME_DIR. A polling loop detects the file and notifies the app to
-//! toggle the popup. The signal file is deleted after detection to prevent
-//! re-triggering.
-
-use std::fs;
-use std::path::PathBuf;
-use std::time::SystemTime;
+//! The applet registers a D-Bus service on the session bus. When `--toggle` or
+//! `--edit` is invoked, it calls the corresponding method on the running service
+//! instance, which sends a message through the iced subscription to the app.
 
 use crate::message::AppMsg;
 use cosmic::iced_futures::Subscription;
 
-/// Get the signal file path for IPC toggle functionality.
-/// Returns None if XDG_RUNTIME_DIR is not set.
-pub fn get_signal_file_path() -> Option<PathBuf> {
-    std::env::var("XDG_RUNTIME_DIR")
-        .ok()
-        .map(|runtime_dir| PathBuf::from(runtime_dir).join("cosmic-clipboard-manager-toggle"))
+const BUS_NAME: &str = "io.github.cosmic_utils.ClipboardManager";
+const OBJECT_PATH: &str = "/io/github/cosmic_utils/ClipboardManager";
+const INTERFACE_NAME: &str = "io.github.cosmic_utils.ClipboardManager1";
+
+enum IpcCommand {
+    Toggle,
+    EditLatest,
 }
 
-/// Send a toggle signal by writing a timestamp to the signal file.
-pub fn send_toggle_signal() -> std::io::Result<()> {
-    let signal_file = get_signal_file_path().ok_or_else(|| {
-        std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            "XDG_RUNTIME_DIR not set - cannot send toggle signal",
-        )
-    })?;
-
-    let timestamp = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?
-        .as_millis()
-        .to_string();
-
-    fs::write(&signal_file, timestamp)?;
-    Ok(())
+/// D-Bus service that receives Toggle/EditLatest calls and forwards them via a channel.
+struct ClipboardService {
+    tx: tokio::sync::mpsc::Sender<IpcCommand>,
 }
 
-/// Poll for the signal file at a fixed interval.
-///
-/// Uses a simple 250ms polling loop instead of filesystem notifications.
-/// One stat() syscall per 250ms is negligible, and this approach cannot
-/// busy-loop or crash due to watcher thread failures.
-pub fn signal_file_watcher() -> Subscription<AppMsg> {
+#[zbus::interface(name = "io.github.cosmic_utils.ClipboardManager1")]
+impl ClipboardService {
+    async fn toggle(&self) {
+        let _ = self.tx.send(IpcCommand::Toggle).await;
+    }
+
+    async fn edit_latest(&self) {
+        let _ = self.tx.send(IpcCommand::EditLatest).await;
+    }
+}
+
+/// Subscription that registers the D-Bus service and listens for IPC calls.
+pub fn dbus_toggle_subscription() -> Subscription<AppMsg> {
     use cosmic::iced::futures::SinkExt;
     use cosmic::iced::stream::channel;
 
     Subscription::run_with_id(
-        "signal_file_watcher",
+        "dbus_toggle",
         channel(1, |mut output| async move {
-            let signal_file = match get_signal_file_path() {
-                Some(path) => path,
-                None => {
+            let (tx, mut rx) = tokio::sync::mpsc::channel::<IpcCommand>(1);
+            let service = ClipboardService { tx };
+
+            let conn = match zbus::connection::Builder::session()
+                .and_then(|b| b.name(BUS_NAME))
+                .and_then(|b| b.serve_at(OBJECT_PATH, service))
+            {
+                Ok(builder) => match builder.build().await {
+                    Ok(conn) => conn,
+                    Err(e) => {
+                        error!("D-Bus connection failed: {e}");
+                        futures::future::pending::<()>().await;
+                        unreachable!();
+                    }
+                },
+                Err(e) => {
+                    error!("D-Bus builder failed: {e}");
                     futures::future::pending::<()>().await;
                     unreachable!();
                 }
             };
 
+            // Keep connection alive for the lifetime of the subscription
+            let _conn = conn;
+
             loop {
-                tokio::time::sleep(tokio::time::Duration::from_millis(250)).await;
-                if signal_file.exists() {
-                    let _ = std::fs::remove_file(&signal_file);
-                    output.send(AppMsg::CheckSignalFile).await.ok();
+                match rx.recv().await {
+                    Some(IpcCommand::Toggle) => {
+                        output.send(AppMsg::DbusToggle).await.ok();
+                    }
+                    Some(IpcCommand::EditLatest) => {
+                        output.send(AppMsg::EditLatest).await.ok();
+                    }
+                    None => {
+                        // Channel closed, wait forever to avoid busy loop
+                        futures::future::pending::<()>().await;
+                    }
                 }
             }
         }),
     )
+}
+
+/// Send a Toggle call to the running applet via D-Bus (blocking, for CLI use).
+pub fn send_toggle() -> Result<(), Box<dyn std::error::Error>> {
+    let connection = zbus::blocking::Connection::session()?;
+    let proxy = zbus::blocking::Proxy::new(
+        &connection,
+        BUS_NAME,
+        OBJECT_PATH,
+        INTERFACE_NAME,
+    )?;
+    proxy.call_method("Toggle", &())?;
+    Ok(())
+}
+
+/// Send an EditLatest call to the running applet via D-Bus (blocking, for CLI use).
+pub fn send_edit_latest() -> Result<(), Box<dyn std::error::Error>> {
+    let connection = zbus::blocking::Connection::session()?;
+    let proxy = zbus::blocking::Proxy::new(
+        &connection,
+        BUS_NAME,
+        OBJECT_PATH,
+        INTERFACE_NAME,
+    )?;
+    proxy.call_method("EditLatest", &())?;
+    Ok(())
 }

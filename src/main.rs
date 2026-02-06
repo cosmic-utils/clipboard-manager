@@ -58,8 +58,16 @@ fn main() {
         }
 
         if arg == "--toggle" || arg == "-t" {
-            if let Err(e) = ipc::send_toggle_signal() {
+            if let Err(e) = ipc::send_toggle() {
                 eprintln!("Failed to toggle clipboard manager: {e}");
+                std::process::exit(1);
+            }
+            return;
+        }
+
+        if arg == "--edit" || arg == "-e" {
+            if let Err(e) = ipc::send_edit_latest() {
+                eprintln!("Failed to open clipboard editor: {e}");
                 std::process::exit(1);
             }
             return;
@@ -73,6 +81,7 @@ fn main() {
             println!();
             println!("OPTIONS:");
             println!("    -t, --toggle     Toggle the clipboard manager popup");
+            println!("    -e, --edit       Open editor with latest text entry");
             println!("    -V, --version    Print version information");
             println!("    -h, --help       Print this help message");
             println!();
@@ -82,6 +91,10 @@ fn main() {
             println!("    3. Name: Clipboard Manager");
             println!("    4. Command: cosmic-ext-applet-clipboard-manager --toggle");
             println!("    5. Shortcut: Press Super+V (or your preferred shortcut)");
+            println!();
+            println!("    For quick edit (opens editor with latest text entry):");
+            println!("    Command: cosmic-ext-applet-clipboard-manager --edit");
+            println!("    Shortcut: Press Super+Shift+V (or your preferred shortcut)");
             return;
         }
     }
