@@ -1,9 +1,12 @@
-//! D-Bus IPC for toggling the clipboard manager popup and editing entries
-//! from external commands (keyboard shortcuts).
+//! D-Bus IPC for toggling the clipboard manager popup, editing entries,
+//! and browsing clipboard history from external commands (keyboard shortcuts, CLI).
 //!
-//! The applet registers a D-Bus service on the session bus. When `--toggle` or
-//! `--edit` is invoked, it calls the corresponding method on the running service
-//! instance, which sends a message through the iced subscription to the app.
+//! The applet registers a D-Bus service on the session bus. When `--toggle`,
+//! `--edit`, `--list`, or `--copy` is invoked, it calls the corresponding method
+//! on the running service instance, which sends a message through the iced
+//! subscription to the app.
+
+use std::sync::{Arc, Mutex};
 
 use crate::message::AppMsg;
 use cosmic::iced_futures::Subscription;
@@ -12,12 +15,31 @@ const BUS_NAME: &str = "io.github.cosmic_utils.ClipboardManager";
 const OBJECT_PATH: &str = "/io/github/cosmic_utils/ClipboardManager";
 const INTERFACE_NAME: &str = "io.github.cosmic_utils.ClipboardManager1";
 
+/// Summary of a clipboard entry for CLI listing.
+#[derive(Clone, Debug)]
+pub struct EntrySummary {
+    pub id: i64,
+    pub is_favorite: bool,
+    pub preview: String,
+}
+
 enum IpcCommand {
     Toggle,
     EditLatest,
+    ListEntries {
+        reply: tokio::sync::oneshot::Sender<Vec<EntrySummary>>,
+    },
+    CopyEntry {
+        id: i64,
+        reply: tokio::sync::oneshot::Sender<Result<(), String>>,
+    },
+    GetEntry {
+        id: i64,
+        reply: tokio::sync::oneshot::Sender<Result<(String, Vec<u8>), String>>,
+    },
 }
 
-/// D-Bus service that receives Toggle/EditLatest calls and forwards them via a channel.
+/// D-Bus service that receives calls and forwards them via a channel.
 struct ClipboardService {
     tx: tokio::sync::mpsc::Sender<IpcCommand>,
 }
@@ -31,6 +53,69 @@ impl ClipboardService {
     async fn edit_latest(&self) {
         let _ = self.tx.send(IpcCommand::EditLatest).await;
     }
+
+    /// Returns Vec<(id, is_favorite, preview)> — native D-Bus tuple serialization.
+    async fn list_entries(&self) -> Vec<(i64, bool, String)> {
+        let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
+        if self
+            .tx
+            .send(IpcCommand::ListEntries { reply: reply_tx })
+            .await
+            .is_err()
+        {
+            return Vec::new();
+        }
+        match reply_rx.await {
+            Ok(entries) => entries
+                .into_iter()
+                .map(|e| (e.id, e.is_favorite, e.preview))
+                .collect(),
+            Err(_) => Vec::new(),
+        }
+    }
+
+    /// Get entry content by ID. Returns (mime, content_bytes, error).
+    /// If error is non-empty, the other fields are empty.
+    async fn get_entry(&self, id: i64) -> (String, Vec<u8>, String) {
+        let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
+        if self
+            .tx
+            .send(IpcCommand::GetEntry {
+                id,
+                reply: reply_tx,
+            })
+            .await
+            .is_err()
+        {
+            return (String::new(), Vec::new(), "applet not responding".to_string());
+        }
+        match reply_rx.await {
+            Ok(Ok((mime, data))) => (mime, data, String::new()),
+            Ok(Err(e)) => (String::new(), Vec::new(), e),
+            Err(_) => (String::new(), Vec::new(), "applet did not reply".to_string()),
+        }
+    }
+
+    /// Copy entry by ID. Returns empty string on success, error message on failure.
+    async fn copy_entry(&self, id: i64) -> String {
+        let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
+        if self
+            .tx
+            .send(IpcCommand::CopyEntry {
+                id,
+                reply: reply_tx,
+            })
+            .await
+            .is_err()
+        {
+            return "applet not responding".to_string();
+        }
+        match reply_rx.await {
+            Ok(Ok(())) => String::new(),
+            Ok(Err(e)) => e,
+            Err(_) => "applet did not reply".to_string(),
+        }
+    }
 }
 
 /// Subscription that registers the D-Bus service and listens for IPC calls.
@@ -40,8 +125,8 @@ pub fn dbus_toggle_subscription() -> Subscription<AppMsg> {
 
     Subscription::run_with_id(
         "dbus_toggle",
-        channel(1, |mut output| async move {
-            let (tx, mut rx) = tokio::sync::mpsc::channel::<IpcCommand>(1);
+        channel(4, |mut output| async move {
+            let (tx, mut rx) = tokio::sync::mpsc::channel::<IpcCommand>(4);
             let service = ClipboardService { tx };
 
             let conn = match zbus::connection::Builder::session()
@@ -73,6 +158,32 @@ pub fn dbus_toggle_subscription() -> Subscription<AppMsg> {
                     }
                     Some(IpcCommand::EditLatest) => {
                         output.send(AppMsg::EditLatest).await.ok();
+                    }
+                    Some(IpcCommand::ListEntries { reply }) => {
+                        output
+                            .send(AppMsg::DbusListEntries {
+                                reply: Arc::new(Mutex::new(Some(reply))),
+                            })
+                            .await
+                            .ok();
+                    }
+                    Some(IpcCommand::CopyEntry { id, reply }) => {
+                        output
+                            .send(AppMsg::DbusCopyEntry {
+                                id,
+                                reply: Arc::new(Mutex::new(Some(reply))),
+                            })
+                            .await
+                            .ok();
+                    }
+                    Some(IpcCommand::GetEntry { id, reply }) => {
+                        output
+                            .send(AppMsg::DbusGetEntry {
+                                id,
+                                reply: Arc::new(Mutex::new(Some(reply))),
+                            })
+                            .await
+                            .ok();
                     }
                     None => {
                         // Channel closed, wait forever to avoid busy loop
@@ -108,4 +219,56 @@ pub fn send_edit_latest() -> Result<(), Box<dyn std::error::Error>> {
     )?;
     proxy.call_method("EditLatest", &())?;
     Ok(())
+}
+
+/// List all clipboard entries from the running applet via D-Bus (blocking, for CLI use).
+pub fn send_list_entries() -> Result<Vec<(i64, bool, String)>, Box<dyn std::error::Error>> {
+    let connection = zbus::blocking::Connection::session()?;
+    let proxy = zbus::blocking::Proxy::new(
+        &connection,
+        BUS_NAME,
+        OBJECT_PATH,
+        INTERFACE_NAME,
+    )?;
+    let reply = proxy.call_method("ListEntries", &())?;
+    let entries: Vec<(i64, bool, String)> = reply.body().deserialize()?;
+    Ok(entries)
+}
+
+/// Get raw content of a specific entry by ID via D-Bus (blocking, for CLI use).
+/// Returns Ok((mime, bytes)) on success, Err with message on failure.
+pub fn send_get_entry(id: i64) -> Result<(String, Vec<u8>), Box<dyn std::error::Error>> {
+    let connection = zbus::blocking::Connection::session()?;
+    let proxy = zbus::blocking::Proxy::new(
+        &connection,
+        BUS_NAME,
+        OBJECT_PATH,
+        INTERFACE_NAME,
+    )?;
+    let reply = proxy.call_method("GetEntry", &(id,))?;
+    let (mime, data, error): (String, Vec<u8>, String) = reply.body().deserialize()?;
+    if error.is_empty() {
+        Ok((mime, data))
+    } else {
+        Err(error.into())
+    }
+}
+
+/// Copy a specific entry by ID via D-Bus (blocking, for CLI use).
+/// Returns Ok(()) on success, Err with message on failure.
+pub fn send_copy_entry(id: i64) -> Result<(), Box<dyn std::error::Error>> {
+    let connection = zbus::blocking::Connection::session()?;
+    let proxy = zbus::blocking::Proxy::new(
+        &connection,
+        BUS_NAME,
+        OBJECT_PATH,
+        INTERFACE_NAME,
+    )?;
+    let reply = proxy.call_method("CopyEntry", &(id,))?;
+    let result: String = reply.body().deserialize()?;
+    if result.is_empty() {
+        Ok(())
+    } else {
+        Err(result.into())
+    }
 }

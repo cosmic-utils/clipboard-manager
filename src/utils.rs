@@ -57,3 +57,20 @@ pub fn task_message<M: Send + 'static>(message: M) -> Task<Action<M>> {
 pub fn now_millis() -> i64 {
     Utc::now().timestamp_millis()
 }
+
+/// Produce a single-line preview suitable for CLI output.
+/// Replaces newlines and tabs with spaces, trims whitespace, and truncates
+/// at `max_chars` with `...` if needed.
+pub fn sanitize_preview(text: &str, max_chars: usize) -> String {
+    let one_line: String = text
+        .chars()
+        .map(|c| if c == '\n' || c == '\r' || c == '\t' { ' ' } else { c })
+        .collect();
+    let trimmed = one_line.trim();
+    if trimmed.chars().count() <= max_chars {
+        trimmed.to_string()
+    } else {
+        let truncated: String = trimmed.chars().take(max_chars.saturating_sub(3)).collect();
+        format!("{truncated}...")
+    }
+}

@@ -29,7 +29,8 @@ use crate::db::{Content, DbMessage, DbTrait, EntryId, EntryTrait, MimeDataMap};
 use crate::editor_ipc::{self, EditorToApp};
 use crate::message::{AppMsg, ConfigMsg, ContextMenuMsg};
 use crate::navigation::EventMsg;
-use crate::utils::task_message;
+use crate::ipc::EntrySummary;
+use crate::utils::{sanitize_preview, task_message};
 use crate::view::SCROLLABLE_ID;
 use crate::{clipboard, clipboard_watcher, config, ipc, navigation};
 
@@ -535,6 +536,65 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
             AppMsg::DbusToggle => {
                 self.last_quit = None;
                 return self.toggle_popup_ext(PopupKind::Popup, true);
+            }
+            AppMsg::DbusListEntries { reply } => {
+                let summaries: Vec<EntrySummary> = self
+                    .db
+                    .iter()
+                    .map(|entry| {
+                        let preview = match entry
+                            .preferred_content(&self.preferred_mime_types_regex)
+                        {
+                            Some((_, Content::Text(text))) => {
+                                sanitize_preview(text, 100)
+                            }
+                            Some((_, Content::UriList(uris))) => {
+                                sanitize_preview(&uris.join(" "), 100)
+                            }
+                            Some((_, Content::Image(_))) => "[image]".to_string(),
+                            None => "[unknown]".to_string(),
+                        };
+                        EntrySummary {
+                            id: entry.id(),
+                            is_favorite: entry.is_favorite(),
+                            preview,
+                        }
+                    })
+                    .collect();
+                if let Some(tx) = reply.lock().unwrap().take() {
+                    let _ = tx.send(summaries);
+                }
+            }
+            AppMsg::DbusCopyEntry { id, reply } => {
+                let result = match self.db.get_from_id(id) {
+                    Some(data) => {
+                        let task = copy_iced(data.raw_content().clone());
+                        if let Some(tx) = reply.lock().unwrap().take() {
+                            let _ = tx.send(Ok(()));
+                        }
+                        return task;
+                    }
+                    None => Err(format!("entry {id} not found")),
+                };
+                if let Some(tx) = reply.lock().unwrap().take() {
+                    let _ = tx.send(result);
+                }
+            }
+            AppMsg::DbusGetEntry { id, reply } => {
+                let result = match self.db.get_from_id(id) {
+                    Some(entry) => {
+                        match entry.preferred_content(&self.preferred_mime_types_regex) {
+                            Some(((mime, raw), _)) => {
+                                Ok((mime.to_string(), raw.clone()))
+                            }
+                            None => Err(format!("entry {id} has no displayable content")),
+                        }
+                    }
+                    None => Err(format!("entry {id} not found")),
+                };
+                if let Some(tx) = reply.lock().unwrap().take() {
+                    let _ = tx.send(result);
+                }
             }
             AppMsg::ChangeConfig(config) => {
                 if config.private_mode != self.config.private_mode {

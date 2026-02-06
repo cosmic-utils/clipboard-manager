@@ -1,8 +1,11 @@
+use std::sync::{Arc, Mutex};
+
 use crate::{
     clipboard::ClipboardMessage,
     config::Config,
     db::{DbMessage, EntryId, MimeDataMap},
     editor_ipc::EditorToApp,
+    ipc::EntrySummary,
     navigation::EventMsg,
 };
 
@@ -28,6 +31,17 @@ pub enum AppMsg {
     ContextMenu(ContextMenuMsg),
     LinkClicked(markdown::Url),
     DbusToggle,
+    DbusListEntries {
+        reply: Arc<Mutex<Option<tokio::sync::oneshot::Sender<Vec<EntrySummary>>>>>,
+    },
+    DbusCopyEntry {
+        id: EntryId,
+        reply: Arc<Mutex<Option<tokio::sync::oneshot::Sender<Result<(), String>>>>>,
+    },
+    DbusGetEntry {
+        id: EntryId,
+        reply: Arc<Mutex<Option<tokio::sync::oneshot::Sender<Result<(String, Vec<u8>), String>>>>>,
+    },
     EditLatest,
     EditorEvent(EditorToApp),
     EditorProcessExited,
