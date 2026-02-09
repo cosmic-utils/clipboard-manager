@@ -27,10 +27,11 @@ use crate::clipboard::ClipboardError;
 use crate::config::{Config, PRIVATE_MODE};
 use crate::db::{Content, DbMessage, DbTrait, EntryId, EntryTrait, MimeDataMap};
 use crate::editor_ipc::{self, EditorToApp};
-use crate::message::{AppMsg, ConfigMsg, ContextMenuMsg};
+use crate::message::{AppMsg, ConfigMsg, ContextMenuMsg, FavoriteSummary};
 use crate::navigation::EventMsg;
 use crate::ipc::EntrySummary;
 use crate::utils::{sanitize_preview, task_message};
+use crate::ai;
 use crate::view::SCROLLABLE_ID;
 use crate::{clipboard, clipboard_watcher, config, ipc, navigation};
 
@@ -77,6 +78,7 @@ pub struct AppState<Db: DbTrait> {
     /// When true, the clipboard will not be restored on clear.
     last_entry_sensitive: bool,
     pub editor: Option<EditorProcess>,
+    pub favoriting_state: Option<FavoritingState>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -117,6 +119,15 @@ struct Popup {
 enum PopupKind {
     Popup,
     QuickSettings,
+    Favorites,
+}
+
+/// State for the inline "add favorite" title input flow.
+#[derive(Debug, Clone)]
+pub struct FavoritingState {
+    pub entry_id: EntryId,
+    pub title_input: String,
+    pub suggesting: bool,
 }
 
 impl<Db: DbTrait> AppState<Db> {
@@ -206,6 +217,7 @@ impl<Db: DbTrait> AppState<Db> {
         self.focused = 0;
         self.page = 0;
         self.db.set_query_and_search("".into());
+        self.favoriting_state = None;
 
         if let Some(popup) = self.popup.take() {
             self.last_quit = Some((Utc::now().timestamp_millis(), popup.kind));
@@ -236,7 +248,7 @@ impl<Db: DbTrait> AppState<Db> {
         let popup = Popup {
             kind,
             id: new_id,
-            is_layer_surface: use_layer_surface && kind == PopupKind::Popup,
+            is_layer_surface: use_layer_surface && matches!(kind, PopupKind::Popup | PopupKind::Favorites),
         };
         self.popup.replace(popup);
 
@@ -266,6 +278,43 @@ impl<Db: DbTrait> AppState<Db> {
             }
             PopupKind::Popup => {
                 // Use XDG popup anchored to applet icon for normal click
+                let mut popup_settings = self.core.applet.get_popup_settings(
+                    self.core.main_window_id().unwrap(),
+                    new_id,
+                    None,
+                    None,
+                    None,
+                );
+
+                popup_settings.positioner.size_limits = Limits::NONE
+                    .min_width(300.0)
+                    .max_width(400.0)
+                    .min_height(200.0)
+                    .max_height(500.0);
+                get_popup(popup_settings)
+            }
+            PopupKind::Favorites if use_layer_surface => {
+                get_layer_surface(SctkLayerSurfaceSettings {
+                    id: new_id,
+                    keyboard_interactivity: KeyboardInteractivity::Exclusive,
+                    anchor: if self.config.horizontal {
+                        layer_surface::Anchor::BOTTOM
+                            | layer_surface::Anchor::LEFT
+                            | layer_surface::Anchor::RIGHT
+                    } else {
+                        layer_surface::Anchor::empty()
+                    },
+                    namespace: "clipboard favorites".into(),
+                    size: if self.config.horizontal {
+                        Some((None, Some(350)))
+                    } else {
+                        Some((Some(400), Some(530)))
+                    },
+                    size_limits: Limits::NONE.min_width(1.0).min_height(1.0),
+                    ..Default::default()
+                })
+            }
+            PopupKind::Favorites => {
                 let mut popup_settings = self.core.applet.get_popup_settings(
                     self.core.main_window_id().unwrap(),
                     new_id,
@@ -486,6 +535,7 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
             page: 0,
             last_entry_sensitive: false,
             editor: None,
+            favoriting_state: None,
             preferred_mime_types_regex: config
                 .preferred_mime_types
                 .iter()
@@ -710,7 +760,7 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                     if matches!(
                         self.popup,
                         Some(Popup {
-                            kind: PopupKind::Popup,
+                            kind: PopupKind::Popup | PopupKind::Favorites,
                             ..
                         })
                     ) && let Some(data) = self.db.get(self.focused)
@@ -764,9 +814,32 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                     }
                 }
                 ContextMenuMsg::AddFavorite(entry) => {
-                    if let Err(err) = block_on(self.db.add_favorite(entry, None)) {
-                        error!("{err}");
+                    // If already a favorite, this is a "Rename" action
+                    if let Some(e) = self.db.get_from_id(entry) {
+                        if e.is_favorite() {
+                            // Start rename flow: pre-fill with existing title
+                            let existing_title = e.favorite_title().unwrap_or("").to_string();
+                            let content_for_ai = e
+                                .preferred_content(&self.preferred_mime_types_regex)
+                                .and_then(|(_, c)| {
+                                    if let Content::Text(text) = c {
+                                        Some(text.to_string())
+                                    } else {
+                                        None
+                                    }
+                                });
+                            self.favoriting_state = Some(FavoritingState {
+                                entry_id: entry,
+                                title_input: existing_title,
+                                suggesting: false,
+                            });
+                            // Don't auto-suggest for rename — user already has a title
+                            let _ = content_for_ai;
+                            return Task::none();
+                        }
                     }
+                    // Not a favorite — start the add-favorite flow with title input
+                    return task_message(AppMsg::BeginFavorite(entry));
                 }
                 ContextMenuMsg::Edit(id) => {
                     let edit_info = self.db.get_from_id(id).and_then(|entry| {
@@ -880,6 +953,127 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                     let _ = editor.child.wait();
                 }
             }
+            AppMsg::DbusFavorites => {
+                self.last_quit = None;
+                return self.toggle_popup_ext(PopupKind::Favorites, true);
+            }
+            AppMsg::DbusListFavorites { reply } => {
+                let summaries: Vec<FavoriteSummary> = self
+                    .db
+                    .iter()
+                    .filter(|e| e.is_favorite())
+                    .map(|entry| {
+                        let preview = match entry
+                            .preferred_content(&self.preferred_mime_types_regex)
+                        {
+                            Some((_, Content::Text(text))) => {
+                                sanitize_preview(text, 100)
+                            }
+                            Some((_, Content::UriList(uris))) => {
+                                sanitize_preview(&uris.join(" "), 100)
+                            }
+                            Some((_, Content::Image(_))) => "[image]".to_string(),
+                            None => "[unknown]".to_string(),
+                        };
+                        FavoriteSummary {
+                            id: entry.id(),
+                            title: entry.favorite_title().map(|s| s.to_string()),
+                            preview,
+                        }
+                    })
+                    .collect();
+                if let Some(tx) = reply.lock().unwrap().take() {
+                    let _ = tx.send(summaries);
+                }
+            }
+            AppMsg::BeginFavorite(id) => {
+                // Get entry content for AI suggestion
+                let content_for_ai = self.db.get_from_id(id).and_then(|entry| {
+                    if let Some((_, Content::Text(text))) =
+                        entry.preferred_content(&self.preferred_mime_types_regex)
+                    {
+                        Some(text.to_string())
+                    } else {
+                        None
+                    }
+                });
+
+                self.favoriting_state = Some(FavoritingState {
+                    entry_id: id,
+                    title_input: String::new(),
+                    suggesting: content_for_ai.is_some() && ai::get_api_key().is_some(),
+                });
+
+                // Kick off AI suggestion if we have text content and an API key
+                if let Some(text) = content_for_ai {
+                    if ai::get_api_key().is_some() {
+                        return Task::perform(
+                            async move { ai::suggest_title(&text).await },
+                            move |suggestion| {
+                                cosmic::action::app(AppMsg::TitleSuggested(id, suggestion))
+                            },
+                        );
+                    }
+                }
+            }
+            AppMsg::TitleSuggested(id, suggestion) => {
+                if let Some(state) = &mut self.favoriting_state {
+                    if state.entry_id == id {
+                        state.title_input = suggestion.unwrap_or_default();
+                        state.suggesting = false;
+                    }
+                }
+            }
+            AppMsg::FavoriteTitleInput(text) => {
+                if let Some(state) = &mut self.favoriting_state {
+                    state.title_input = text;
+                }
+            }
+            AppMsg::ConfirmFavorite(id, title) => {
+                let already_fav = self.db.get_from_id(id).is_some_and(|e| e.is_favorite());
+                if !already_fav {
+                    if let Err(err) = block_on(self.db.add_favorite(id, None)) {
+                        error!("{err}");
+                    }
+                }
+                let title = title.filter(|t| !t.trim().is_empty());
+                if let Err(err) = block_on(self.db.set_favorite_title(id, title)) {
+                    error!("{err}");
+                }
+                self.favoriting_state = None;
+            }
+            AppMsg::CancelFavorite => {
+                self.favoriting_state = None;
+            }
+            AppMsg::SetFavoriteTitle(id, title) => {
+                let title = if title.trim().is_empty() { None } else { Some(title) };
+                if let Err(err) = block_on(self.db.set_favorite_title(id, title)) {
+                    error!("{err}");
+                }
+            }
+            AppMsg::SuggestTitle(id) => {
+                // Re-trigger AI suggestion for an existing favorite
+                let content_for_ai = self.db.get_from_id(id).and_then(|entry| {
+                    if let Some((_, Content::Text(text))) =
+                        entry.preferred_content(&self.preferred_mime_types_regex)
+                    {
+                        Some(text.to_string())
+                    } else {
+                        None
+                    }
+                });
+                if let Some(text) = content_for_ai {
+                    if let Some(state) = &mut self.favoriting_state {
+                        state.suggesting = true;
+                    }
+                    return Task::perform(
+                        async move { ai::suggest_title(&text).await },
+                        move |suggestion| {
+                            cosmic::action::app(AppMsg::TitleSuggested(id, suggestion))
+                        },
+                    );
+                }
+            }
         }
         Task::none()
     }
@@ -903,6 +1097,7 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
 
         let view = match &popup.kind {
             PopupKind::Popup => self.popup_view(),
+            PopupKind::Favorites => self.favorites_view(),
             PopupKind::QuickSettings => self.quick_settings_view(),
         };
 

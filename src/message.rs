@@ -45,6 +45,27 @@ pub enum AppMsg {
     EditLatest,
     EditorEvent(EditorToApp),
     EditorProcessExited,
+    DbusFavorites,
+    DbusListFavorites {
+        reply: Arc<Mutex<Option<tokio::sync::oneshot::Sender<Vec<FavoriteSummary>>>>>,
+    },
+    BeginFavorite(EntryId),
+    CancelFavorite,
+    ConfirmFavorite(EntryId, Option<String>),
+    #[allow(dead_code)]
+    SuggestTitle(EntryId),
+    TitleSuggested(EntryId, Option<String>),
+    #[allow(dead_code)]
+    SetFavoriteTitle(EntryId, String),
+    FavoriteTitleInput(String),
+}
+
+/// Summary of a favorite entry for CLI listing.
+#[derive(Clone, Debug)]
+pub struct FavoriteSummary {
+    pub id: i64,
+    pub title: Option<String>,
+    pub preview: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]

@@ -8,6 +8,7 @@ use cosmic::cosmic_config;
 use cosmic::cosmic_config::CosmicConfigEntry;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
+mod ai;
 mod app;
 mod clipboard;
 mod clipboard_watcher;
@@ -56,13 +57,15 @@ fn print_help() {
     println!("    clipboard-manager [OPTIONS]");
     println!();
     println!("OPTIONS:");
-    println!("    -t, --toggle       Toggle the clipboard manager popup");
-    println!("    -e, --edit         Open editor with latest text entry");
-    println!("    -l, --list         List clipboard history to stdout");
-    println!("    -c, --copy ID      Copy entry with given ID to clipboard");
-    println!("    -g, --get ID       Output raw entry content to stdout");
-    println!("    -V, --version      Print version information");
-    println!("    -h, --help         Print this help message");
+    println!("    -t, --toggle           Toggle the clipboard manager popup");
+    println!("    -f, --favorites        Toggle the favorites-only popup");
+    println!("    -e, --edit             Open editor with latest text entry");
+    println!("    -l, --list             List clipboard history to stdout");
+    println!("        --list-favorites   List favorites with titles to stdout");
+    println!("    -c, --copy ID          Copy entry with given ID to clipboard");
+    println!("    -g, --get ID           Output raw entry content to stdout");
+    println!("    -V, --version          Print version information");
+    println!("    -h, --help             Print this help message");
     println!();
     println!("EXAMPLES:");
     println!("    # Interactive terminal picker");
@@ -93,6 +96,10 @@ fn print_help() {
     println!("    For quick edit (opens editor with latest text entry):");
     println!("    Command: cosmic-ext-applet-clipboard-manager --edit");
     println!("    Shortcut: Press Super+Shift+V (or your preferred shortcut)");
+    println!();
+    println!("    For favorites browser:");
+    println!("    Command: cosmic-ext-applet-clipboard-manager --favorites");
+    println!("    Shortcut: Press Super+F (or your preferred shortcut)");
 }
 
 fn main() {
@@ -128,6 +135,35 @@ fn main() {
             if let Err(e) = ipc::send_edit_latest() {
                 eprintln!("Failed to open clipboard editor: {e}");
                 std::process::exit(1);
+            }
+            return;
+        }
+
+        if arg == "--favorites" || arg == "-f" {
+            if let Err(e) = ipc::send_toggle_favorites() {
+                eprintln!("Failed to toggle favorites popup: {e}");
+                std::process::exit(1);
+            }
+            return;
+        }
+
+        if arg == "--list-favorites" {
+            match ipc::send_list_favorites() {
+                Ok(entries) => {
+                    for (id, title, preview) in entries {
+                        let display_title = if title.is_empty() {
+                            "untitled".to_string()
+                        } else {
+                            title
+                        };
+                        println!("{id}\t[{display_title}]\t{preview}");
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Failed to list favorites: {e}");
+                    eprintln!("Is the clipboard manager applet running?");
+                    std::process::exit(1);
+                }
             }
             return;
         }

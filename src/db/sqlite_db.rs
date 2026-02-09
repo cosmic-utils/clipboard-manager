@@ -60,12 +60,14 @@ pub struct Entry {
     /// (Mime, Content)
     pub raw_content: MimeDataMap,
     pub is_favorite: bool,
+    pub favorite_title: Option<String>,
 }
 
 #[derive(Default)]
 pub(super) struct Favorites {
     favorites: Vec<EntryId>,
     favorites_hash_set: HashSet<EntryId>,
+    titles: HashMap<EntryId, Option<String>>,
 }
 
 impl Favorites {
@@ -75,21 +77,36 @@ impl Favorites {
     fn clear(&mut self) {
         self.favorites.clear();
         self.favorites_hash_set.clear();
+        self.titles.clear();
     }
 
     fn insert_at(&mut self, id: EntryId, pos: Option<usize>) {
+        self.insert_at_with_title(id, pos, None);
+    }
+
+    fn insert_at_with_title(&mut self, id: EntryId, pos: Option<usize>, title: Option<String>) {
         match pos {
             Some(pos) => self.favorites.insert(pos, id),
             None => self.favorites.push(id),
         }
         self.favorites_hash_set.insert(id);
+        self.titles.insert(id, title);
     }
 
     fn remove(&mut self, id: &EntryId) -> Option<usize> {
         self.favorites_hash_set.remove(id);
+        self.titles.remove(id);
         self.favorites.iter().position(|e| e == id).inspect(|i| {
             self.favorites.remove(*i);
         })
+    }
+
+    fn title(&self, id: &EntryId) -> Option<&str> {
+        self.titles.get(id).and_then(|t| t.as_deref())
+    }
+
+    fn set_title(&mut self, id: EntryId, title: Option<String>) {
+        self.titles.insert(id, title);
     }
 
     pub(super) fn fav(&self) -> &Vec<EntryId> {
@@ -142,6 +159,10 @@ impl Hash for Entry {
 impl EntryTrait for Entry {
     fn is_favorite(&self) -> bool {
         self.is_favorite
+    }
+
+    fn favorite_title(&self) -> Option<&str> {
+        self.favorite_title.as_deref()
     }
 
     fn raw_content(&self) -> &MimeDataMap {
@@ -311,7 +332,7 @@ impl DbTrait for DbSqlite {
         // init favorite
         {
             let query_load_favs = r#"
-                SELECT id, position
+                SELECT id, position, title
                 FROM FavoriteClipboardEntries
             "#;
 
@@ -324,7 +345,8 @@ impl DbTrait for DbSqlite {
                 .map(|row| {
                     let id: EntryId = row.get("id");
                     let index: i32 = row.get("position");
-                    (id, index as usize)
+                    let title: Option<String> = row.get("title");
+                    (id, index as usize, title)
                 })
                 .collect::<Vec<_>>();
 
@@ -332,8 +354,8 @@ impl DbTrait for DbSqlite {
 
             debug_assert_eq!(rows.last().map(|e| e.1 + 1).unwrap_or(0), rows.len());
 
-            for (id, pos) in rows {
-                self.favorites.insert_at(id, Some(pos));
+            for (id, pos, title) in rows {
+                self.favorites.insert_at_with_title(id, Some(pos), title);
             }
         }
 
@@ -357,6 +379,7 @@ impl DbTrait for DbSqlite {
                     creation,
                     raw_content: MimeDataMap::default(),
                     is_favorite: self.favorites.contains(&id),
+                    favorite_title: self.favorites.title(&id).map(|s| s.to_string()),
                 };
 
                 self.entries.insert(id, entry);
@@ -468,6 +491,7 @@ impl DbTrait for DbSqlite {
                 creation: now,
                 raw_content: data,
                 is_favorite: false,
+                favorite_title: None,
             };
 
             self.times.insert(entry.creation, id);
@@ -646,19 +670,43 @@ impl DbTrait for DbSqlite {
 
         {
             let query = r#"
-                INSERT INTO FavoriteClipboardEntries (id, position)
-                VALUES ($1, $2);
+                INSERT INTO FavoriteClipboardEntries (id, position, title)
+                VALUES ($1, $2, $3);
             "#;
 
             sqlx::query(query)
                 .bind(id)
                 .bind(index as i32)
+                .bind(Option::<String>::None)
                 .execute(&mut self.conn)
                 .await?;
         }
 
         if let Some(e) = self.entries.get_mut(&id) {
             e.is_favorite = true;
+            e.favorite_title = None;
+        }
+
+        Ok(())
+    }
+
+    async fn set_favorite_title(&mut self, id: EntryId, title: Option<String>) -> Result<()> {
+        let query = r#"
+            UPDATE FavoriteClipboardEntries
+            SET title = ?
+            WHERE id = ?;
+        "#;
+
+        sqlx::query(query)
+            .bind(&title)
+            .bind(id)
+            .execute(&mut self.conn)
+            .await?;
+
+        self.favorites.set_title(id, title.clone());
+
+        if let Some(e) = self.entries.get_mut(&id) {
+            e.favorite_title = title;
         }
 
         Ok(())
@@ -690,6 +738,7 @@ impl DbTrait for DbSqlite {
 
         if let Some(e) = self.entries.get_mut(&id) {
             e.is_favorite = false;
+            e.favorite_title = None;
         }
 
         Ok(())

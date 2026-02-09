@@ -25,6 +25,7 @@ use crate::{
     my_widget,
     utils::formatted_value,
 };
+use cosmic::widget::text::heading;
 
 pub static SCROLLABLE_ID: LazyLock<Id> = LazyLock::new(|| Id::new("scrollable"));
 
@@ -72,6 +73,65 @@ impl<Db: DbTrait> AppState<Db> {
             self.qr_code_view(qr_code_res)
         } else {
             self.list_view()
+        })
+        .height(if self.config.horizontal {
+            Length::Fill
+        } else {
+            Length::Fixed(530f32)
+        })
+        .width(if self.config.horizontal {
+            Length::Fill
+        } else {
+            Length::Fixed(400f32)
+        })
+        .into()
+    }
+
+    pub fn favorites_view(&self) -> Element<'_, AppMsg> {
+        container({
+            let favorites: Vec<_> = self
+                .db
+                .iter()
+                .filter(|e| e.is_favorite())
+                .enumerate()
+                .map(|(pos, data)| {
+                    match data.preferred_content(&self.preferred_mime_types_regex) {
+                        Some((_, content)) => match content {
+                            Content::Text(text) => {
+                                self.text_entry(data, pos == self.focused, text)
+                            }
+                            Content::Image(img) => {
+                                self.image_entry(data, pos == self.focused, img)
+                            }
+                            Content::UriList(uris) => {
+                                self.uris_entry(data, pos == self.focused, &uris)
+                            }
+                        },
+                        None => self.unknown_entry(data, pos == self.focused),
+                    }
+                })
+                .collect();
+
+            column()
+                .push(
+                    container(
+                        heading(fl!("favorites"))
+                            .width(Length::Fill),
+                    )
+                    .padding(padding::all(15f32).bottom(0)),
+                )
+                .push(
+                    container(
+                        scrollable(
+                            column::with_children(favorites)
+                                .spacing(5f32)
+                                .padding(padding::right(10)),
+                        )
+                    )
+                    .padding(padding::all(20).top(0)),
+                )
+                .spacing(20)
+                .align_x(Alignment::Center)
         })
         .height(if self.config.horizontal {
             Length::Fill
@@ -330,12 +390,24 @@ impl<Db: DbTrait> AppState<Db> {
         is_focused: bool,
         content: &'a str,
     ) -> Element<'a, AppMsg> {
-        // todo: remove this max line things: display the maximum
-        if self.config.horizontal {
-            self.base_entry(entry, is_focused, text(formatted_value(content, 10, 500)))
+        let text_content: Element<'a, AppMsg> = if self.config.horizontal {
+            text(formatted_value(content, 10, 500)).into()
         } else {
-            self.base_entry(entry, is_focused, text(formatted_value(content, 5, 200)))
-        }
+            text(formatted_value(content, 5, 200)).into()
+        };
+
+        // Show title above content for favorites with titles
+        let inner: Element<'a, AppMsg> = if let Some(title) = entry.favorite_title() {
+            column()
+                .spacing(2)
+                .push(text::body(title).class(cosmic::style::Text::Accent))
+                .push(text_content)
+                .into()
+        } else {
+            text_content
+        };
+
+        self.base_entry(entry, is_focused, inner)
     }
 
     fn base_entry<'a>(
@@ -415,32 +487,86 @@ impl<Db: DbTrait> AppState<Db> {
             Some((_, Content::Text(_)))
         );
 
-        let mut overlay_col = column()
-            .padding(3)
-            .push(if entry.is_favorite() {
-                button::text(fl!("remove_favorite"))
-                    .on_press(ContextMenuMsg::RemoveFavorite(entry.id()))
+        // Check if we are currently in the favoriting flow for this entry
+        let is_favoriting_this = self
+            .favoriting_state
+            .as_ref()
+            .is_some_and(|s| s.entry_id == entry.id());
+
+        let entry_id = entry.id();
+        let is_fav = entry.is_favorite();
+
+        let overlay: Element<_> = if is_favoriting_this {
+            // Inline title input for the favoriting flow
+            let state = self.favoriting_state.as_ref().unwrap();
+            let mut overlay_col = column().padding(3).spacing(5);
+            if state.suggesting {
+                overlay_col = overlay_col.push(
+                    container(text(fl!("suggest-title")))
+                        .padding(padding::all(8)),
+                );
             } else {
-                button::text(fl!("add_favorite")).on_press(ContextMenuMsg::AddFavorite(entry.id()))
-            });
+                overlay_col = overlay_col
+                    .push(
+                        text_input(fl!("favorite-title-placeholder"), &state.title_input)
+                            .on_input(AppMsg::FavoriteTitleInput)
+                            .width(Length::Fill),
+                    )
+                    .push(
+                        row()
+                            .spacing(5)
+                            .push(
+                                button::suggested("OK")
+                                    .on_press(AppMsg::ConfirmFavorite(
+                                        entry_id,
+                                        Some(state.title_input.clone()),
+                                    )),
+                            )
+                            .push(
+                                button::standard("Cancel")
+                                    .on_press(AppMsg::CancelFavorite),
+                            ),
+                    );
+            }
+            overlay_col.apply(Element::from)
+        } else {
+            let mut overlay_col = column().padding(3);
 
-        if has_text {
-            overlay_col = overlay_col.push(
-                button::text(fl!("edit-entry")).on_press(ContextMenuMsg::Edit(entry.id())),
-            );
-        }
+            if is_fav {
+                overlay_col = overlay_col.push(
+                    button::text(fl!("remove_favorite"))
+                        .on_press(ContextMenuMsg::RemoveFavorite(entry_id)),
+                );
+                overlay_col = overlay_col.push(
+                    button::text(fl!("rename-favorite"))
+                        .on_press(ContextMenuMsg::AddFavorite(entry_id)),
+                );
+            } else {
+                overlay_col = overlay_col.push(
+                    button::text(fl!("add_favorite"))
+                        .on_press(ContextMenuMsg::AddFavorite(entry_id)),
+                );
+            }
 
-        let overlay: Element<_> = overlay_col
-            .push(
-                button::text(fl!("show_qr_code")).on_press(ContextMenuMsg::ShowQrCode(entry.id())),
-            )
-            .push(
-                button::text(fl!("delete_entry"))
-                    .on_press(ContextMenuMsg::Delete(entry.id()))
-                    .class(Button::Destructive),
-            )
-            .apply(Element::from)
-            .map(AppMsg::ContextMenu);
+            if has_text {
+                overlay_col = overlay_col.push(
+                    button::text(fl!("edit-entry")).on_press(ContextMenuMsg::Edit(entry_id)),
+                );
+            }
+
+            overlay_col
+                .push(
+                    button::text(fl!("show_qr_code"))
+                        .on_press(ContextMenuMsg::ShowQrCode(entry_id)),
+                )
+                .push(
+                    button::text(fl!("delete_entry"))
+                        .on_press(ContextMenuMsg::Delete(entry_id))
+                        .class(Button::Destructive),
+                )
+                .apply(Element::from)
+                .map(AppMsg::ContextMenu)
+        };
 
         let overlay = container(overlay)
             .class(cosmic::theme::Container::Card)

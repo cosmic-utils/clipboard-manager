@@ -1,0 +1,1 @@
+ALTER TABLE FavoriteClipboardEntries ADD COLUMN title TEXT DEFAULT NULL;

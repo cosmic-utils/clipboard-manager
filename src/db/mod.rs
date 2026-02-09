@@ -87,6 +87,8 @@ static PRIV_MIME_TYPES_REGEX: LazyLock<Vec<Regex>> = LazyLock::new(|| {
 pub trait EntryTrait: Debug + Clone + Send {
     fn is_favorite(&self) -> bool;
 
+    fn favorite_title(&self) -> Option<&str>;
+
     fn raw_content(&self) -> &MimeDataMap;
 
     #[allow(dead_code)]
@@ -181,6 +183,8 @@ pub trait DbTrait: Sized {
     async fn add_favorite(&mut self, entry: EntryId, index: Option<usize>) -> Result<()>;
 
     async fn remove_favorite(&mut self, entry: EntryId) -> Result<()>;
+
+    async fn set_favorite_title(&mut self, id: EntryId, title: Option<String>) -> Result<()>;
 
     fn search(&mut self);
 

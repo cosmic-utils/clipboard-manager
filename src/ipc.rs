@@ -8,7 +8,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use crate::message::AppMsg;
+use crate::message::{AppMsg, FavoriteSummary};
 use cosmic::iced_futures::Subscription;
 
 const BUS_NAME: &str = "io.github.cosmic_utils.ClipboardManager";
@@ -36,6 +36,10 @@ enum IpcCommand {
     GetEntry {
         id: i64,
         reply: tokio::sync::oneshot::Sender<Result<(String, Vec<u8>), String>>,
+    },
+    ToggleFavorites,
+    ListFavorites {
+        reply: tokio::sync::oneshot::Sender<Vec<FavoriteSummary>>,
     },
 }
 
@@ -93,6 +97,33 @@ impl ClipboardService {
             Ok(Ok((mime, data))) => (mime, data, String::new()),
             Ok(Err(e)) => (String::new(), Vec::new(), e),
             Err(_) => (String::new(), Vec::new(), "applet did not reply".to_string()),
+        }
+    }
+
+    async fn toggle_favorites(&self) {
+        let _ = self.tx.send(IpcCommand::ToggleFavorites).await;
+    }
+
+    /// Returns Vec<(id, title, preview)> — only favorite entries.
+    async fn list_favorites(&self) -> Vec<(i64, String, String)> {
+        let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
+        if self
+            .tx
+            .send(IpcCommand::ListFavorites { reply: reply_tx })
+            .await
+            .is_err()
+        {
+            return Vec::new();
+        }
+        match reply_rx.await {
+            Ok(entries) => entries
+                .into_iter()
+                .map(|e| {
+                    let title = e.title.unwrap_or_default();
+                    (e.id, title, e.preview)
+                })
+                .collect(),
+            Err(_) => Vec::new(),
         }
     }
 
@@ -185,6 +216,17 @@ pub fn dbus_toggle_subscription() -> Subscription<AppMsg> {
                             .await
                             .ok();
                     }
+                    Some(IpcCommand::ToggleFavorites) => {
+                        output.send(AppMsg::DbusFavorites).await.ok();
+                    }
+                    Some(IpcCommand::ListFavorites { reply }) => {
+                        output
+                            .send(AppMsg::DbusListFavorites {
+                                reply: Arc::new(Mutex::new(Some(reply))),
+                            })
+                            .await
+                            .ok();
+                    }
                     None => {
                         // Channel closed, wait forever to avoid busy loop
                         futures::future::pending::<()>().await;
@@ -252,6 +294,34 @@ pub fn send_get_entry(id: i64) -> Result<(String, Vec<u8>), Box<dyn std::error::
     } else {
         Err(error.into())
     }
+}
+
+/// Send a ToggleFavorites call to the running applet via D-Bus (blocking, for CLI use).
+pub fn send_toggle_favorites() -> Result<(), Box<dyn std::error::Error>> {
+    let connection = zbus::blocking::Connection::session()?;
+    let proxy = zbus::blocking::Proxy::new(
+        &connection,
+        BUS_NAME,
+        OBJECT_PATH,
+        INTERFACE_NAME,
+    )?;
+    proxy.call_method("ToggleFavorites", &())?;
+    Ok(())
+}
+
+/// List favorite entries from the running applet via D-Bus (blocking, for CLI use).
+/// Returns Vec<(id, title, preview)>.
+pub fn send_list_favorites() -> Result<Vec<(i64, String, String)>, Box<dyn std::error::Error>> {
+    let connection = zbus::blocking::Connection::session()?;
+    let proxy = zbus::blocking::Proxy::new(
+        &connection,
+        BUS_NAME,
+        OBJECT_PATH,
+        INTERFACE_NAME,
+    )?;
+    let reply = proxy.call_method("ListFavorites", &())?;
+    let entries: Vec<(i64, String, String)> = reply.body().deserialize()?;
+    Ok(entries)
 }
 
 /// Copy a specific entry by ID via D-Bus (blocking, for CLI use).
