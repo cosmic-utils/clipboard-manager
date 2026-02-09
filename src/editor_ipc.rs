@@ -16,6 +16,10 @@ pub enum AppToEditor {
         entry_id: i64,
         mime: String,
         content: String,
+        /// When true, saves should update the existing entry in-place (favorites).
+        /// When false, saves create a new clipboard entry (default behavior).
+        #[serde(default)]
+        is_favorite: bool,
     },
     /// The entry being edited was deleted — editor should close without saving.
     EntryDeleted,
@@ -30,6 +34,8 @@ pub enum EditorToApp {
     Ready,
     /// Save edited content as a new clipboard entry + copy to clipboard.
     SaveAsNew { content: String },
+    /// Update the existing entry in-place (for favorites).
+    UpdateExisting { content: String },
     /// Editor closed without changes.
     Closed,
 }

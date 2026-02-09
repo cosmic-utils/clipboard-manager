@@ -95,20 +95,7 @@ impl<Db: DbTrait> AppState<Db> {
                 .filter(|e| e.is_favorite())
                 .enumerate()
                 .map(|(pos, data)| {
-                    match data.preferred_content(&self.preferred_mime_types_regex) {
-                        Some((_, content)) => match content {
-                            Content::Text(text) => {
-                                self.text_entry(data, pos == self.focused, text)
-                            }
-                            Content::Image(img) => {
-                                self.image_entry(data, pos == self.focused, img)
-                            }
-                            Content::UriList(uris) => {
-                                self.uris_entry(data, pos == self.focused, &uris)
-                            }
-                        },
-                        None => self.unknown_entry(data, pos == self.focused),
-                    }
+                    self.favorite_entry(data, pos == self.focused)
                 })
                 .collect();
 
@@ -141,9 +128,50 @@ impl<Db: DbTrait> AppState<Db> {
         .width(if self.config.horizontal {
             Length::Fill
         } else {
-            Length::Fixed(400f32)
+            Length::Fill
         })
         .into()
+    }
+
+    /// Render a favorite entry as: [title | content preview] in a two-column row.
+    fn favorite_entry<'a>(
+        &'a self,
+        entry: &'a Db::Entry,
+        is_focused: bool,
+    ) -> Element<'a, AppMsg> {
+        let title_owned: String = entry
+            .favorite_title()
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| fl!("untitled"));
+
+        let preview: Element<'a, AppMsg> = match entry.preferred_content(&self.preferred_mime_types_regex) {
+            Some((_, Content::Text(t))) => text(formatted_value(t, 3, 200)).into(),
+            Some((_, Content::Image(img))) => {
+                let handle = image::Handle::from_bytes(img.to_owned());
+                image(handle).width(60).height(40).into()
+            }
+            Some((_, Content::UriList(uris))) => {
+                text(uris.first().copied().unwrap_or("...")).into()
+            }
+            None => text("[unknown]").into(),
+        };
+
+        let inner = row()
+            .spacing(10)
+            .align_y(Alignment::Center)
+            .push(
+                container(
+                    text::body(title_owned)
+                        .class(cosmic::style::Text::Accent),
+                )
+                .width(Length::Fixed(150f32)),
+            )
+            .push(
+                container(preview)
+                    .width(Length::Fill),
+            );
+
+        self.base_entry(entry, is_focused, inner)
     }
 
     pub fn page_count(&self) -> usize {
@@ -487,92 +515,107 @@ impl<Db: DbTrait> AppState<Db> {
             Some((_, Content::Text(_)))
         );
 
-        // Check if we are currently in the favoriting flow for this entry
-        let is_favoriting_this = self
-            .favoriting_state
-            .as_ref()
-            .is_some_and(|s| s.entry_id == entry.id());
-
         let entry_id = entry.id();
         let is_fav = entry.is_favorite();
 
-        let overlay: Element<_> = if is_favoriting_this {
-            // Inline title input for the favoriting flow
-            let state = self.favoriting_state.as_ref().unwrap();
-            let mut overlay_col = column().padding(3).spacing(5);
-            if state.suggesting {
-                overlay_col = overlay_col.push(
-                    container(text(fl!("suggest-title")))
-                        .padding(padding::all(8)),
-                );
-            } else {
-                overlay_col = overlay_col
-                    .push(
-                        text_input(fl!("favorite-title-placeholder"), &state.title_input)
-                            .on_input(AppMsg::FavoriteTitleInput)
-                            .width(Length::Fill),
-                    )
-                    .push(
-                        row()
-                            .spacing(5)
-                            .push(
-                                button::suggested("OK")
-                                    .on_press(AppMsg::ConfirmFavorite(
-                                        entry_id,
-                                        Some(state.title_input.clone()),
-                                    )),
-                            )
-                            .push(
-                                button::standard("Cancel")
-                                    .on_press(AppMsg::CancelFavorite),
-                            ),
-                    );
-            }
-            overlay_col.apply(Element::from)
+        // Context menu overlay (right-click menu)
+        let mut overlay_col = column().padding(3);
+
+        if is_fav {
+            overlay_col = overlay_col.push(
+                button::text(fl!("remove_favorite"))
+                    .on_press(ContextMenuMsg::RemoveFavorite(entry_id)),
+            );
+            overlay_col = overlay_col.push(
+                button::text(fl!("rename-favorite"))
+                    .on_press(ContextMenuMsg::AddFavorite(entry_id)),
+            );
         } else {
-            let mut overlay_col = column().padding(3);
+            overlay_col = overlay_col.push(
+                button::text(fl!("add_favorite"))
+                    .on_press(ContextMenuMsg::AddFavorite(entry_id)),
+            );
+        }
 
-            if is_fav {
-                overlay_col = overlay_col.push(
-                    button::text(fl!("remove_favorite"))
-                        .on_press(ContextMenuMsg::RemoveFavorite(entry_id)),
-                );
-                overlay_col = overlay_col.push(
-                    button::text(fl!("rename-favorite"))
-                        .on_press(ContextMenuMsg::AddFavorite(entry_id)),
-                );
-            } else {
-                overlay_col = overlay_col.push(
-                    button::text(fl!("add_favorite"))
-                        .on_press(ContextMenuMsg::AddFavorite(entry_id)),
-                );
-            }
+        if has_text {
+            overlay_col = overlay_col.push(
+                button::text(fl!("edit-entry")).on_press(ContextMenuMsg::Edit(entry_id)),
+            );
+        }
 
-            if has_text {
-                overlay_col = overlay_col.push(
-                    button::text(fl!("edit-entry")).on_press(ContextMenuMsg::Edit(entry_id)),
-                );
-            }
-
-            overlay_col
-                .push(
-                    button::text(fl!("show_qr_code"))
-                        .on_press(ContextMenuMsg::ShowQrCode(entry_id)),
-                )
-                .push(
-                    button::text(fl!("delete_entry"))
-                        .on_press(ContextMenuMsg::Delete(entry_id))
-                        .class(Button::Destructive),
-                )
-                .apply(Element::from)
-                .map(AppMsg::ContextMenu)
-        };
+        let overlay: Element<_> = overlay_col
+            .push(
+                button::text(fl!("show_qr_code"))
+                    .on_press(ContextMenuMsg::ShowQrCode(entry_id)),
+            )
+            .push(
+                button::text(fl!("delete_entry"))
+                    .on_press(ContextMenuMsg::Delete(entry_id))
+                    .class(Button::Destructive),
+            )
+            .apply(Element::from)
+            .map(AppMsg::ContextMenu);
 
         let overlay = container(overlay)
             .class(cosmic::theme::Container::Card)
             .padding(padding::all(5));
 
-        my_widget::context_menu(content, overlay).into()
+        let entry_widget: Element<_> = my_widget::context_menu(content, overlay).into();
+
+        // If we're in the favoriting/rename flow for THIS entry, show the title
+        // input card directly below the entry (not inside the context menu)
+        let is_favoriting_this = self
+            .favoriting_state
+            .as_ref()
+            .is_some_and(|s| s.entry_id == entry_id);
+
+        if is_favoriting_this {
+            let state = self.favoriting_state.as_ref().unwrap();
+            let title_card: Element<_> = if state.suggesting {
+                container(text(fl!("suggest-title")))
+                    .padding(padding::all(8))
+                    .class(cosmic::theme::Container::Card)
+                    .width(Length::Fill)
+                    .into()
+            } else {
+                container(
+                    column()
+                        .spacing(5)
+                        .push(
+                            text_input(fl!("favorite-title-placeholder"), &state.title_input)
+                                .on_input(AppMsg::FavoriteTitleInput)
+                                .width(Length::Fill),
+                        )
+                        .push(
+                            row()
+                                .spacing(5)
+                                .push(
+                                    button::suggested("OK")
+                                        .on_press(AppMsg::ConfirmFavorite(
+                                            entry_id,
+                                            Some(state.title_input.clone()),
+                                        )),
+                                )
+                                .push(
+                                    button::standard("Cancel")
+                                        .on_press(AppMsg::CancelFavorite),
+                                ),
+                        ),
+                )
+                .class(cosmic::theme::Container::Card)
+                .padding(padding::all(8))
+                .width(Length::Fill)
+                .into()
+            };
+
+            column()
+                .spacing(2)
+                .push(entry_widget)
+                .push(title_card)
+                .into()
+        } else {
+            entry_widget
+        }
     }
 }
 

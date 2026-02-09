@@ -308,7 +308,7 @@ impl<Db: DbTrait> AppState<Db> {
                     size: if self.config.horizontal {
                         Some((None, Some(350)))
                     } else {
-                        Some((Some(400), Some(530)))
+                        Some((Some(1200), Some(530)))
                     },
                     size_limits: Limits::NONE.min_width(1.0).min_height(1.0),
                     ..Default::default()
@@ -324,8 +324,8 @@ impl<Db: DbTrait> AppState<Db> {
                 );
 
                 popup_settings.positioner.size_limits = Limits::NONE
-                    .min_width(300.0)
-                    .max_width(400.0)
+                    .min_width(400.0)
+                    .max_width(1200.0)
                     .min_height(200.0)
                     .max_height(500.0);
                 get_popup(popup_settings)
@@ -440,6 +440,9 @@ impl<Db: DbTrait> AppState<Db> {
 
         let mut stdin_handle = child.stdin.take().unwrap();
 
+        // Check if entry is a favorite (for in-place save behavior)
+        let is_favorite = self.db.get_from_id(entry_id).map_or(false, |e| e.is_favorite());
+
         // Send Init message
         if let Err(e) = editor_ipc::write_frame(
             &mut stdin_handle,
@@ -447,6 +450,7 @@ impl<Db: DbTrait> AppState<Db> {
                 entry_id,
                 mime: mime.clone(),
                 content: text.to_string(),
+                is_favorite,
             },
         ) {
             error!("failed to send Init to editor: {e}");
@@ -616,19 +620,52 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                 }
             }
             AppMsg::DbusCopyEntry { id, reply } => {
-                let result = match self.db.get_from_id(id) {
-                    Some(data) => {
-                        let task = copy_iced(data.raw_content().clone());
-                        if let Some(tx) = reply.lock().unwrap().take() {
-                            let _ = tx.send(Ok(()));
+                match self.db.get_from_id(id) {
+                    Some(entry) => {
+                        // Use wl-copy (zwlr_data_control) instead of copy_iced (wl_data_device)
+                        // because the applet may not have Wayland focus when called via D-Bus.
+                        let raw = entry.raw_content();
+                        // Prefer text/plain, fall back to first available MIME type
+                        let (mime, data) = if let Some(d) = raw.get("text/plain") {
+                            ("text/plain".to_string(), d.clone())
+                        } else if let Some((m, d)) = raw.iter().next() {
+                            (m.clone(), d.clone())
+                        } else {
+                            if let Some(tx) = reply.lock().unwrap().take() {
+                                let _ = tx.send(Err("entry has no content".to_string()));
+                            }
+                            return Task::none();
+                        };
+                        match std::process::Command::new("wl-copy")
+                            .arg("--type")
+                            .arg(&mime)
+                            .stdin(std::process::Stdio::piped())
+                            .spawn()
+                        {
+                            Ok(mut child) => {
+                                if let Some(mut stdin) = child.stdin.take() {
+                                    use std::io::Write;
+                                    let _ = stdin.write_all(&data);
+                                }
+                                let _ = child.wait();
+                                if let Some(tx) = reply.lock().unwrap().take() {
+                                    let _ = tx.send(Ok(()));
+                                }
+                            }
+                            Err(e) => {
+                                error!("wl-copy failed: {e}");
+                                if let Some(tx) = reply.lock().unwrap().take() {
+                                    let _ = tx.send(Err(format!("wl-copy failed: {e}")));
+                                }
+                            }
                         }
-                        return task;
                     }
-                    None => Err(format!("entry {id} not found")),
+                    None => {
+                        if let Some(tx) = reply.lock().unwrap().take() {
+                            let _ = tx.send(Err(format!("entry {id} not found")));
+                        }
+                    }
                 };
-                if let Some(tx) = reply.lock().unwrap().take() {
-                    let _ = tx.send(result);
-                }
             }
             AppMsg::DbusGetEntry { id, reply } => {
                 let result = match self.db.get_from_id(id) {
@@ -932,14 +969,48 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                     EditorToApp::Ready => {}
                     EditorToApp::SaveAsNew { content } => {
                         eprintln!("[applet] SaveAsNew content_len={}", content.len());
-                        let mut data = MimeDataMap::new();
-                        data.insert("text/plain".to_string(), content.as_bytes().to_vec());
-                        match block_on(self.db.insert(data.clone())) {
-                            Ok(()) => {
-                                eprintln!("[applet] SaveAsNew: inserted as new entry");
-                                return copy_iced(data);
+                        if content.trim().is_empty() {
+                            // Empty content — delete the original entry
+                            if let Some(editor) = &self.editor {
+                                let entry_id = editor.entry_id;
+                                eprintln!("[applet] SaveAsNew: empty content, deleting entry {entry_id}");
+                                if let Err(e) = block_on(self.db.delete(entry_id)) {
+                                    error!("failed to delete entry: {e}");
+                                }
                             }
-                            Err(e) => error!("failed to save as new entry: {e}"),
+                        } else {
+                            let mut data = MimeDataMap::new();
+                            data.insert("text/plain".to_string(), content.as_bytes().to_vec());
+                            match block_on(self.db.insert(data.clone())) {
+                                Ok(()) => {
+                                    eprintln!("[applet] SaveAsNew: inserted as new entry");
+                                    return copy_iced(data);
+                                }
+                                Err(e) => error!("failed to save as new entry: {e}"),
+                            }
+                        }
+                    }
+                    EditorToApp::UpdateExisting { content } => {
+                        eprintln!("[applet] UpdateExisting content_len={}", content.len());
+                        if let Some(editor) = &self.editor {
+                            let entry_id = editor.entry_id;
+                            if content.trim().is_empty() {
+                                // Empty content — delete the entry
+                                eprintln!("[applet] UpdateExisting: empty content, deleting entry {entry_id}");
+                                if let Err(e) = block_on(self.db.delete(entry_id)) {
+                                    error!("failed to delete entry: {e}");
+                                }
+                            } else {
+                                let mut data = MimeDataMap::new();
+                                data.insert("text/plain".to_string(), content.as_bytes().to_vec());
+                                match block_on(self.db.update_content(entry_id, data.clone())) {
+                                    Ok(_new_id) => {
+                                        eprintln!("[applet] UpdateExisting: updated entry {entry_id}");
+                                        return copy_iced(data);
+                                    }
+                                    Err(e) => error!("failed to update entry: {e}"),
+                                }
+                            }
                         }
                     }
                     EditorToApp::Closed => {

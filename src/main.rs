@@ -16,6 +16,7 @@ mod config;
 mod db;
 mod editor_app;
 mod editor_ipc;
+mod favorites_app;
 mod icon;
 mod ipc;
 mod localize;
@@ -115,6 +116,13 @@ fn main() {
             return;
         }
 
+        if arg == "--favorites-window" {
+            localize::localize();
+            setup_logs();
+            favorites_app::run_favorites();
+            return;
+        }
+
         if arg == "-V" || arg == "--version" {
             let version = env!("CARGO_PKG_VERSION");
             let commit = option_env!("CLIPBOARD_MANAGER_COMMIT").unwrap_or("unknown");
@@ -140,10 +148,9 @@ fn main() {
         }
 
         if arg == "--favorites" || arg == "-f" {
-            if let Err(e) = ipc::send_toggle_favorites() {
-                eprintln!("Failed to toggle favorites popup: {e}");
-                std::process::exit(1);
-            }
+            localize::localize();
+            setup_logs();
+            favorites_app::run_favorites();
             return;
         }
 

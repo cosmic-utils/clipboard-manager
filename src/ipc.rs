@@ -37,9 +37,19 @@ enum IpcCommand {
         id: i64,
         reply: tokio::sync::oneshot::Sender<Result<(String, Vec<u8>), String>>,
     },
+    EditEntry {
+        id: i64,
+    },
     ToggleFavorites,
     ListFavorites {
         reply: tokio::sync::oneshot::Sender<Vec<FavoriteSummary>>,
+    },
+    SetFavoriteTitle {
+        id: i64,
+        title: String,
+    },
+    RemoveFavorite {
+        id: i64,
     },
 }
 
@@ -56,6 +66,10 @@ impl ClipboardService {
 
     async fn edit_latest(&self) {
         let _ = self.tx.send(IpcCommand::EditLatest).await;
+    }
+
+    async fn edit_entry(&self, id: i64) {
+        let _ = self.tx.send(IpcCommand::EditEntry { id }).await;
     }
 
     /// Returns Vec<(id, is_favorite, preview)> — native D-Bus tuple serialization.
@@ -102,6 +116,19 @@ impl ClipboardService {
 
     async fn toggle_favorites(&self) {
         let _ = self.tx.send(IpcCommand::ToggleFavorites).await;
+    }
+
+    /// Set or clear a favorite's title.
+    async fn set_favorite_title(&self, id: i64, title: String) {
+        let _ = self
+            .tx
+            .send(IpcCommand::SetFavoriteTitle { id, title })
+            .await;
+    }
+
+    /// Remove an entry from favorites.
+    async fn remove_favorite(&self, id: i64) {
+        let _ = self.tx.send(IpcCommand::RemoveFavorite { id }).await;
     }
 
     /// Returns Vec<(id, title, preview)> — only favorite entries.
@@ -213,6 +240,28 @@ pub fn dbus_toggle_subscription() -> Subscription<AppMsg> {
                                 id,
                                 reply: Arc::new(Mutex::new(Some(reply))),
                             })
+                            .await
+                            .ok();
+                    }
+                    Some(IpcCommand::EditEntry { id }) => {
+                        output
+                            .send(AppMsg::ContextMenu(
+                                crate::message::ContextMenuMsg::Edit(id),
+                            ))
+                            .await
+                            .ok();
+                    }
+                    Some(IpcCommand::SetFavoriteTitle { id, title }) => {
+                        output
+                            .send(AppMsg::SetFavoriteTitle(id, title))
+                            .await
+                            .ok();
+                    }
+                    Some(IpcCommand::RemoveFavorite { id }) => {
+                        output
+                            .send(AppMsg::ContextMenu(
+                                crate::message::ContextMenuMsg::RemoveFavorite(id),
+                            ))
                             .await
                             .ok();
                     }
@@ -335,6 +384,94 @@ pub fn send_copy_entry(id: i64) -> Result<(), Box<dyn std::error::Error>> {
         INTERFACE_NAME,
     )?;
     let reply = proxy.call_method("CopyEntry", &(id,))?;
+    let result: String = reply.body().deserialize()?;
+    if result.is_empty() {
+        Ok(())
+    } else {
+        Err(result.into())
+    }
+}
+
+/// Async version of send_list_favorites (for use inside a tokio runtime).
+pub async fn send_list_favorites_async() -> Result<Vec<(i64, String, String)>, Box<dyn std::error::Error>> {
+    let connection = zbus::Connection::session().await?;
+    let proxy = zbus::Proxy::new(
+        &connection,
+        BUS_NAME,
+        OBJECT_PATH,
+        INTERFACE_NAME,
+    )
+    .await?;
+    let reply = proxy.call_method("ListFavorites", &()).await?;
+    let entries: Vec<(i64, String, String)> = reply.body().deserialize()?;
+    Ok(entries)
+}
+
+/// Async version of send_edit_entry (for use inside a tokio runtime).
+pub async fn send_edit_entry_async(id: i64) -> Result<(), Box<dyn std::error::Error>> {
+    let connection = zbus::Connection::session().await?;
+    let proxy = zbus::Proxy::new(
+        &connection,
+        BUS_NAME,
+        OBJECT_PATH,
+        INTERFACE_NAME,
+    )
+    .await?;
+    proxy.call_method("EditEntry", &(id,)).await?;
+    Ok(())
+}
+
+/// Async version of send_get_entry (for use inside a tokio runtime).
+pub async fn send_get_entry_async(id: i64) -> Result<(String, Vec<u8>), Box<dyn std::error::Error>> {
+    let connection = zbus::Connection::session().await?;
+    let proxy = zbus::Proxy::new(
+        &connection,
+        BUS_NAME,
+        OBJECT_PATH,
+        INTERFACE_NAME,
+    )
+    .await?;
+    let reply = proxy.call_method("GetEntry", &(id,)).await?;
+    let (mime, data, error): (String, Vec<u8>, String) = reply.body().deserialize()?;
+    if error.is_empty() {
+        Ok((mime, data))
+    } else {
+        Err(error.into())
+    }
+}
+
+/// Set a favorite's title via D-Bus (async, for use inside a tokio runtime).
+pub async fn send_set_favorite_title_async(
+    id: i64,
+    title: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let connection = zbus::Connection::session().await?;
+    let proxy = zbus::Proxy::new(&connection, BUS_NAME, OBJECT_PATH, INTERFACE_NAME).await?;
+    proxy
+        .call_method("SetFavoriteTitle", &(id, title))
+        .await?;
+    Ok(())
+}
+
+/// Remove a favorite via D-Bus (async, for use inside a tokio runtime).
+pub async fn send_remove_favorite_async(id: i64) -> Result<(), Box<dyn std::error::Error>> {
+    let connection = zbus::Connection::session().await?;
+    let proxy = zbus::Proxy::new(&connection, BUS_NAME, OBJECT_PATH, INTERFACE_NAME).await?;
+    proxy.call_method("RemoveFavorite", &(id,)).await?;
+    Ok(())
+}
+
+/// Async version of send_copy_entry (for use inside a tokio runtime).
+pub async fn send_copy_entry_async(id: i64) -> Result<(), Box<dyn std::error::Error>> {
+    let connection = zbus::Connection::session().await?;
+    let proxy = zbus::Proxy::new(
+        &connection,
+        BUS_NAME,
+        OBJECT_PATH,
+        INTERFACE_NAME,
+    )
+    .await?;
+    let reply = proxy.call_method("CopyEntry", &(id,)).await?;
     let result: String = reply.body().deserialize()?;
     if result.is_empty() {
         Ok(())

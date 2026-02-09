@@ -55,7 +55,6 @@ pub enum AppMsg {
     #[allow(dead_code)]
     SuggestTitle(EntryId),
     TitleSuggested(EntryId, Option<String>),
-    #[allow(dead_code)]
     SetFavoriteTitle(EntryId, String),
     FavoriteTitleInput(String),
 }

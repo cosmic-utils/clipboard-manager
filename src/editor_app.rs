@@ -33,10 +33,12 @@ pub struct EditorApp {
     core: Core,
     content: text_editor::Content,
     original_text: String,
+    is_favorite: bool,
 }
 
 pub struct EditorFlags {
     pub text: String,
+    pub is_favorite: bool,
 }
 
 impl EditorApp {
@@ -56,10 +58,12 @@ impl EditorApp {
     fn save_and_exit(&mut self) -> ! {
         let text = self.content.text();
         let is_dirty = text.trim() != self.original_text.trim();
-        eprintln!("[editor] save_and_exit: dirty={is_dirty}, text_len={}, original_len={}", text.len(), self.original_text.len());
+        eprintln!("[editor] save_and_exit: dirty={is_dirty}, is_favorite={}, text_len={}, original_len={}", self.is_favorite, text.len(), self.original_text.len());
         let msg = if is_dirty {
-            EditorToApp::SaveAsNew {
-                content: text,
+            if self.is_favorite {
+                EditorToApp::UpdateExisting { content: text }
+            } else {
+                EditorToApp::SaveAsNew { content: text }
             }
         } else {
             EditorToApp::Closed
@@ -95,6 +99,7 @@ impl cosmic::Application for EditorApp {
             core,
             content: text_editor::Content::with_text(&flags.text),
             original_text: flags.text,
+            is_favorite: flags.is_favorite,
         };
         (app, Task::none())
     }
@@ -225,8 +230,8 @@ pub fn run_editor() {
         }
     };
 
-    let content = match init_msg {
-        AppToEditor::Init { content, .. } => content,
+    let (content, is_favorite) = match init_msg {
+        AppToEditor::Init { content, is_favorite, .. } => (content, is_favorite),
         other => {
             eprintln!("Expected Init message, got: {other:?}");
             std::process::exit(1);
@@ -240,6 +245,7 @@ pub fn run_editor() {
 
     let flags = EditorFlags {
         text: content,
+        is_favorite,
     };
 
     if let Err(e) = cosmic::app::run::<EditorApp>(settings, flags) {
