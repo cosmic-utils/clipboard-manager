@@ -814,6 +814,10 @@ impl DbTrait for DbSqlite {
             )
     }
 
+    fn chronological_iter(&self) -> impl Iterator<Item = &'_ Self::Entry> {
+        self.times.values().map(|id| &self.entries[id]).rev()
+    }
+
     fn search_iter(&self) -> impl Iterator<Item = &'_ Self::Entry> {
         self.filtered.iter().map(|id| &self.entries[id])
     }

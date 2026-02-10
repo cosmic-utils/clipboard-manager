@@ -175,7 +175,12 @@ impl<Db: DbTrait> AppState<Db> {
     }
 
     pub fn page_count(&self) -> usize {
-        self.db.len() / self.config.maximum_entries_by_page.get() as usize
+        let count = if self.show_favorites_only && !self.db.is_search_active() {
+            self.db.chronological_iter().filter(|e| e.is_favorite()).count()
+        } else {
+            self.db.len()
+        };
+        count / self.config.maximum_entries_by_page.get() as usize
     }
 
     fn list_view(&self) -> Element<'_, AppMsg> {
@@ -197,6 +202,11 @@ impl<Db: DbTrait> AppState<Db> {
                                 })
                         })
                         .push(horizontal_space().width(5))
+                        .push(if self.show_favorites_only {
+                            icon_button!("star_fill24").on_press(AppMsg::ToggleFavoritesFilter)
+                        } else {
+                            icon_button!("star24").on_press(AppMsg::ToggleFavoritesFilter)
+                        })
                         .push(icon_button!("arrow_back_ios_new24").on_press_maybe(
                             if self.page > 0 {
                                 Some(AppMsg::PreviousPage)
@@ -221,9 +231,20 @@ impl<Db: DbTrait> AppState<Db> {
                     let range = self.page * maximum_entries_by_page
                         ..(self.page + 1) * maximum_entries_by_page;
 
-                    let entries_view: Vec<_> = self
-                        .db
-                        .either_iter()
+                    let entries_iter: Box<dyn Iterator<Item = &_>> =
+                        if self.db.is_search_active() {
+                            Box::new(self.db.search_iter())
+                        } else if self.show_favorites_only {
+                            Box::new(
+                                self.db
+                                    .chronological_iter()
+                                    .filter(|e| e.is_favorite()),
+                            )
+                        } else {
+                            Box::new(self.db.chronological_iter())
+                        };
+
+                    let entries_view: Vec<_> = entries_iter
                         .enumerate()
                         .get(range)
                         .map(|(pos, data)| {
@@ -444,6 +465,8 @@ impl<Db: DbTrait> AppState<Db> {
         is_focused: bool,
         content: impl Into<Element<'a, AppMsg>>,
     ) -> Element<'a, AppMsg> {
+        let is_current = self.current_entry_id == Some(entry.id());
+
         let btn = button::custom(content)
             .on_press(AppMsg::Copy(entry.id()))
             .padding([8, 16])
@@ -454,6 +477,9 @@ impl<Db: DbTrait> AppState<Db> {
 
                     let a = if focused {
                         button::Catalog::hovered(theme, focused, focused, &Button::Text)
+                    } else if is_current {
+                        // Subtle highlight for the current clipboard buffer entry
+                        button::Catalog::hovered(theme, false, false, &Button::Standard)
                     } else {
                         button::Catalog::active(theme, focused, focused, &Button::Standard)
                     };

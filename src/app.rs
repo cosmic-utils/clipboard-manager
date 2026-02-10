@@ -79,6 +79,8 @@ pub struct AppState<Db: DbTrait> {
     last_entry_sensitive: bool,
     pub editor: Option<EditorProcess>,
     pub favoriting_state: Option<FavoritingState>,
+    pub show_favorites_only: bool,
+    pub current_entry_id: Option<EntryId>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -218,6 +220,7 @@ impl<Db: DbTrait> AppState<Db> {
         self.page = 0;
         self.db.set_query_and_search("".into());
         self.favoriting_state = None;
+        self.show_favorites_only = false;
 
         if let Some(popup) = self.popup.take() {
             self.last_quit = Some((Utc::now().timestamp_millis(), popup.kind));
@@ -540,6 +543,8 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
             last_entry_sensitive: false,
             editor: None,
             favoriting_state: None,
+            show_favorites_only: false,
+            current_entry_id: None,
             preferred_mime_types_regex: config
                 .preferred_mime_types
                 .iter()
@@ -725,6 +730,8 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                         if let Err(e) = block_on(self.db.insert(data)) {
                             error!("can't insert data: {e}");
                         }
+                        // Track the newest entry as the current clipboard buffer
+                        self.current_entry_id = self.db.chronological_iter().next().map(|e| e.id());
                     }
                 }
                 #[expect(irrefutable_let_patterns)]
@@ -750,6 +757,7 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                 }
             },
             AppMsg::Copy(id) => {
+                self.current_entry_id = Some(id);
                 let task = match self.db.get_from_id(id) {
                     Some(data) => copy_iced(data.raw_content().clone()),
                     None => {
@@ -843,6 +851,11 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                     self.page -= 1;
                     self.focused = self.page * self.config.maximum_entries_by_page.get() as usize;
                 }
+            }
+            AppMsg::ToggleFavoritesFilter => {
+                self.show_favorites_only = !self.show_favorites_only;
+                self.page = 0;
+                self.focused = 0;
             }
             AppMsg::ContextMenu(msg) => match msg {
                 ContextMenuMsg::RemoveFavorite(entry) => {
@@ -940,10 +953,10 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
             }
             AppMsg::EditLatest => {
                 self.last_quit = None;
-                // Find the most recent text entry and open editor process
+                // Find the most recent text entry (pure chronological, ignoring favorite order)
                 let edit_info = self
                     .db
-                    .iter()
+                    .chronological_iter()
                     .find(|e| {
                         matches!(
                             e.preferred_content(&self.preferred_mime_types_regex),

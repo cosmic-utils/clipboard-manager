@@ -198,6 +198,8 @@ pub trait DbTrait: Sized {
 
     fn iter(&self) -> impl Iterator<Item = &'_ Self::Entry>;
 
+    fn chronological_iter(&self) -> impl Iterator<Item = &'_ Self::Entry>;
+
     fn search_iter(&self) -> impl Iterator<Item = &'_ Self::Entry>;
 
     fn either_iter(

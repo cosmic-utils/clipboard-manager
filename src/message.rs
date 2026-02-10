@@ -43,6 +43,7 @@ pub enum AppMsg {
         reply: Arc<Mutex<Option<tokio::sync::oneshot::Sender<Result<(String, Vec<u8>), String>>>>>,
     },
     EditLatest,
+    ToggleFavoritesFilter,
     EditorEvent(EditorToApp),
     EditorProcessExited,
     DbusFavorites,
