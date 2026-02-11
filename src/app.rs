@@ -24,7 +24,7 @@ use futures::executor::block_on;
 use regex::Regex;
 
 use crate::clipboard::ClipboardError;
-use crate::config::{Config, PRIVATE_MODE, SYNC_PRIMARY_SELECTION};
+use crate::config::{Config, PRIVATE_MODE, SELECTION_BUFFER_ENABLED, SKIP_NEXT_CLIPBOARD};
 use crate::db::{Content, DbMessage, DbTrait, EntryId, EntryTrait, MimeDataMap};
 use crate::editor_ipc::{self, EditorToApp};
 use crate::message::{AppMsg, ConfigMsg, ContextMenuMsg, FavoriteSummary};
@@ -32,6 +32,7 @@ use crate::navigation::EventMsg;
 use crate::ipc::EntrySummary;
 use crate::utils::{sanitize_preview, task_message};
 use crate::ai;
+use crate::selection_buffer::SelectionBuffer;
 use crate::view::SCROLLABLE_ID;
 use crate::{clipboard, clipboard_watcher, config, ipc, navigation};
 
@@ -81,6 +82,7 @@ pub struct AppState<Db: DbTrait> {
     pub favoriting_state: Option<FavoritingState>,
     pub show_favorites_only: bool,
     pub current_entry_id: Option<EntryId>,
+    pub selection_buffer: SelectionBuffer,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -122,6 +124,7 @@ enum PopupKind {
     Popup,
     QuickSettings,
     Favorites,
+    Selections,
 }
 
 /// State for the inline "add favorite" title input flow.
@@ -219,6 +222,7 @@ impl<Db: DbTrait> AppState<Db> {
         self.focused = 0;
         self.page = 0;
         self.db.set_query_and_search("".into());
+        self.selection_buffer.search(String::new());
         self.favoriting_state = None;
         self.show_favorites_only = false;
 
@@ -251,7 +255,7 @@ impl<Db: DbTrait> AppState<Db> {
         let popup = Popup {
             kind,
             id: new_id,
-            is_layer_surface: use_layer_surface && matches!(kind, PopupKind::Popup | PopupKind::Favorites),
+            is_layer_surface: use_layer_surface && matches!(kind, PopupKind::Popup | PopupKind::Favorites | PopupKind::Selections),
         };
         self.popup.replace(popup);
 
@@ -329,6 +333,33 @@ impl<Db: DbTrait> AppState<Db> {
                 popup_settings.positioner.size_limits = Limits::NONE
                     .min_width(400.0)
                     .max_width(1200.0)
+                    .min_height(200.0)
+                    .max_height(500.0);
+                get_popup(popup_settings)
+            }
+            PopupKind::Selections if use_layer_surface => {
+                get_layer_surface(SctkLayerSurfaceSettings {
+                    id: new_id,
+                    keyboard_interactivity: KeyboardInteractivity::Exclusive,
+                    anchor: layer_surface::Anchor::empty(),
+                    namespace: "clipboard selections".into(),
+                    size: Some((Some(400), Some(530))),
+                    size_limits: Limits::NONE.min_width(1.0).min_height(1.0),
+                    ..Default::default()
+                })
+            }
+            PopupKind::Selections => {
+                let mut popup_settings = self.core.applet.get_popup_settings(
+                    self.core.main_window_id().unwrap(),
+                    new_id,
+                    None,
+                    None,
+                    None,
+                );
+
+                popup_settings.positioner.size_limits = Limits::NONE
+                    .min_width(300.0)
+                    .max_width(400.0)
                     .min_height(200.0)
                     .max_height(500.0);
                 get_popup(popup_settings)
@@ -527,7 +558,7 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
     fn init(core: Core, flags: Self::Flags) -> (Self, Task<Self::Message>) {
         let config = flags.config;
         PRIVATE_MODE.store(config.private_mode, atomic::Ordering::Relaxed);
-        SYNC_PRIMARY_SELECTION.store(config.sync_primary_selection, atomic::Ordering::Relaxed);
+        SELECTION_BUFFER_ENABLED.store(config.selection_buffer_enabled, atomic::Ordering::Relaxed);
 
         let db = block_on(async { Db::new(&config).await.unwrap() });
 
@@ -546,6 +577,7 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
             favoriting_state: None,
             show_favorites_only: false,
             current_entry_id: None,
+            selection_buffer: SelectionBuffer::new(config.selection_buffer_max_entries),
             preferred_mime_types_regex: config
                 .preferred_mime_types
                 .iter()
@@ -693,8 +725,11 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                 if config.private_mode != self.config.private_mode {
                     PRIVATE_MODE.store(config.private_mode, atomic::Ordering::Relaxed);
                 }
-                if config.sync_primary_selection != self.config.sync_primary_selection {
-                    SYNC_PRIMARY_SELECTION.store(config.sync_primary_selection, atomic::Ordering::Relaxed);
+                if config.selection_buffer_enabled != self.config.selection_buffer_enabled {
+                    SELECTION_BUFFER_ENABLED.store(config.selection_buffer_enabled, atomic::Ordering::Relaxed);
+                }
+                if config.selection_buffer_max_entries != self.config.selection_buffer_max_entries {
+                    self.selection_buffer.set_max(config.selection_buffer_max_entries);
                 }
                 if config.preferred_mime_types != self.config.preferred_mime_types {
                     self.preferred_mime_types_regex = config
@@ -726,7 +761,16 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                     self.clipboard_state = ClipboardState::Connected;
                 }
                 clipboard::ClipboardMessage::Data(data) => {
-                    if data.contains_key(PASSWORD_MANAGER_HINT_MIME) {
+                    // Check if this clipboard event came from primary selection sync (wl-copy).
+                    // If so, skip DB insert — the text is already in the selection buffer.
+                    if SKIP_NEXT_CLIPBOARD.compare_exchange(
+                        true,
+                        false,
+                        atomic::Ordering::AcqRel,
+                        atomic::Ordering::Relaxed,
+                    ).is_ok() {
+                        info!("skipping DB insert for primary selection sync");
+                    } else if data.contains_key(PASSWORD_MANAGER_HINT_MIME) {
                         info!("clipboard contains password manager hint, skipping storage");
                         self.last_entry_sensitive = true;
                     } else {
@@ -765,23 +809,57 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                     info!("primary clipboard watcher connected");
                 }
                 clipboard::ClipboardMessage::Data(data) => {
-                    // Extract text/plain from primary selection and copy to clipboard via wl-copy
                     if let Some(text_data) = data.get("text/plain") {
-                        match std::process::Command::new("wl-copy")
-                            .arg("--type")
-                            .arg("text/plain")
-                            .stdin(std::process::Stdio::piped())
-                            .spawn()
-                        {
-                            Ok(mut child) => {
-                                if let Some(mut stdin) = child.stdin.take() {
-                                    use std::io::Write;
-                                    let _ = stdin.write_all(text_data);
+                        if let Ok(text) = String::from_utf8(text_data.clone()) {
+                            if self.config.selection_buffer_enabled {
+                                // Always insert into the in-memory selection buffer
+                                self.selection_buffer.push(text.clone());
+
+                                if self.config.selection_buffer_sync_clipboard {
+                                    // Set skip flag so the regular watcher doesn't persist to DB
+                                    SKIP_NEXT_CLIPBOARD.store(true, atomic::Ordering::Release);
+
+                                    // Copy to clipboard via wl-copy for immediate Ctrl+V
+                                    match std::process::Command::new("wl-copy")
+                                        .arg("--type")
+                                        .arg("text/plain")
+                                        .stdin(std::process::Stdio::piped())
+                                        .spawn()
+                                    {
+                                        Ok(mut child) => {
+                                            if let Some(mut stdin) = child.stdin.take() {
+                                                use std::io::Write;
+                                                let _ = stdin.write_all(text_data);
+                                            }
+                                            let _ = child.wait();
+                                        }
+                                        Err(e) => {
+                                            // Clear skip flag on failure
+                                            SKIP_NEXT_CLIPBOARD.store(false, atomic::Ordering::Release);
+                                            error!("primary sync: wl-copy failed: {e}");
+                                        }
+                                    }
                                 }
-                                let _ = child.wait();
-                            }
-                            Err(e) => {
-                                error!("primary sync: wl-copy failed: {e}");
+                                // If sync_clipboard is false, text only goes to buffer (no wl-copy)
+                            } else {
+                                // Selection buffer disabled — old behavior: just wl-copy to clipboard
+                                match std::process::Command::new("wl-copy")
+                                    .arg("--type")
+                                    .arg("text/plain")
+                                    .stdin(std::process::Stdio::piped())
+                                    .spawn()
+                                {
+                                    Ok(mut child) => {
+                                        if let Some(mut stdin) = child.stdin.take() {
+                                            use std::io::Write;
+                                            let _ = stdin.write_all(text_data);
+                                        }
+                                        let _ = child.wait();
+                                    }
+                                    Err(e) => {
+                                        error!("primary sync: wl-copy failed: {e}");
+                                    }
+                                }
                             }
                         }
                     }
@@ -878,9 +956,12 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                 ConfigMsg::UniqueSession(unique_session) => {
                     config_set!(unique_session, unique_session);
                 }
-                ConfigMsg::SyncPrimarySelection(sync_primary_selection) => {
-                    config_set!(sync_primary_selection, sync_primary_selection);
-                    SYNC_PRIMARY_SELECTION.store(sync_primary_selection, atomic::Ordering::Relaxed);
+                ConfigMsg::SelectionBufferEnabled(enabled) => {
+                    config_set!(selection_buffer_enabled, enabled);
+                    SELECTION_BUFFER_ENABLED.store(enabled, atomic::Ordering::Relaxed);
+                }
+                ConfigMsg::SelectionBufferSyncClipboard(sync) => {
+                    config_set!(selection_buffer_sync_clipboard, sync);
                 }
             },
             AppMsg::NextPage => {
@@ -1082,6 +1163,39 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                 self.last_quit = None;
                 return self.toggle_popup_ext(PopupKind::Favorites, true);
             }
+            AppMsg::DbusToggleSelections => {
+                self.last_quit = None;
+                return self.toggle_popup_ext(PopupKind::Selections, true);
+            }
+            AppMsg::SelectionSearch(query) => {
+                self.selection_buffer.search(query);
+            }
+            AppMsg::SelectionCopy(id) => {
+                if let Some(entry) = self.selection_buffer.get_by_id(id) {
+                    let text_data = entry.text.as_bytes().to_vec();
+                    match std::process::Command::new("wl-copy")
+                        .arg("--type")
+                        .arg("text/plain")
+                        .stdin(std::process::Stdio::piped())
+                        .spawn()
+                    {
+                        Ok(mut child) => {
+                            if let Some(mut stdin) = child.stdin.take() {
+                                use std::io::Write;
+                                let _ = stdin.write_all(&text_data);
+                            }
+                            let _ = child.wait();
+                        }
+                        Err(e) => {
+                            error!("selection copy: wl-copy failed: {e}");
+                        }
+                    }
+                }
+                // Do NOT close popup — multi-grab workflow
+            }
+            AppMsg::ClearSelections => {
+                self.selection_buffer.clear();
+            }
             AppMsg::DbusListFavorites { reply } => {
                 let summaries: Vec<FavoriteSummary> = self
                     .db
@@ -1223,6 +1337,7 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
         let view = match &popup.kind {
             PopupKind::Popup => self.popup_view(),
             PopupKind::Favorites => self.favorites_view(),
+            PopupKind::Selections => self.selections_view(),
             PopupKind::QuickSettings => self.quick_settings_view(),
         };
 
@@ -1275,7 +1390,7 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                 clipboard::sub().map(AppMsg::ClipboardEvent)
             }));
 
-            if self.config.sync_primary_selection {
+            if self.config.selection_buffer_enabled {
                 subscriptions.push(Subscription::run(|| {
                     clipboard::primary_sub().map(AppMsg::PrimaryClipboardEvent)
                 }));

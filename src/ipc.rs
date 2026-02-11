@@ -41,6 +41,7 @@ enum IpcCommand {
         id: i64,
     },
     ToggleFavorites,
+    ToggleSelections,
     ListFavorites {
         reply: tokio::sync::oneshot::Sender<Vec<FavoriteSummary>>,
     },
@@ -116,6 +117,10 @@ impl ClipboardService {
 
     async fn toggle_favorites(&self) {
         let _ = self.tx.send(IpcCommand::ToggleFavorites).await;
+    }
+
+    async fn toggle_selections(&self) {
+        let _ = self.tx.send(IpcCommand::ToggleSelections).await;
     }
 
     /// Set or clear a favorite's title.
@@ -268,6 +273,9 @@ pub fn dbus_toggle_subscription() -> Subscription<AppMsg> {
                     Some(IpcCommand::ToggleFavorites) => {
                         output.send(AppMsg::DbusFavorites).await.ok();
                     }
+                    Some(IpcCommand::ToggleSelections) => {
+                        output.send(AppMsg::DbusToggleSelections).await.ok();
+                    }
                     Some(IpcCommand::ListFavorites { reply }) => {
                         output
                             .send(AppMsg::DbusListFavorites {
@@ -355,6 +363,19 @@ pub fn send_toggle_favorites() -> Result<(), Box<dyn std::error::Error>> {
         INTERFACE_NAME,
     )?;
     proxy.call_method("ToggleFavorites", &())?;
+    Ok(())
+}
+
+/// Send a ToggleSelections call to the running applet via D-Bus (blocking, for CLI use).
+pub fn send_toggle_selections() -> Result<(), Box<dyn std::error::Error>> {
+    let connection = zbus::blocking::Connection::session()?;
+    let proxy = zbus::blocking::Proxy::new(
+        &connection,
+        BUS_NAME,
+        OBJECT_PATH,
+        INTERFACE_NAME,
+    )?;
+    proxy.call_method("ToggleSelections", &())?;
     Ok(())
 }
 

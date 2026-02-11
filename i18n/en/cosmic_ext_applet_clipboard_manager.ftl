@@ -9,7 +9,8 @@ horizontal_layout = Horizontal
 add_favorite = Add Favorite
 remove_favorite = Remove Favorite
 unique_session = Unique session
-sync_primary_selection = Copy on select
+selection_buffer = Selection buffer
+selection_buffer_sync = Also copy to clipboard
 unknown_mime_types_title = Mime types
 
 edit-entry = Edit
@@ -19,6 +20,9 @@ favorite-title-placeholder = Title (optional)
 suggest-title = Suggesting title...
 rename-favorite = Rename
 untitled = untitled
+selections_title = Selections
+clear_selections = Clear
+search_selections = Search selections
 
 data_control = Dummy
     .title = You need to activate the data control Wayland protocol on your device

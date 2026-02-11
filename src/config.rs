@@ -33,14 +33,21 @@ pub struct Config {
     pub horizontal: bool,
     /// Reset the database at each login
     pub unique_session: bool,
-    /// Copy primary selection (mouse-selected text) to clipboard
-    pub sync_primary_selection: bool,
+    /// Enable the selection buffer (replaces sync_primary_selection)
+    pub selection_buffer_enabled: bool,
+    /// When selection buffer is enabled, also copy selected text to clipboard via wl-copy
+    pub selection_buffer_sync_clipboard: bool,
+    /// Maximum entries in the selection buffer
+    pub selection_buffer_max_entries: u32,
     pub maximum_entries_by_page: NonZeroU32,
     pub preferred_mime_types: Vec<String>,
 }
 
 pub static PRIVATE_MODE: AtomicBool = AtomicBool::new(false);
-pub static SYNC_PRIMARY_SELECTION: AtomicBool = AtomicBool::new(false);
+pub static SELECTION_BUFFER_ENABLED: AtomicBool = AtomicBool::new(false);
+/// Set to true just before wl-copy from primary selection sync.
+/// The regular clipboard handler checks this flag and skips DB insert if set.
+pub static SKIP_NEXT_CLIPBOARD: AtomicBool = AtomicBool::new(false);
 
 impl Config {
     pub fn maximum_entries_lifetime(&self) -> Option<Duration> {
@@ -57,7 +64,9 @@ impl Default for Config {
             maximum_entries_number: Some(500),
             horizontal: false,
             unique_session: false,
-            sync_primary_selection: false,
+            selection_buffer_enabled: false,
+            selection_buffer_sync_clipboard: true,
+            selection_buffer_max_entries: 1000,
             maximum_entries_by_page: NonZero::new(50).unwrap(),
             preferred_mime_types: Vec::new(),
         }

@@ -23,6 +23,7 @@ mod localize;
 mod message;
 mod my_widget;
 mod navigation;
+mod selection_buffer;
 mod utils;
 mod view;
 
@@ -60,6 +61,7 @@ fn print_help() {
     println!("OPTIONS:");
     println!("    -t, --toggle           Toggle the clipboard manager popup");
     println!("    -f, --favorites        Toggle the favorites-only popup");
+    println!("    -s, --selections       Toggle the selections buffer popup");
     println!("    -e, --edit             Open editor with latest text entry");
     println!("    -l, --list             List clipboard history to stdout");
     println!("        --list-favorites   List favorites with titles to stdout");
@@ -101,6 +103,10 @@ fn print_help() {
     println!("    For favorites browser:");
     println!("    Command: cosmic-ext-applet-clipboard-manager --favorites");
     println!("    Shortcut: Press Super+F (or your preferred shortcut)");
+    println!();
+    println!("    For selections buffer:");
+    println!("    Command: cosmic-ext-applet-clipboard-manager --selections");
+    println!("    Shortcut: Press Super+S (or your preferred shortcut)");
 }
 
 fn main() {
@@ -151,6 +157,14 @@ fn main() {
             localize::localize();
             setup_logs();
             favorites_app::run_favorites();
+            return;
+        }
+
+        if arg == "--selections" || arg == "-s" {
+            if let Err(e) = ipc::send_toggle_selections() {
+                eprintln!("Failed to toggle selections popup: {e}");
+                std::process::exit(1);
+            }
             return;
         }
 

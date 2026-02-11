@@ -48,6 +48,7 @@ pub enum AppMsg {
     EditorEvent(EditorToApp),
     EditorProcessExited,
     DbusFavorites,
+    DbusToggleSelections,
     DbusListFavorites {
         reply: Arc<Mutex<Option<tokio::sync::oneshot::Sender<Vec<FavoriteSummary>>>>>,
     },
@@ -59,6 +60,9 @@ pub enum AppMsg {
     TitleSuggested(EntryId, Option<String>),
     SetFavoriteTitle(EntryId, String),
     FavoriteTitleInput(String),
+    SelectionSearch(String),
+    SelectionCopy(u64),
+    ClearSelections,
 }
 
 /// Summary of a favorite entry for CLI listing.
@@ -94,5 +98,6 @@ pub enum ConfigMsg {
     #[expect(dead_code)]
     Horizontal(bool),
     UniqueSession(bool),
-    SyncPrimarySelection(bool),
+    SelectionBufferEnabled(bool),
+    SelectionBufferSyncClipboard(bool),
 }

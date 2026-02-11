@@ -11,7 +11,7 @@ use futures::Stream;
 use itertools::Itertools;
 use tokio::{io::AsyncReadExt, sync::mpsc};
 
-use crate::{clipboard_watcher, config::{PRIVATE_MODE, SYNC_PRIMARY_SELECTION}, db::MimeDataMap};
+use crate::{clipboard_watcher, config::{PRIVATE_MODE, SELECTION_BUFFER_ENABLED}, db::MimeDataMap};
 
 #[derive(Debug, Clone)]
 pub enum ClipboardMessage {
@@ -170,8 +170,8 @@ pub fn primary_sub() -> impl Stream<Item = ClipboardMessage> {
                                 .start_watching(clipboard_watcher::Seat::Unspecified)
                             {
                                 Ok(res) => {
-                                    if !SYNC_PRIMARY_SELECTION.load(atomic::Ordering::Relaxed) {
-                                        info!("primary: sync disabled");
+                                    if !SELECTION_BUFFER_ENABLED.load(atomic::Ordering::Relaxed) {
+                                        info!("primary: selection buffer disabled");
                                     } else if PRIVATE_MODE.load(atomic::Ordering::Relaxed) {
                                         info!("primary: private mode");
                                     } else if tx.blocking_send(WatchRes::Some(res)).is_err() {

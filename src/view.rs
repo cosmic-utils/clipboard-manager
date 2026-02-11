@@ -43,7 +43,7 @@ impl<Db: DbTrait> AppState<Db> {
                 .into()
         }
 
-        column()
+        let col = column()
             .width(Length::Fill)
             .spacing(20)
             .padding(10)
@@ -63,11 +63,27 @@ impl<Db: DbTrait> AppState<Db> {
                 |v| AppMsg::Config(ConfigMsg::UniqueSession(v)),
             ))
             .push(toggle_settings(
-                fl!("sync_primary_selection"),
-                self.config.sync_primary_selection,
-                |v| AppMsg::Config(ConfigMsg::SyncPrimarySelection(v)),
-            ))
-            .push(button::destructive(fl!("clear_entries")).on_press(AppMsg::Clear))
+                fl!("selection_buffer"),
+                self.config.selection_buffer_enabled,
+                |v| AppMsg::Config(ConfigMsg::SelectionBufferEnabled(v)),
+            ));
+
+        let col = if self.config.selection_buffer_enabled {
+            col.push(
+                container(
+                    toggle_settings(
+                        fl!("selection_buffer_sync"),
+                        self.config.selection_buffer_sync_clipboard,
+                        |v| AppMsg::Config(ConfigMsg::SelectionBufferSyncClipboard(v)),
+                    )
+                )
+                .padding(padding::left(20)),
+            )
+        } else {
+            col
+        };
+
+        col.push(button::destructive(fl!("clear_entries")).on_press(AppMsg::Clear))
             .into()
     }
 
@@ -135,6 +151,95 @@ impl<Db: DbTrait> AppState<Db> {
         } else {
             Length::Fill
         })
+        .into()
+    }
+
+    pub fn selections_view(&self) -> Element<'_, AppMsg> {
+        container({
+            let entries_iter: Box<dyn Iterator<Item = &_>> =
+                if self.selection_buffer.is_search_active() {
+                    Box::new(self.selection_buffer.search_iter())
+                } else {
+                    Box::new(self.selection_buffer.iter())
+                };
+
+            let now = chrono::Utc::now();
+
+            let entries: Vec<Element<'_, AppMsg>> = entries_iter
+                .map(|entry| {
+                    let preview = formatted_value(&entry.text, 3, 200);
+                    let age = now.signed_duration_since(entry.timestamp);
+                    let age_text = if age.num_hours() >= 1 {
+                        format!("{}h ago", age.num_hours())
+                    } else if age.num_minutes() >= 1 {
+                        format!("{}m ago", age.num_minutes())
+                    } else {
+                        "just now".to_string()
+                    };
+
+                    let inner = row()
+                        .spacing(10)
+                        .align_y(Alignment::Center)
+                        .push(
+                            container(text(preview.into_owned()))
+                                .width(Length::Fill),
+                        )
+                        .push(
+                            text::body(age_text)
+                                .class(cosmic::style::Text::Custom(|theme| {
+                                    cosmic::iced::widget::text::Style {
+                                        color: Some(theme.cosmic().palette.neutral_7.into()),
+                                    }
+                                })),
+                        );
+
+                    let entry_id = entry.id;
+                    button::custom(inner)
+                        .on_press(AppMsg::SelectionCopy(entry_id))
+                        .padding([8, 16])
+                        .width(Length::Fill)
+                        .class(Button::Standard)
+                        .into()
+                })
+                .collect();
+
+            column()
+                .push(
+                    container(
+                        row()
+                            .push(
+                                text_input(fl!("search_selections"), self.selection_buffer.get_query())
+                                    .always_active()
+                                    .on_input(AppMsg::SelectionSearch)
+                                    .on_paste(AppMsg::SelectionSearch)
+                                    .on_clear(AppMsg::SelectionSearch("".into()))
+                                    .width(Length::Fill),
+                            ),
+                    )
+                    .padding(padding::all(15f32).bottom(0)),
+                )
+                .push(
+                    container(
+                        scrollable(
+                            column::with_children(entries)
+                                .spacing(5f32)
+                                .padding(padding::right(10)),
+                        )
+                    )
+                    .padding(padding::all(20).top(0)),
+                )
+                .push(
+                    container(
+                        button::destructive(fl!("clear_selections"))
+                            .on_press(AppMsg::ClearSelections),
+                    )
+                    .padding(padding::all(15f32).top(0)),
+                )
+                .spacing(10)
+                .align_x(Alignment::Center)
+        })
+        .height(Length::Fixed(530f32))
+        .width(Length::Fixed(400f32))
         .into()
     }
 
