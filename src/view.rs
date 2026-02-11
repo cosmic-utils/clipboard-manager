@@ -62,6 +62,11 @@ impl<Db: DbTrait> AppState<Db> {
                 self.config.unique_session,
                 |v| AppMsg::Config(ConfigMsg::UniqueSession(v)),
             ))
+            .push(toggle_settings(
+                fl!("sync_primary_selection"),
+                self.config.sync_primary_selection,
+                |v| AppMsg::Config(ConfigMsg::SyncPrimarySelection(v)),
+            ))
             .push(button::destructive(fl!("clear_entries")).on_press(AppMsg::Clear))
             .into()
     }

@@ -24,7 +24,7 @@ use futures::executor::block_on;
 use regex::Regex;
 
 use crate::clipboard::ClipboardError;
-use crate::config::{Config, PRIVATE_MODE};
+use crate::config::{Config, PRIVATE_MODE, SYNC_PRIMARY_SELECTION};
 use crate::db::{Content, DbMessage, DbTrait, EntryId, EntryTrait, MimeDataMap};
 use crate::editor_ipc::{self, EditorToApp};
 use crate::message::{AppMsg, ConfigMsg, ContextMenuMsg, FavoriteSummary};
@@ -527,6 +527,7 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
     fn init(core: Core, flags: Self::Flags) -> (Self, Task<Self::Message>) {
         let config = flags.config;
         PRIVATE_MODE.store(config.private_mode, atomic::Ordering::Relaxed);
+        SYNC_PRIMARY_SELECTION.store(config.sync_primary_selection, atomic::Ordering::Relaxed);
 
         let db = block_on(async { Db::new(&config).await.unwrap() });
 
@@ -692,6 +693,9 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                 if config.private_mode != self.config.private_mode {
                     PRIVATE_MODE.store(config.private_mode, atomic::Ordering::Relaxed);
                 }
+                if config.sync_primary_selection != self.config.sync_primary_selection {
+                    SYNC_PRIMARY_SELECTION.store(config.sync_primary_selection, atomic::Ordering::Relaxed);
+                }
                 if config.preferred_mime_types != self.config.preferred_mime_types {
                     self.preferred_mime_types_regex = config
                         .preferred_mime_types
@@ -754,6 +758,39 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                     } else if let Some(data) = self.db.get(0) {
                         return copy_iced(data.raw_content().clone());
                     }
+                }
+            },
+            AppMsg::PrimaryClipboardEvent(message) => match message {
+                clipboard::ClipboardMessage::Connected => {
+                    info!("primary clipboard watcher connected");
+                }
+                clipboard::ClipboardMessage::Data(data) => {
+                    // Extract text/plain from primary selection and copy to clipboard via wl-copy
+                    if let Some(text_data) = data.get("text/plain") {
+                        match std::process::Command::new("wl-copy")
+                            .arg("--type")
+                            .arg("text/plain")
+                            .stdin(std::process::Stdio::piped())
+                            .spawn()
+                        {
+                            Ok(mut child) => {
+                                if let Some(mut stdin) = child.stdin.take() {
+                                    use std::io::Write;
+                                    let _ = stdin.write_all(text_data);
+                                }
+                                let _ = child.wait();
+                            }
+                            Err(e) => {
+                                error!("primary sync: wl-copy failed: {e}");
+                            }
+                        }
+                    }
+                }
+                clipboard::ClipboardMessage::EmptyKeyboard => {
+                    // Primary selection cleared — nothing to do
+                }
+                clipboard::ClipboardMessage::Error(e) => {
+                    error!("primary clipboard: {e}");
                 }
             },
             AppMsg::Copy(id) => {
@@ -840,6 +877,10 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                 }
                 ConfigMsg::UniqueSession(unique_session) => {
                     config_set!(unique_session, unique_session);
+                }
+                ConfigMsg::SyncPrimarySelection(sync_primary_selection) => {
+                    config_set!(sync_primary_selection, sync_primary_selection);
+                    SYNC_PRIMARY_SELECTION.store(sync_primary_selection, atomic::Ordering::Relaxed);
                 }
             },
             AppMsg::NextPage => {
@@ -1233,6 +1274,12 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
             subscriptions.push(Subscription::run(|| {
                 clipboard::sub().map(AppMsg::ClipboardEvent)
             }));
+
+            if self.config.sync_primary_selection {
+                subscriptions.push(Subscription::run(|| {
+                    clipboard::primary_sub().map(AppMsg::PrimaryClipboardEvent)
+                }));
+            }
         }
 
         Subscription::batch(subscriptions)

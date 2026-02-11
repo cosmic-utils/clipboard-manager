@@ -238,7 +238,7 @@ pub struct Watcher {
     primary: bool,
 }
 
-pub fn initialize<S>() -> Result<(EventQueue<S>, CommonState), Error>
+pub fn initialize<S>(primary: bool) -> Result<(EventQueue<S>, CommonState), Error>
 where
     S: Dispatch<WlRegistry, GlobalListContents> + 'static,
     S: Dispatch<ZwlrDataControlManagerV1, ()>,
@@ -260,12 +260,14 @@ where
     let qh = &queue.handle();
 
     // Verify that we got the clipboard manager.
-    let clipboard_manager = match globals.bind(qh, 1..=1, ()) {
+    // Primary selection requires protocol version 2.
+    let max_version = if primary { 2 } else { 1 };
+    let clipboard_manager = match globals.bind(qh, 1..=max_version, ()) {
         Ok(manager) => manager,
         Err(BindError::NotPresent | BindError::UnsupportedVersion) => {
             return Err(Error::MissingProtocol {
                 name: ZwlrDataControlManagerV1::interface().name,
-                version: 1,
+                version: max_version,
             });
         }
     };
@@ -291,8 +293,8 @@ where
 }
 
 impl Watcher {
-    pub fn init() -> Result<Self, Error> {
-        let (queue, mut common) = initialize::<State>()?;
+    pub fn init(primary: bool) -> Result<Self, Error> {
+        let (mut queue, mut common) = initialize::<State>(primary)?;
 
         // Check if there are no seats.
         if common.seats.is_empty() {
@@ -308,16 +310,22 @@ impl Watcher {
             data.set_device(Some(device));
         }
 
-        let state = State {
+        let mut state = State {
             common,
             offers: HashMap::new(),
             got_primary_selection: false,
         };
 
+        // Do an initial roundtrip so the compositor sends back the device's
+        // Selection / PrimarySelection events before start_watching is called.
+        queue
+            .roundtrip(&mut state)
+            .map_err(Error::WaylandCommunication)?;
+
         Ok(Watcher {
             state,
             queue,
-            primary: false,
+            primary,
         })
     }
 

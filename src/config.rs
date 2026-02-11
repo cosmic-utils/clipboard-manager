@@ -33,11 +33,14 @@ pub struct Config {
     pub horizontal: bool,
     /// Reset the database at each login
     pub unique_session: bool,
+    /// Copy primary selection (mouse-selected text) to clipboard
+    pub sync_primary_selection: bool,
     pub maximum_entries_by_page: NonZeroU32,
     pub preferred_mime_types: Vec<String>,
 }
 
 pub static PRIVATE_MODE: AtomicBool = AtomicBool::new(false);
+pub static SYNC_PRIMARY_SELECTION: AtomicBool = AtomicBool::new(false);
 
 impl Config {
     pub fn maximum_entries_lifetime(&self) -> Option<Duration> {
@@ -54,6 +57,7 @@ impl Default for Config {
             maximum_entries_number: Some(500),
             horizontal: false,
             unique_session: false,
+            sync_primary_selection: false,
             maximum_entries_by_page: NonZero::new(50).unwrap(),
             preferred_mime_types: Vec::new(),
         }

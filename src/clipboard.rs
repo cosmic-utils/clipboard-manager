@@ -11,7 +11,7 @@ use futures::Stream;
 use itertools::Itertools;
 use tokio::{io::AsyncReadExt, sync::mpsc};
 
-use crate::{clipboard_watcher, config::PRIVATE_MODE, db::MimeDataMap};
+use crate::{clipboard_watcher, config::{PRIVATE_MODE, SYNC_PRIMARY_SELECTION}, db::MimeDataMap};
 
 #[derive(Debug, Clone)]
 pub enum ClipboardMessage {
@@ -38,7 +38,7 @@ enum WatchRes<I> {
 pub fn sub() -> impl Stream<Item = ClipboardMessage> {
     channel(50, move |mut output| {
         async move {
-            match clipboard_watcher::Watcher::init() {
+            match clipboard_watcher::Watcher::init(false) {
                 Ok(mut clipboard_watcher) => {
                     let (tx, mut rx) = mpsc::channel(5);
 
@@ -144,6 +144,114 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
                 Err(e) => {
                     // todo: how to cancel properly?
                     // https://github.com/pop-os/cosmic-files/blob/d96d48995d49e17f01903ca4d89839eb4a1b1104/src/app.rs#L1704
+                    output
+                        .send(ClipboardMessage::Error(ClipboardError::Watch(e.into())))
+                        .await
+                        .unwrap();
+
+                    std::future::pending::<()>().await;
+                }
+            };
+        }
+    })
+}
+
+pub fn primary_sub() -> impl Stream<Item = ClipboardMessage> {
+    channel(50, move |mut output| {
+        async move {
+            match clipboard_watcher::Watcher::init(true) {
+                Ok(mut clipboard_watcher) => {
+                    let (tx, mut rx) = mpsc::channel(5);
+
+                    tokio::task::spawn_blocking(move || {
+                        loop {
+                            debug!("primary: start watching");
+                            match clipboard_watcher
+                                .start_watching(clipboard_watcher::Seat::Unspecified)
+                            {
+                                Ok(res) => {
+                                    if !SYNC_PRIMARY_SELECTION.load(atomic::Ordering::Relaxed) {
+                                        info!("primary: sync disabled");
+                                    } else if PRIVATE_MODE.load(atomic::Ordering::Relaxed) {
+                                        info!("primary: private mode");
+                                    } else if tx.blocking_send(WatchRes::Some(res)).is_err() {
+                                        break;
+                                    }
+                                }
+                                Err(e) => match e {
+                                    clipboard_watcher::Error::ClipboardEmpty => {
+                                        if tx.blocking_send(WatchRes::None).is_err() {
+                                            break;
+                                        }
+                                    }
+                                    _ => {
+                                        let _ = tx.blocking_send(WatchRes::Err(e));
+                                        break;
+                                    }
+                                },
+                            }
+                        }
+                    });
+                    output.send(ClipboardMessage::Connected).await.unwrap();
+
+                    loop {
+                        match rx.recv().await {
+                            Some(WatchRes::Some(res)) => {
+                                let mut data = MimeDataMap::new();
+
+                                for (mime_type, mut pipe) in res {
+                                    let mut contents = Vec::new();
+
+                                    match tokio::time::timeout(
+                                        Duration::from_millis(500),
+                                        pipe.read_to_end(&mut contents),
+                                    )
+                                    .await
+                                    {
+                                        Ok(Ok(len)) => {
+                                            if len == 0 {
+                                                debug!("primary: data is empty: {mime_type}");
+                                            } else {
+                                                data.insert(mime_type, contents);
+                                            }
+                                        }
+                                        Ok(Err(e)) => {
+                                            warn!(
+                                                "primary: read error on pipe: {mime_type} {e}"
+                                            );
+                                        }
+                                        Err(e) => {
+                                            warn!(
+                                                "primary: read timeout on pipe: {mime_type} {e}"
+                                            );
+                                        }
+                                    }
+                                }
+
+                                if !data.is_empty() {
+                                    output.send(ClipboardMessage::Data(data)).await.unwrap();
+                                }
+                            }
+
+                            Some(WatchRes::None) => {
+                                debug!("primary: empty selection");
+                                output.send(ClipboardMessage::EmptyKeyboard).await.unwrap();
+                            }
+                            Some(WatchRes::Err(e)) => {
+                                output
+                                    .send(ClipboardMessage::Error(ClipboardError::Watch(e.into())))
+                                    .await
+                                    .unwrap();
+                                std::future::pending::<()>().await;
+                            }
+                            None => {
+                                std::future::pending::<()>().await;
+                            }
+                        }
+                    }
+                }
+
+                Err(e) => {
                     output
                         .send(ClipboardMessage::Error(ClipboardError::Watch(e.into())))
                         .await

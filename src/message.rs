@@ -17,6 +17,7 @@ pub enum AppMsg {
     ClosePopup,
     Search(String),
     ClipboardEvent(ClipboardMessage),
+    PrimaryClipboardEvent(ClipboardMessage),
     #[allow(dead_code)]
     RetryConnectingClipboard,
     Copy(EntryId),
@@ -93,4 +94,5 @@ pub enum ConfigMsg {
     #[expect(dead_code)]
     Horizontal(bool),
     UniqueSession(bool),
+    SyncPrimarySelection(bool),
 }

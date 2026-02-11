@@ -9,6 +9,7 @@ horizontal_layout = Horizontal
 add_favorite = Add Favorite
 remove_favorite = Remove Favorite
 unique_session = Unique session
+sync_primary_selection = Copy on select
 unknown_mime_types_title = Mime types
 
 edit-entry = Edit
