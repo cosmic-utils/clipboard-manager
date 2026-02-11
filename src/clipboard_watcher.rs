@@ -365,7 +365,12 @@ impl Watcher {
         // Check if we found anything.
         match offer.clone() {
             Some(offer) => {
-                let mime_types = self.state.offers.remove(&offer).unwrap();
+                // The offer may have already been consumed on a previous iteration
+                // (e.g. blocking_dispatch woke from a regular Selection event but
+                // primary_offer still references the old, already-read offer).
+                let Some(mime_types) = self.state.offers.remove(&offer) else {
+                    return Err(Error::ClipboardEmpty);
+                };
 
                 let mut res = Vec::with_capacity(mime_types.len());
 
