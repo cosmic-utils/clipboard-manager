@@ -63,6 +63,10 @@ pub enum AppMsg {
     SelectionSearch(String),
     SelectionCopy(u64),
     ClearSelections,
+    CursorCaptured {
+        position: cosmic::iced_core::Point,
+        target: crate::app::PopupKind,
+    },
 }
 
 /// Summary of a favorite entry for CLI listing.

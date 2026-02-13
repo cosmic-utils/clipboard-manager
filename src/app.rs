@@ -9,7 +9,9 @@ use cosmic::iced::{self, Limits};
 use cosmic::iced_core::widget::operation;
 use cosmic::iced_futures::Subscription;
 use cosmic::iced_runtime::core::window;
-use cosmic::iced_runtime::platform_specific::wayland::layer_surface::SctkLayerSurfaceSettings;
+use cosmic::iced_runtime::platform_specific::wayland::layer_surface::{
+    IcedMargin, SctkLayerSurfaceSettings,
+};
 use cosmic::iced_widget::qr_code;
 use cosmic::iced_widget::scrollable::RelativeOffset;
 use cosmic::iced_winit::commands::layer_surface::{
@@ -83,6 +85,8 @@ pub struct AppState<Db: DbTrait> {
     pub show_favorites_only: bool,
     pub current_entry_id: Option<EntryId>,
     pub selection_buffer: SelectionBuffer,
+    /// Temporary overlay for capturing cursor position before opening a positioned popup.
+    cursor_capture: Option<CursorCapture>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -120,11 +124,18 @@ struct Popup {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-enum PopupKind {
+pub enum PopupKind {
     Popup,
     QuickSettings,
     Favorites,
     Selections,
+}
+
+/// Tracks the temporary overlay surface used to capture cursor position.
+#[derive(Debug, Clone, Copy)]
+struct CursorCapture {
+    overlay_id: Id,
+    target_popup: PopupKind,
 }
 
 /// State for the inline "add favorite" title input flow.
@@ -206,6 +217,12 @@ impl<Db: DbTrait> AppState<Db> {
 
     fn toggle_popup_ext(&mut self, kind: PopupKind, force_layer_surface: bool) -> Task<AppMsg> {
         self.qr_code.take();
+
+        // If cursor capture is in progress, cancel it
+        if self.cursor_capture.is_some() {
+            return self.close_popup();
+        }
+
         match &self.popup {
             Some(popup) => {
                 if popup.kind == kind {
@@ -225,6 +242,11 @@ impl<Db: DbTrait> AppState<Db> {
         self.selection_buffer.search(String::new());
         self.favoriting_state = None;
         self.show_favorites_only = false;
+
+        // Clean up cursor capture overlay if it's active
+        if let Some(capture) = self.cursor_capture.take() {
+            return destroy_layer_surface(capture.overlay_id);
+        }
 
         if let Some(popup) = self.popup.take() {
             self.last_quit = Some((Utc::now().timestamp_millis(), popup.kind));
@@ -249,42 +271,44 @@ impl<Db: DbTrait> AppState<Db> {
             return Task::none();
         }
 
-        let new_id = Id::unique();
         let use_layer_surface = force_layer_surface || self.config.horizontal;
 
+        // For D-Bus triggered popups (force_layer_surface), use the two-phase
+        // cursor capture: create a fullscreen transparent overlay first,
+        // then position the real popup at the cursor location.
+        if use_layer_surface && matches!(kind, PopupKind::Popup | PopupKind::Favorites | PopupKind::Selections) {
+            let overlay_id = Id::unique();
+            self.cursor_capture = Some(CursorCapture {
+                overlay_id,
+                target_popup: kind,
+            });
+            return get_layer_surface(SctkLayerSurfaceSettings {
+                id: overlay_id,
+                layer: layer_surface::Layer::Overlay,
+                keyboard_interactivity: KeyboardInteractivity::None,
+                anchor: layer_surface::Anchor::TOP
+                    | layer_surface::Anchor::BOTTOM
+                    | layer_surface::Anchor::LEFT
+                    | layer_surface::Anchor::RIGHT,
+                namespace: "cursor-capture".into(),
+                size: None, // fullscreen via all-edge anchoring
+                input_zone: None, // accept all pointer input
+                size_limits: Limits::NONE.min_width(1.0).min_height(1.0),
+                ..Default::default()
+            });
+        }
+
+        // Normal popup (icon click) — use XDG popup anchored to applet
+        let new_id = Id::unique();
         let popup = Popup {
             kind,
             id: new_id,
-            is_layer_surface: use_layer_surface && matches!(kind, PopupKind::Popup | PopupKind::Favorites | PopupKind::Selections),
+            is_layer_surface: false,
         };
         self.popup.replace(popup);
 
         match kind {
-            PopupKind::Popup if use_layer_surface => {
-                // Use layer surface for --toggle or horizontal layout.
-                // Empty anchor = centered on screen (no edge attachment).
-                get_layer_surface(SctkLayerSurfaceSettings {
-                    id: new_id,
-                    keyboard_interactivity: KeyboardInteractivity::Exclusive,
-                    anchor: if self.config.horizontal {
-                        layer_surface::Anchor::BOTTOM
-                            | layer_surface::Anchor::LEFT
-                            | layer_surface::Anchor::RIGHT
-                    } else {
-                        layer_surface::Anchor::empty()
-                    },
-                    namespace: "clipboard manager".into(),
-                    size: if self.config.horizontal {
-                        Some((None, Some(350)))
-                    } else {
-                        Some((Some(400), Some(530)))
-                    },
-                    size_limits: Limits::NONE.min_width(1.0).min_height(1.0),
-                    ..Default::default()
-                })
-            }
             PopupKind::Popup => {
-                // Use XDG popup anchored to applet icon for normal click
                 let mut popup_settings = self.core.applet.get_popup_settings(
                     self.core.main_window_id().unwrap(),
                     new_id,
@@ -299,27 +323,6 @@ impl<Db: DbTrait> AppState<Db> {
                     .min_height(200.0)
                     .max_height(500.0);
                 get_popup(popup_settings)
-            }
-            PopupKind::Favorites if use_layer_surface => {
-                get_layer_surface(SctkLayerSurfaceSettings {
-                    id: new_id,
-                    keyboard_interactivity: KeyboardInteractivity::Exclusive,
-                    anchor: if self.config.horizontal {
-                        layer_surface::Anchor::BOTTOM
-                            | layer_surface::Anchor::LEFT
-                            | layer_surface::Anchor::RIGHT
-                    } else {
-                        layer_surface::Anchor::empty()
-                    },
-                    namespace: "clipboard favorites".into(),
-                    size: if self.config.horizontal {
-                        Some((None, Some(350)))
-                    } else {
-                        Some((Some(1200), Some(530)))
-                    },
-                    size_limits: Limits::NONE.min_width(1.0).min_height(1.0),
-                    ..Default::default()
-                })
             }
             PopupKind::Favorites => {
                 let mut popup_settings = self.core.applet.get_popup_settings(
@@ -336,17 +339,6 @@ impl<Db: DbTrait> AppState<Db> {
                     .min_height(200.0)
                     .max_height(500.0);
                 get_popup(popup_settings)
-            }
-            PopupKind::Selections if use_layer_surface => {
-                get_layer_surface(SctkLayerSurfaceSettings {
-                    id: new_id,
-                    keyboard_interactivity: KeyboardInteractivity::Exclusive,
-                    anchor: layer_surface::Anchor::empty(),
-                    namespace: "clipboard selections".into(),
-                    size: Some((Some(400), Some(530))),
-                    size_limits: Limits::NONE.min_width(1.0).min_height(1.0),
-                    ..Default::default()
-                })
             }
             PopupKind::Selections => {
                 let mut popup_settings = self.core.applet.get_popup_settings(
@@ -578,6 +570,7 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
             show_favorites_only: false,
             current_entry_id: None,
             selection_buffer: SelectionBuffer::new(config.selection_buffer_max_entries),
+            cursor_capture: None,
             preferred_mime_types_regex: config
                 .preferred_mime_types
                 .iter()
@@ -604,6 +597,13 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
     fn on_close_requested(&self, id: window::Id) -> Option<AppMsg> {
         info!("on_close_requested");
 
+        // If the cursor capture overlay is dismissed (e.g. Escape), close it
+        if let Some(capture) = &self.cursor_capture {
+            if capture.overlay_id == id {
+                return Some(AppMsg::ClosePopup);
+            }
+        }
+
         if let Some(popup) = &self.popup
             && popup.id == id
         {
@@ -628,6 +628,43 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
             AppMsg::DbusToggle => {
                 self.last_quit = None;
                 return self.toggle_popup_ext(PopupKind::Popup, true);
+            }
+            AppMsg::CursorCaptured { position, target } => {
+                if let Some(capture) = self.cursor_capture.take() {
+                    // Phase 2: destroy the transparent overlay, create positioned popup
+                    let destroy = destroy_layer_surface(capture.overlay_id);
+
+                    let popup_id = Id::unique();
+                    let (width, height) = match target {
+                        PopupKind::Popup | PopupKind::Selections => (400, 530),
+                        PopupKind::Favorites => (1200, 530),
+                        PopupKind::QuickSettings => (250, 400),
+                    };
+
+                    self.popup = Some(Popup {
+                        kind: target,
+                        id: popup_id,
+                        is_layer_surface: true,
+                    });
+
+                    let open = get_layer_surface(SctkLayerSurfaceSettings {
+                        id: popup_id,
+                        layer: layer_surface::Layer::Top,
+                        keyboard_interactivity: KeyboardInteractivity::Exclusive,
+                        anchor: layer_surface::Anchor::TOP | layer_surface::Anchor::LEFT,
+                        margin: IcedMargin {
+                            top: position.y as i32,
+                            left: position.x as i32,
+                            ..Default::default()
+                        },
+                        namespace: "clipboard manager".into(),
+                        size: Some((Some(width), Some(height))),
+                        size_limits: Limits::NONE.min_width(1.0).min_height(1.0),
+                        ..Default::default()
+                    });
+
+                    return Task::batch(vec![destroy, open]);
+                }
             }
             AppMsg::DbusListEntries { reply } => {
                 let summaries: Vec<EntrySummary> = self
@@ -1330,6 +1367,19 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
     }
 
     fn view_window(&self, _id: Id) -> Element<'_, Self::Message> {
+        // Render the cursor capture overlay as a transparent mouse_area
+        if let Some(capture) = &self.cursor_capture {
+            let target = capture.target_popup;
+            return MouseArea::new(
+                Space::new(cosmic::iced::Length::Fill, cosmic::iced::Length::Fill),
+            )
+            .on_move(move |pos| AppMsg::CursorCaptured {
+                position: pos,
+                target,
+            })
+            .into();
+        }
+
         let Some(popup) = &self.popup else {
             return Space::new(0, 0).into();
         };
