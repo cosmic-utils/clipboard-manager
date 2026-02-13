@@ -1237,6 +1237,27 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                 }
                 // Do NOT close popup — multi-grab workflow
             }
+            AppMsg::SelectionToFavorite(id) => {
+                if let Some(entry) = self.selection_buffer.get_by_id(id) {
+                    let text = entry.text.clone();
+                    let mut data = MimeDataMap::new();
+                    data.insert("text/plain".to_string(), text.as_bytes().to_vec());
+                    match block_on(self.db.insert(data)) {
+                        Ok(()) => {
+                            // Get the newly inserted entry's ID (first in chronological order)
+                            let new_id = self.db.chronological_iter().next().map(|e| e.id());
+                            if let Some(new_id) = new_id {
+                                if let Err(e) = block_on(self.db.add_favorite(new_id, None)) {
+                                    error!("failed to add favorite: {e}");
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            error!("failed to insert selection as entry: {e}");
+                        }
+                    }
+                }
+            }
             AppMsg::ClearSelections => {
                 self.selection_buffer.clear();
             }

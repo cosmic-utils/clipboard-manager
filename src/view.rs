@@ -177,6 +177,8 @@ impl<Db: DbTrait> AppState<Db> {
                         "just now".to_string()
                     };
 
+                    let entry_id = entry.id;
+
                     let inner = row()
                         .spacing(10)
                         .align_y(Alignment::Center)
@@ -191,9 +193,12 @@ impl<Db: DbTrait> AppState<Db> {
                                         color: Some(theme.cosmic().palette.neutral_7.into()),
                                     }
                                 })),
+                        )
+                        .push(
+                            icon_button!("star24")
+                                .on_press(AppMsg::SelectionToFavorite(entry_id)),
                         );
 
-                    let entry_id = entry.id;
                     button::custom(inner)
                         .on_press(AppMsg::SelectionCopy(entry_id))
                         .padding([8, 16])
@@ -300,8 +305,7 @@ impl<Db: DbTrait> AppState<Db> {
                     row()
                         .push({
                             let focused_id = self.db.get(self.focused).map(|d| d.id());
-                            text_input::search_input(fl!("search_entries"), self.db.get_query())
-                                .always_active()
+                            let mut search = text_input::search_input(fl!("search_entries"), self.db.get_query())
                                 .on_input(AppMsg::Search)
                                 .on_paste(AppMsg::Search)
                                 .on_clear(AppMsg::Search("".into()))
@@ -309,7 +313,12 @@ impl<Db: DbTrait> AppState<Db> {
                                 .width(match self.config.horizontal {
                                     true => Length::Fixed(250f32),
                                     false => Length::Fill,
-                                })
+                                });
+                            // Don't steal focus from the favorite title input
+                            if self.favoriting_state.is_none() {
+                                search = search.always_active();
+                            }
+                            search
                         })
                         .push(horizontal_space().width(5))
                         .push(if self.show_favorites_only {
@@ -714,12 +723,17 @@ impl<Db: DbTrait> AppState<Db> {
                     .width(Length::Fill)
                     .into()
             } else {
+                let title_for_submit = state.title_input.clone();
                 container(
                     column()
                         .spacing(5)
                         .push(
                             text_input(fl!("favorite-title-placeholder"), &state.title_input)
                                 .on_input(AppMsg::FavoriteTitleInput)
+                                .on_submit(move |_| AppMsg::ConfirmFavorite(
+                                    entry_id,
+                                    Some(title_for_submit.clone()),
+                                ))
                                 .width(Length::Fill),
                         )
                         .push(

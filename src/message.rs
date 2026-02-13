@@ -62,6 +62,7 @@ pub enum AppMsg {
     FavoriteTitleInput(String),
     SelectionSearch(String),
     SelectionCopy(u64),
+    SelectionToFavorite(u64),
     ClearSelections,
     CursorCaptured {
         position: cosmic::iced_core::Point,
