@@ -9,9 +9,7 @@ use cosmic::iced::{self, Limits};
 use cosmic::iced_core::widget::operation;
 use cosmic::iced_futures::Subscription;
 use cosmic::iced_runtime::core::window;
-use cosmic::iced_runtime::platform_specific::wayland::layer_surface::{
-    IcedMargin, SctkLayerSurfaceSettings,
-};
+use cosmic::iced_runtime::platform_specific::wayland::layer_surface::SctkLayerSurfaceSettings;
 use cosmic::iced_widget::qr_code;
 use cosmic::iced_widget::scrollable::RelativeOffset;
 use cosmic::iced_winit::commands::layer_surface::{
@@ -87,10 +85,12 @@ pub struct AppState<Db: DbTrait> {
     pub selection_buffer: SelectionBuffer,
     /// Temporary overlay for capturing cursor position before opening a positioned popup.
     cursor_capture: Option<CursorCapture>,
-    /// Suppress the next LayerEvent::Unfocused so it doesn't close the popup
-    /// that was just created from cursor capture (the overlay destruction
-    /// fires Unfocused before the new popup gains focus).
+    /// Suppress LayerEvent::Unfocused while a layer surface popup is open.
+    /// Unfocused fires spuriously when the layer surface is created/configured.
     suppress_unfocus: bool,
+    /// Cursor position for layer surface popups (content is positioned here
+    /// within the fullscreen overlay surface).
+    popup_position: Option<cosmic::iced_core::Point>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -246,6 +246,8 @@ impl<Db: DbTrait> AppState<Db> {
         self.selection_buffer.search(String::new());
         self.favoriting_state = None;
         self.show_favorites_only = false;
+        self.suppress_unfocus = false;
+        self.popup_position = None;
 
         // Clean up cursor capture overlay if it's active
         if let Some(capture) = self.cursor_capture.take() {
@@ -277,27 +279,23 @@ impl<Db: DbTrait> AppState<Db> {
 
         let use_layer_surface = force_layer_surface || self.config.horizontal;
 
-        // For D-Bus triggered popups (force_layer_surface), create a
-        // centered layer surface directly (no cursor capture overlay).
+        // For D-Bus triggered popups (force_layer_surface), use a two-phase
+        // approach: first create a fullscreen transparent overlay to capture
+        // the cursor position, then render the popup at that position within
+        // the same surface. This works around cosmic-comp not sending configure
+        // events for partially-anchored layer surfaces.
         if use_layer_surface && matches!(kind, PopupKind::Popup | PopupKind::Favorites | PopupKind::Selections) {
-            let popup_id = Id::unique();
-            let (width, height) = match kind {
-                PopupKind::Popup | PopupKind::Selections => (400, 530),
-                PopupKind::Favorites => (1200, 530),
-                PopupKind::QuickSettings => (250, 400),
-            };
-
-            self.popup = Some(Popup {
-                kind,
-                id: popup_id,
-                is_layer_surface: true,
+            let overlay_id = Id::unique();
+            self.cursor_capture = Some(CursorCapture {
+                overlay_id,
+                target_popup: kind,
             });
-            // Suppress the first Unfocused event — it fires when the
-            // applet icon surface loses focus to the new layer surface.
+            // Suppress Unfocused events — the applet icon surface loses focus
+            // when the overlay grabs exclusive keyboard.
             self.suppress_unfocus = true;
 
             return get_layer_surface(SctkLayerSurfaceSettings {
-                id: popup_id,
+                id: overlay_id,
                 layer: layer_surface::Layer::Overlay,
                 keyboard_interactivity: KeyboardInteractivity::Exclusive,
                 anchor: layer_surface::Anchor::TOP
@@ -305,7 +303,7 @@ impl<Db: DbTrait> AppState<Db> {
                     | layer_surface::Anchor::LEFT
                     | layer_surface::Anchor::RIGHT,
                 namespace: "clipboard manager".into(),
-                size: None, // fullscreen via all-edge anchoring; content is centered in view
+                size: None,
                 // Large min size prevents iced autosize from shrinking the surface
                 size_limits: Limits::NONE.min_width(10000.0).min_height(10000.0),
                 ..Default::default()
@@ -586,6 +584,7 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
             selection_buffer: SelectionBuffer::new(config.selection_buffer_max_entries),
             cursor_capture: None,
             suppress_unfocus: false,
+            popup_position: None,
             preferred_mime_types_regex: config
                 .preferred_mime_types
                 .iter()
@@ -646,53 +645,23 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
             }
             AppMsg::CursorCaptured { position, target } => {
                 if let Some(capture) = self.cursor_capture.take() {
-                    // Phase 2: destroy the transparent overlay first, then
-                    // defer popup creation to a subsequent update cycle.
-                    // Creating both in the same batch causes the compositor
-                    // to skip the configure event for the new surface.
-                    self.suppress_unfocus = true;
-                    let destroy = destroy_layer_surface(capture.overlay_id);
-                    // Delay popup creation to ensure the compositor processes
-                    // the overlay destruction before the new surface is created.
-                    let deferred = Task::future(async move {
-                        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-                        cosmic::action::app(AppMsg::OpenPositionedPopup {
-                            position,
-                            target,
-                        })
+                    // Transition the same fullscreen overlay from capture mode
+                    // to popup mode. No destroy/create — just change what
+                    // view_window renders. This avoids the cosmic-comp bug where
+                    // partially-anchored layer surfaces never get configure events.
+                    self.popup = Some(Popup {
+                        kind: target,
+                        id: capture.overlay_id,
+                        is_layer_surface: true,
                     });
-                    return Task::batch(vec![destroy, deferred]);
+                    self.popup_position = Some(position);
+                    self.suppress_unfocus = true;
                 }
             }
-            AppMsg::OpenPositionedPopup { position, target } => {
-                let popup_id = Id::unique();
-                let (width, height) = match target {
-                    PopupKind::Popup | PopupKind::Selections => (400, 530),
-                    PopupKind::Favorites => (1200, 530),
-                    PopupKind::QuickSettings => (250, 400),
-                };
-
-                self.popup = Some(Popup {
-                    kind: target,
-                    id: popup_id,
-                    is_layer_surface: true,
-                });
-
-                return get_layer_surface(SctkLayerSurfaceSettings {
-                    id: popup_id,
-                    layer: layer_surface::Layer::Top,
-                    keyboard_interactivity: KeyboardInteractivity::Exclusive,
-                    anchor: layer_surface::Anchor::TOP | layer_surface::Anchor::LEFT,
-                    margin: IcedMargin {
-                        top: position.y as i32,
-                        left: position.x as i32,
-                        ..Default::default()
-                    },
-                    namespace: "clipboard manager".into(),
-                    size: Some((Some(width), Some(height))),
-                    size_limits: Limits::NONE.min_width(1.0).min_height(1.0),
-                    ..Default::default()
-                });
+            AppMsg::OpenPositionedPopup { .. } => {
+                // Unused — kept for message enum compatibility.
+                // Cursor-positioned popups now use the single-surface
+                // transition in CursorCaptured instead.
             }
             AppMsg::DbusListEntries { reply } => {
                 let summaries: Vec<EntrySummary> = self
@@ -1429,9 +1398,10 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
             PopupKind::QuickSettings => self.quick_settings_view(),
         };
 
-        // Layer surface popups are fullscreen overlays — center the content
-        // and dismiss on click outside. We skip popup_container() because its
-        // Autosize widget shrinks the surface to content size (~360px).
+        // Layer surface popups are fullscreen overlays — position the content
+        // at the cursor (if captured) or center it, and dismiss on click outside.
+        // We skip popup_container() because its Autosize widget shrinks the
+        // surface to content size (~360px).
         if popup.is_layer_surface {
             let cosmic_theme = self.core.system_theme().cosmic();
             let corners = cosmic_theme.corner_radii;
@@ -1456,12 +1426,30 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                 }))
                 .height(cosmic::iced::Length::Shrink)
                 .max_height(530.0);
-            let centered = cosmic::widget::container(styled)
-                .width(cosmic::iced::Length::Fill)
-                .height(cosmic::iced::Length::Fill)
-                .align_x(cosmic::iced::Alignment::Center)
-                .align_y(cosmic::iced::Alignment::Center);
-            return MouseArea::new(centered)
+
+            let outer = if let Some(pos) = self.popup_position {
+                // Position popup at cursor coordinates using padding
+                cosmic::widget::container(styled)
+                    .width(cosmic::iced::Length::Fill)
+                    .height(cosmic::iced::Length::Fill)
+                    .align_x(cosmic::iced::Alignment::Start)
+                    .align_y(cosmic::iced::Alignment::Start)
+                    .padding(cosmic::iced::Padding {
+                        top: pos.y,
+                        right: 0.0,
+                        bottom: 0.0,
+                        left: pos.x,
+                    })
+            } else {
+                // Center fallback (no cursor position captured)
+                cosmic::widget::container(styled)
+                    .width(cosmic::iced::Length::Fill)
+                    .height(cosmic::iced::Length::Fill)
+                    .align_x(cosmic::iced::Alignment::Center)
+                    .align_y(cosmic::iced::Alignment::Center)
+            };
+
+            return MouseArea::new(outer)
                 .on_press(AppMsg::ClosePopup)
                 .into();
         }
