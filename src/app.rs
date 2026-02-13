@@ -87,6 +87,10 @@ pub struct AppState<Db: DbTrait> {
     pub selection_buffer: SelectionBuffer,
     /// Temporary overlay for capturing cursor position before opening a positioned popup.
     cursor_capture: Option<CursorCapture>,
+    /// Suppress the next LayerEvent::Unfocused so it doesn't close the popup
+    /// that was just created from cursor capture (the overlay destruction
+    /// fires Unfocused before the new popup gains focus).
+    suppress_unfocus: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -273,27 +277,37 @@ impl<Db: DbTrait> AppState<Db> {
 
         let use_layer_surface = force_layer_surface || self.config.horizontal;
 
-        // For D-Bus triggered popups (force_layer_surface), use the two-phase
-        // cursor capture: create a fullscreen transparent overlay first,
-        // then position the real popup at the cursor location.
+        // For D-Bus triggered popups (force_layer_surface), create a
+        // centered layer surface directly (no cursor capture overlay).
         if use_layer_surface && matches!(kind, PopupKind::Popup | PopupKind::Favorites | PopupKind::Selections) {
-            let overlay_id = Id::unique();
-            self.cursor_capture = Some(CursorCapture {
-                overlay_id,
-                target_popup: kind,
+            let popup_id = Id::unique();
+            let (width, height) = match kind {
+                PopupKind::Popup | PopupKind::Selections => (400, 530),
+                PopupKind::Favorites => (1200, 530),
+                PopupKind::QuickSettings => (250, 400),
+            };
+
+            self.popup = Some(Popup {
+                kind,
+                id: popup_id,
+                is_layer_surface: true,
             });
+            // Suppress the first Unfocused event — it fires when the
+            // applet icon surface loses focus to the new layer surface.
+            self.suppress_unfocus = true;
+
             return get_layer_surface(SctkLayerSurfaceSettings {
-                id: overlay_id,
+                id: popup_id,
                 layer: layer_surface::Layer::Overlay,
-                keyboard_interactivity: KeyboardInteractivity::None,
+                keyboard_interactivity: KeyboardInteractivity::Exclusive,
                 anchor: layer_surface::Anchor::TOP
                     | layer_surface::Anchor::BOTTOM
                     | layer_surface::Anchor::LEFT
                     | layer_surface::Anchor::RIGHT,
-                namespace: "cursor-capture".into(),
-                size: None, // fullscreen via all-edge anchoring
-                input_zone: None, // accept all pointer input
-                size_limits: Limits::NONE.min_width(1.0).min_height(1.0),
+                namespace: "clipboard manager".into(),
+                size: None, // fullscreen via all-edge anchoring; content is centered in view
+                // Large min size prevents iced autosize from shrinking the surface
+                size_limits: Limits::NONE.min_width(10000.0).min_height(10000.0),
                 ..Default::default()
             });
         }
@@ -571,6 +585,7 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
             current_entry_id: None,
             selection_buffer: SelectionBuffer::new(config.selection_buffer_max_entries),
             cursor_capture: None,
+            suppress_unfocus: false,
             preferred_mime_types_regex: config
                 .preferred_mime_types
                 .iter()
@@ -631,40 +646,53 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
             }
             AppMsg::CursorCaptured { position, target } => {
                 if let Some(capture) = self.cursor_capture.take() {
-                    // Phase 2: destroy the transparent overlay, create positioned popup
+                    // Phase 2: destroy the transparent overlay first, then
+                    // defer popup creation to a subsequent update cycle.
+                    // Creating both in the same batch causes the compositor
+                    // to skip the configure event for the new surface.
+                    self.suppress_unfocus = true;
                     let destroy = destroy_layer_surface(capture.overlay_id);
-
-                    let popup_id = Id::unique();
-                    let (width, height) = match target {
-                        PopupKind::Popup | PopupKind::Selections => (400, 530),
-                        PopupKind::Favorites => (1200, 530),
-                        PopupKind::QuickSettings => (250, 400),
-                    };
-
-                    self.popup = Some(Popup {
-                        kind: target,
-                        id: popup_id,
-                        is_layer_surface: true,
+                    // Delay popup creation to ensure the compositor processes
+                    // the overlay destruction before the new surface is created.
+                    let deferred = Task::future(async move {
+                        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                        cosmic::action::app(AppMsg::OpenPositionedPopup {
+                            position,
+                            target,
+                        })
                     });
-
-                    let open = get_layer_surface(SctkLayerSurfaceSettings {
-                        id: popup_id,
-                        layer: layer_surface::Layer::Top,
-                        keyboard_interactivity: KeyboardInteractivity::Exclusive,
-                        anchor: layer_surface::Anchor::TOP | layer_surface::Anchor::LEFT,
-                        margin: IcedMargin {
-                            top: position.y as i32,
-                            left: position.x as i32,
-                            ..Default::default()
-                        },
-                        namespace: "clipboard manager".into(),
-                        size: Some((Some(width), Some(height))),
-                        size_limits: Limits::NONE.min_width(1.0).min_height(1.0),
-                        ..Default::default()
-                    });
-
-                    return Task::batch(vec![destroy, open]);
+                    return Task::batch(vec![destroy, deferred]);
                 }
+            }
+            AppMsg::OpenPositionedPopup { position, target } => {
+                let popup_id = Id::unique();
+                let (width, height) = match target {
+                    PopupKind::Popup | PopupKind::Selections => (400, 530),
+                    PopupKind::Favorites => (1200, 530),
+                    PopupKind::QuickSettings => (250, 400),
+                };
+
+                self.popup = Some(Popup {
+                    kind: target,
+                    id: popup_id,
+                    is_layer_surface: true,
+                });
+
+                return get_layer_surface(SctkLayerSurfaceSettings {
+                    id: popup_id,
+                    layer: layer_surface::Layer::Top,
+                    keyboard_interactivity: KeyboardInteractivity::Exclusive,
+                    anchor: layer_surface::Anchor::TOP | layer_surface::Anchor::LEFT,
+                    margin: IcedMargin {
+                        top: position.y as i32,
+                        left: position.x as i32,
+                        ..Default::default()
+                    },
+                    namespace: "clipboard manager".into(),
+                    size: Some((Some(width), Some(height))),
+                    size_limits: Limits::NONE.min_width(1.0).min_height(1.0),
+                    ..Default::default()
+                });
             }
             AppMsg::DbusListEntries { reply } => {
                 let summaries: Vec<EntrySummary> = self
@@ -789,7 +817,9 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
             AppMsg::TogglePopup => {
                 return self.toggle_popup(PopupKind::Popup);
             }
-            AppMsg::ClosePopup => return self.close_popup(),
+            AppMsg::ClosePopup => {
+                return self.close_popup();
+            }
             AppMsg::Search(query) => {
                 self.db.set_query_and_search(query);
             }
@@ -969,7 +999,15 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                     }
                 }
                 EventMsg::Quit => {
-                    return self.close_popup();
+                    // Layer surface popups handle dismissal via click-outside
+                    // or Escape key, not Unfocused events (which fire spuriously
+                    // when the layer surface is created/configured).
+                    if self.suppress_unfocus {
+                        // Don't consume the flag — keep suppressing while
+                        // the layer surface popup is open.
+                    } else {
+                        return self.close_popup();
+                    }
                 }
                 EventMsg::None => {}
             }
@@ -1390,6 +1428,43 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
             PopupKind::Selections => self.selections_view(),
             PopupKind::QuickSettings => self.quick_settings_view(),
         };
+
+        // Layer surface popups are fullscreen overlays — center the content
+        // and dismiss on click outside. We skip popup_container() because its
+        // Autosize widget shrinks the surface to content size (~360px).
+        if popup.is_layer_surface {
+            let cosmic_theme = self.core.system_theme().cosmic();
+            let corners = cosmic_theme.corner_radii;
+            let styled = cosmic::widget::container(view)
+                .style(move |theme: &cosmic::Theme| {
+                    let cosmic = theme.cosmic();
+                    cosmic::iced_widget::container::Style {
+                        text_color: Some(cosmic.background.on.into()),
+                        background: Some(cosmic::iced::Color::from(cosmic.background.base).into()),
+                        border: cosmic::iced::Border {
+                            radius: corners.radius_m.into(),
+                            width: 1.0,
+                            color: cosmic.background.divider.into(),
+                        },
+                        shadow: Default::default(),
+                        icon_color: Some(cosmic.background.on.into()),
+                    }
+                })
+                .width(cosmic::iced::Length::Fixed(match popup.kind {
+                    PopupKind::Favorites => 1200.0,
+                    _ => 400.0,
+                }))
+                .height(cosmic::iced::Length::Shrink)
+                .max_height(530.0);
+            let centered = cosmic::widget::container(styled)
+                .width(cosmic::iced::Length::Fill)
+                .height(cosmic::iced::Length::Fill)
+                .align_x(cosmic::iced::Alignment::Center)
+                .align_y(cosmic::iced::Alignment::Center);
+            return MouseArea::new(centered)
+                .on_press(AppMsg::ClosePopup)
+                .into();
+        }
 
         self.core.applet.popup_container(view).into()
     }

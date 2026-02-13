@@ -67,6 +67,11 @@ pub enum AppMsg {
         position: cosmic::iced_core::Point,
         target: crate::app::PopupKind,
     },
+    /// Deferred popup creation after overlay destruction completes.
+    OpenPositionedPopup {
+        position: cosmic::iced_core::Point,
+        target: crate::app::PopupKind,
+    },
 }
 
 /// Summary of a favorite entry for CLI listing.
