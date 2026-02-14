@@ -10,7 +10,7 @@
     <name xml:lang="de">Zwischenablage Verwaltung</name>
     <name xml:lang="hu">Vágólapkezelő</name>
     <name xml:lang="ru">Менеджер буфера обмена</name>
-    <name xml:lang="uk">Віджет буфера обміну</name>
+    <name xml:lang="uk">Буфер обміну</name>
     <summary>A wayland clipboard manager</summary>
     <summary xml:lang="cs">Manažer schránky pro Wayland</summary>
     <summary xml:lang="de">Eine Zwischenablage Verwaltung für Wayland</summary>
