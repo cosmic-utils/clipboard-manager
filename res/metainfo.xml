@@ -10,11 +10,13 @@
     <name xml:lang="de">Zwischenablage Verwaltung</name>
     <name xml:lang="hu">Vágólapkezelő</name>
     <name xml:lang="ru">Менеджер буфера обмена</name>
+    <name xml:lang="uk">Буфер обміну</name>
     <summary>A wayland clipboard manager</summary>
     <summary xml:lang="cs">Manažer schránky pro Wayland</summary>
     <summary xml:lang="de">Eine Zwischenablage Verwaltung für Wayland</summary>
     <summary xml:lang="hu">Wayland vágólapkezelő</summary>
     <summary xml:lang="ru">Менеджер буфера обмена для Wayland</summary>
+    <summary xml:lang="uk">Віджет буфера обміну для Wayland</summary>
 
     <metadata_license>MIT</metadata_license>
     <project_license>GPL-3.0-only</project_license>
@@ -51,6 +53,8 @@
            Csak Waylanden működik az adatvezérlő protokoll használatával.</p>
         <p xml:lang="ru">Апплет буфера обмена COSMIC с поддержкой изображений и других типов MIME. 
            Работает только в Wayland с использованием протокола управления данными.</p>
+        <p xml:lang="uk">Віджет буфера обміну COSMIC із підтримкою зображень та інших типів MIME. 
+           працює лише в середовищі Wayland і використовує протокол керування даними.</p>
     </description>
 
 
@@ -65,6 +69,7 @@
             <caption xml:lang="de">Das Applet.</caption>
             <caption xml:lang="hu">A kisalkalmazás.</caption>
             <caption xml:lang="ru">Апплет.</caption>
+            <caption xml:lang="uk">Віджет.</caption>
         </screenshot>
     </screenshots>
 
