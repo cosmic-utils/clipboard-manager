@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["wiiznokes <wiiznokes2@gmail.com>"]
 edition = "2024"
 license = "GPL-3.0"
+description = "Clipboard manager applet for the COSMIC desktop"
 homepage = "https://github.com//cosmic-utils/clipboard-manager/"
 repository = "https://github.com//cosmic-utils/clipboard-manager.git"
 rust-version = "1.88"
@@ -62,10 +63,35 @@ tokio = { version = "1", features = ["macros"] }
 inherits = "release"
 lto = "fat"
 
-# [patch."https://github.com/pop-os/libcosmic".libcosmic]
-# git = "https://github.com/wiiznokes/libcosmic"
-# branch = "fix_qr_code_theme"
-# path = "../libcosmic"
+[patch."https://github.com/pop-os/libcosmic".libcosmic]
+git = "https://github.com/Lcstyle/libcosmic.git"
+branch = "fix/v3-fatal-sctk-dispatch-did"
 
 [patch."https://github.com/smithay/client-toolkit.git"]
 sctk = { package = "smithay-client-toolkit", version = "=0.19.2" }
+
+[package.metadata.deb]
+license-file = "LICENSE"
+section = "utils"
+priority = "optional"
+depends = "libc6 (>= 2.35), libssl3 (>= 3.0.0), libxkbcommon0 (>= 0.5.0), zlib1g (>= 1:1.2.11)"
+assets = [
+    ["target/release/cosmic-ext-applet-clipboard-manager", "usr/bin/", "755"],
+    ["res/desktop_entry.desktop", "usr/share/applications/io.github.cosmic_utils.cosmic-ext-applet-clipboard-manager.desktop", "644"],
+    ["res/metainfo.xml", "usr/share/metainfo/io.github.cosmic_utils.cosmic-ext-applet-clipboard-manager.metainfo.xml", "644"],
+    ["res/app_icon.svg", "usr/share/icons/hicolor/scalable/apps/io.github.cosmic_utils.cosmic-ext-applet-clipboard-manager-symbolic.svg", "644"],
+]
+
+[package.metadata.generate-rpm]
+assets = [
+    { source = "target/release/cosmic-ext-applet-clipboard-manager", dest = "/usr/bin/cosmic-ext-applet-clipboard-manager", mode = "0755" },
+    { source = "res/desktop_entry.desktop", dest = "/usr/share/applications/io.github.cosmic_utils.cosmic-ext-applet-clipboard-manager.desktop", mode = "0644" },
+    { source = "res/metainfo.xml", dest = "/usr/share/metainfo/io.github.cosmic_utils.cosmic-ext-applet-clipboard-manager.metainfo.xml", mode = "0644" },
+    { source = "res/app_icon.svg", dest = "/usr/share/icons/hicolor/scalable/apps/io.github.cosmic_utils.cosmic-ext-applet-clipboard-manager-symbolic.svg", mode = "0644" },
+]
+
+[package.metadata.generate-rpm.requires]
+openssl-libs = ">= 3.0.0"
+libxkbcommon = ">= 0.5.0"
+zlib = ">= 1.2.11"
+glibc = ">= 2.35"

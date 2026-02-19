@@ -1,0 +1,141 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  BINARY_NAME: cosmic-ext-applet-clipboard-manager
+
+permissions:
+  contents: write
+
+jobs:
+  build-deb:
+    name: Build .deb (Ubuntu 22.04)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libxkbcommon-dev \
+            libssl-dev \
+            pkg-config \
+            libwayland-dev \
+            libinput-dev \
+            libudev-dev \
+            libseat-dev \
+            libgbm-dev
+
+      - name: Install Rust toolchain
+        run: |
+          rustup update stable
+          rustup default stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: deb
+
+      - name: Install cargo-deb
+        run: cargo install cargo-deb
+
+      - name: Build .deb package
+        run: |
+          export CLIPBOARD_MANAGER_COMMIT=$(git rev-parse --short HEAD)
+          cargo deb --profile release-lto
+
+      - name: Upload .deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deb-package
+          path: target/debian/*.deb
+
+  build-rpm:
+    name: Build .rpm (Fedora 43)
+    runs-on: ubuntu-latest
+    container:
+      image: registry.fedoraproject.org/fedora:43
+    steps:
+      - name: Install system dependencies
+        run: |
+          dnf install -y \
+            gcc \
+            gcc-c++ \
+            make \
+            pkg-config \
+            openssl-devel \
+            libxkbcommon-devel \
+            wayland-devel \
+            libinput-devel \
+            systemd-devel \
+            libseat-devel \
+            mesa-libgbm-devel \
+            git
+
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: rpm
+
+      - name: Install cargo-generate-rpm
+        run: |
+          source "$HOME/.cargo/env"
+          cargo install cargo-generate-rpm
+
+      - name: Build release binary
+        run: |
+          source "$HOME/.cargo/env"
+          export CLIPBOARD_MANAGER_COMMIT=$(git rev-parse --short HEAD)
+          cargo build --profile release-lto
+
+      - name: Strip binary
+        run: strip target/release-lto/${{ env.BINARY_NAME }}
+
+      - name: Generate .rpm package
+        run: |
+          source "$HOME/.cargo/env"
+          cargo generate-rpm --profile release-lto
+
+      - name: Upload .rpm artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpm-package
+          path: target/generate-rpm/*.rpm
+
+  release:
+    name: Create GitHub Release
+    needs: [build-deb, build-rpm]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Download .deb artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: deb-package
+          path: artifacts/deb
+
+      - name: Download .rpm artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: rpm-package
+          path: artifacts/rpm
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            artifacts/deb/*.deb
+            artifacts/rpm/*.rpm
