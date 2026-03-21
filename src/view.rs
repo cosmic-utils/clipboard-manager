@@ -11,8 +11,7 @@ use cosmic::{
     widget::{
         self, Id,
         button::{self},
-        column, container, horizontal_space, image, markdown, row, scrollable, text, text_input,
-        toggler, vertical_space,
+        column, container, image, markdown, row, scrollable, space, text, text_input, toggler,
     },
 };
 use itertools::Itertools;
@@ -37,7 +36,7 @@ impl<Db: DbTrait> AppState<Db> {
         ) -> Element<'a, AppMsg> {
             row()
                 .push(text(info))
-                .push(horizontal_space())
+                .push(space::horizontal())
                 .push(toggler(value).on_toggle(f))
                 .into()
         }
@@ -105,7 +104,7 @@ impl<Db: DbTrait> AppState<Db> {
                                     false => Length::Fill,
                                 }),
                         )
-                        .push(horizontal_space().width(5))
+                        .push(space::horizontal().width(5))
                         .push(icon_button!("arrow_back_ios_new24").on_press_maybe(
                             if self.page > 0 {
                                 Some(AppMsg::PreviousPage)
@@ -248,7 +247,7 @@ impl<Db: DbTrait> AppState<Db> {
 
                 column()
                     .push(e)
-                    .push(vertical_space())
+                    .push(space::vertical())
                     .push(
                         button::text("Copy Command")
                             // todo: replace with on_press_with
