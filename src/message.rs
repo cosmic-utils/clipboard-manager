@@ -13,9 +13,10 @@ pub enum AppMsg {
     ClosePopup,
     Search(String),
     ClipboardEvent(ClipboardMessage),
-    #[allow(dead_code)]
+    #[expect(dead_code)]
     RetryConnectingClipboard,
     Copy(EntryId),
+    #[expect(dead_code)]
     CopySpecial(MimeDataMap),
     Clear,
     Navigation(EventMsg),
@@ -25,7 +26,8 @@ pub enum AppMsg {
     NextPage,
     PreviousPage,
     ContextMenu(ContextMenuMsg),
-    LinkClicked(markdown::Url),
+    #[expect(dead_code)]
+    LinkClicked(markdown::Uri),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]

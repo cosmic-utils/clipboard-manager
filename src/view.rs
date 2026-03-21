@@ -11,15 +11,14 @@ use cosmic::{
     widget::{
         self, Id,
         button::{self},
-        column, container, horizontal_space, image, markdown, row, scrollable, text, text_input,
-        toggler, vertical_space,
+        column, container, image, row, scrollable, space, text, text_input, toggler,
     },
 };
 use itertools::Itertools;
 
 use crate::{
     app::{AppState, ClipboardState, ErrorState},
-    db::{Content, DbTrait, EntryTrait, MimeDataMap},
+    db::{Content, DbTrait, EntryTrait},
     fl, icon, icon_button,
     message::{AppMsg, ConfigMsg, ContextMenuMsg},
     my_widget,
@@ -37,7 +36,7 @@ impl<Db: DbTrait> AppState<Db> {
         ) -> Element<'a, AppMsg> {
             row()
                 .push(text(info))
-                .push(horizontal_space())
+                .push(space::horizontal())
                 .push(toggler(value).on_toggle(f))
                 .into()
         }
@@ -105,7 +104,7 @@ impl<Db: DbTrait> AppState<Db> {
                                     false => Length::Fill,
                                 }),
                         )
-                        .push(horizontal_space().width(5))
+                        .push(space::horizontal().width(5))
                         .push(icon_button!("arrow_back_ios_new24").on_press_maybe(
                             if self.page > 0 {
                                 Some(AppMsg::PreviousPage)
@@ -222,43 +221,7 @@ impl<Db: DbTrait> AppState<Db> {
     fn error_view(&self, error: &ErrorState) -> Element<'_, AppMsg> {
         match error {
             ErrorState::MissingDataControlProtocol => {
-                const COMMAND: &str = "echo 'export COSMIC_DATA_CONTROL_ENABLED=1' | sudo tee /etc/profile.d/data_control_cosmic.sh > /dev/null";
-
-                const COMMAND_MD: &str = constcat::concat!("```sh\n", COMMAND, "\n````");
-
-                let content = format!(
-                    "### {}\n\n{}\n\n{}\n\n{COMMAND_MD}",
-                    fl!("data_control", "title"),
-                    fl!("data_control", "explanation"),
-                    fl!("data_control", "cosmic")
-                );
-
-                let items = markdown::parse(&content).collect_vec();
-
-                let e = markdown::view(
-                    &items,
-                    markdown::Settings::default(),
-                    markdown::Style::from_palette(cosmic::iced::Theme::TokyoNightStorm.palette()),
-                )
-                .map(AppMsg::LinkClicked)
-                .apply(Element::from);
-
-                let mut copy = MimeDataMap::new();
-                copy.insert("text/plain".to_string(), COMMAND.as_bytes().to_vec());
-
-                column()
-                    .push(e)
-                    .push(vertical_space())
-                    .push(
-                        button::text("Copy Command")
-                            // todo: replace with on_press_with
-                            .on_press(AppMsg::CopySpecial(copy)),
-                    )
-                    .align_x(Horizontal::Center)
-                    .width(Length::Fill)
-                    .height(Length::Fill)
-                    .padding(15)
-                    .into()
+                text("Error: The data control protocol is not active").into()
             }
             ErrorState::Other(e) => text(e.to_string()).into(),
         }

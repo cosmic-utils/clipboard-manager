@@ -62,5 +62,5 @@ lto = "fat"
 # branch = "fix_qr_code_theme"
 # path = "../libcosmic"
 
-[patch."https://github.com/smithay/client-toolkit.git"]
-sctk = { package = "smithay-client-toolkit", version = "=0.19.2" }
+# [patch."https://github.com/smithay/client-toolkit.git"]
+# sctk = { package = "smithay-client-toolkit", version = "=0.19.2" }

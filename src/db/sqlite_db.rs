@@ -26,13 +26,9 @@ use super::{DbMessage, DbTrait, EntryId, EntryTrait, MimeDataMap, PRIV_MIME_TYPE
 type Time = i64;
 
 const DB_VERSION: &str = "7";
-const DB_PATH: &str = constcat::concat!(APPID, "-db-", DB_VERSION, ".sqlite");
+const DB_FILENAME: &str = constcat::concat!(APPID, "-db-", DB_VERSION, ".sqlite");
 
-const LOCK_FILE2: &str = constcat::concat!(APPID, "-db", ".lock");
-#[cfg(not(test))]
-const LOCK_FILE: &str = LOCK_FILE2;
-#[cfg(test)]
-const LOCK_FILE: &str = constcat::concat!("/tmp/", LOCK_FILE2);
+const LOCK_FILENAME: &str = constcat::concat!(APPID, "-db", ".lock");
 
 pub struct DbSqlite {
     conn: SqliteConnection,
@@ -186,7 +182,7 @@ impl DbTrait for DbSqlite {
     }
 
     async fn with_path(config: &Config, db_dir: &Path) -> Result<Self> {
-        let db_path = db_dir.join(DB_PATH);
+        let db_path = db_dir.join(DB_FILENAME);
 
         info!("db_path: {}", db_path.display());
 
@@ -217,7 +213,7 @@ impl DbTrait for DbSqlite {
         .run(&mut conn)
         .await?;
 
-        let mut lock = LockFile::open(LOCK_FILE)?;
+        let mut lock = LockFile::open(&db_dir.join(LOCK_FILENAME))?;
         lock.try_lock()?;
 
         if lock.owns_lock()
