@@ -10,6 +10,7 @@
   "finish-args": [
     "--share=ipc",
     "--socket=wayland",
+    "--filesystem=/run/user",
     "--talk-name=com.system76.CosmicSettingsDaemon",
     "--filesystem=xdg-config/cosmic:rw"
   ],
