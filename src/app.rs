@@ -117,8 +117,8 @@ impl<Db: DbTrait> AppState<Db> {
             iced_runtime::task::widget(operation::scrollable::snap_to(
                 SCROLLABLE_ID.clone(),
                 RelativeOffset {
-                    x: 0.,
-                    y: delta_y.max(1.).max(0.0),
+                    x: None,
+                    y: Some(delta_y.max(1.).max(0.0)),
                 },
             ))
         } else {
@@ -148,8 +148,8 @@ impl<Db: DbTrait> AppState<Db> {
             iced_runtime::task::widget(operation::scrollable::snap_to(
                 SCROLLABLE_ID.clone(),
                 RelativeOffset {
-                    x: 0.,
-                    y: delta_y.max(1.).max(0.0),
+                    x: None,
+                    y: Some(delta_y.max(1.).max(0.0)),
                 },
             ))
         } else {
@@ -551,7 +551,7 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
 
     fn view_window(&self, _id: Id) -> Element<'_, Self::Message> {
         let Some(popup) = &self.popup else {
-            return Space::new(0, 0).into();
+            return Space::new().into();
         };
 
         let view = match &popup.kind {
@@ -590,7 +590,7 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
         None
     }
 
-    fn style(&self) -> Option<iced::runtime::Appearance> {
+    fn style(&self) -> Option<iced::theme::Style> {
         Some(cosmic::applet::style())
     }
 }

@@ -1,18 +1,18 @@
 use cosmic::{
     Theme,
-    iced::{self, Background, Border, Color, Shadow, keyboard, touch},
+    iced::{self, Background, Border, Color, keyboard, touch},
     iced_core::{Size, Vector, widget::tree},
     iced_widget,
 };
 use iced_widget::core::{
-    Clipboard, Element, Event, Layout, Length, Point, Rectangle, Shell, Widget, event,
+    Clipboard, Element, Event, Layout, Length, Point, Rectangle, Shell, Widget,
     layout::{Limits, Node},
     mouse::{self, Cursor},
     overlay, renderer,
     widget::{Operation, Tree},
 };
 
-use cosmic::iced::{event::Status, window};
+use cosmic::iced::window;
 
 #[allow(missing_debug_implementations)]
 pub struct ContextMenu<'a, Message, Theme, Renderer>
@@ -89,9 +89,9 @@ where
         self.underlay.as_widget().size()
     }
 
-    fn layout(&self, tree: &mut Tree, renderer: &Renderer, limits: &Limits) -> Node {
+    fn layout(&mut self, tree: &mut Tree, renderer: &Renderer, limits: &Limits) -> Node {
         self.underlay
-            .as_widget()
+            .as_widget_mut()
             .layout(&mut tree.children[0], renderer, limits)
     }
 
@@ -129,11 +129,12 @@ where
     }
 
     fn diff(&mut self, tree: &mut Tree) {
-        tree.diff_children(&mut [&mut self.underlay, &mut self.overlay]);
+        tree.children[0].diff(&mut self.underlay);
+        tree.children[1].diff(&mut self.overlay);
     }
 
     fn operate<'b>(
-        &'b self,
+        &'b mut self,
         tree: &'b mut Tree,
         layout: Layout<'_>,
         renderer: &Renderer,
@@ -142,39 +143,46 @@ where
         let state: &mut State = tree.state.downcast_mut();
 
         if state.show {
-            self.overlay
-                .as_widget()
-                .operate(&mut tree.children[1], layout, renderer, operation);
+            self.overlay.as_widget_mut().operate(
+                &mut tree.children[1],
+                layout,
+                renderer,
+                operation,
+            );
         } else {
-            self.underlay
-                .as_widget()
-                .operate(&mut tree.children[0], layout, renderer, operation);
+            self.underlay.as_widget_mut().operate(
+                &mut tree.children[0],
+                layout,
+                renderer,
+                operation,
+            );
         }
     }
 
-    fn on_event(
+    fn update(
         &mut self,
         tree: &mut Tree,
-        event: Event,
+        event: &Event,
         layout: Layout<'_>,
         cursor: Cursor,
         renderer: &Renderer,
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
-    ) -> event::Status {
-        if event == Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Right)) {
+    ) {
+        if event == &Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Right)) {
             let bounds = layout.bounds();
 
             if cursor.is_over(bounds) {
                 let state: &mut State = tree.state.downcast_mut();
                 state.cursor_position = cursor.position().unwrap_or_default();
                 state.show = !state.show;
-                return event::Status::Captured;
+                shell.capture_event();
+                shell.request_redraw();
             }
         }
 
-        self.underlay.as_widget_mut().on_event(
+        self.underlay.as_widget_mut().update(
             &mut tree.children[0],
             event,
             layout,
@@ -206,8 +214,9 @@ where
     fn overlay<'b>(
         &'b mut self,
         tree: &'b mut Tree,
-        layout: Layout<'_>,
+        layout: Layout<'b>,
         renderer: &Renderer,
+        viewport: &Rectangle,
         translation: Vector,
     ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
         let state: &mut State = tree.state.downcast_mut();
@@ -217,12 +226,14 @@ where
                 &mut tree.children[0],
                 layout,
                 renderer,
+                viewport,
                 translation,
             );
         }
 
         let position = state.cursor_position;
-        self.overlay.as_widget_mut().diff(&mut tree.children[1]);
+
+        tree.children[1].diff(self.overlay.as_widget_mut());
 
         Some(overlay::Element::new(Box::new(ContextMenuOverlay {
             position: position + translation,
@@ -294,7 +305,7 @@ where
 
         let mut content = self
             .content
-            .as_widget()
+            .as_widget_mut()
             .layout(self.tree, renderer, &limits);
 
         // Try to stay inside borders
@@ -324,7 +335,7 @@ where
             .next()
             .expect("widget: Layout should have a content layout.");
 
-        let bounds = content_layout.bounds();
+        let bounds = layout.bounds();
 
         let style_sheet = theme.style(self.class);
 
@@ -338,7 +349,7 @@ where
                         width: 0.0,
                         color: Color::TRANSPARENT,
                     },
-                    shadow: Shadow::default(),
+                    ..Default::default()
                 },
                 style_sheet.background,
             );
@@ -356,61 +367,65 @@ where
         );
     }
 
-    fn on_event(
+    fn update(
         &mut self,
-        event: Event,
+        event: &Event,
         layout: Layout<'_>,
-        cursor: Cursor,
+        cursor: mouse::Cursor,
         renderer: &Renderer,
         clipboard: &mut dyn Clipboard,
-        shell: &mut Shell<Message>,
-    ) -> Status {
+        shell: &mut Shell<'_, Message>,
+    ) {
         let layout_children = layout
             .children()
             .next()
             .expect("widget: Layout should have a content layout.");
 
         let mut forward_event_to_children = true;
+        let mut capture_event = false;
 
-        let status = match &event {
-            Event::Keyboard(keyboard::Event::KeyPressed { key, .. }) => {
-                if *key == keyboard::Key::Named(keyboard::key::Named::Escape) {
-                    self.state.show = false;
-                    forward_event_to_children = false;
-                    Status::Captured
-                } else {
-                    Status::Ignored
-                }
+        match &event {
+            Event::Keyboard(keyboard::Event::KeyPressed { key, .. })
+                if *key == keyboard::Key::Named(keyboard::key::Named::Escape) =>
+            {
+                self.state.show = false;
+                forward_event_to_children = false;
+                shell.capture_event();
+                shell.request_redraw();
             }
-
             Event::Mouse(mouse::Event::ButtonPressed(
                 mouse::Button::Left | mouse::Button::Right,
             ))
             | Event::Touch(touch::Event::FingerPressed { .. }) => {
-                if !cursor.is_over(layout_children.bounds()) {
+                if cursor.is_over(layout_children.bounds()) {
+                    capture_event = true;
+                } else {
                     self.state.show = false;
                     forward_event_to_children = false;
+                    shell.request_redraw();
                 }
-                Status::Captured
             }
 
             Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
                 // close when released because because button send message on release
                 self.state.show = false;
-                Status::Captured
+
+                capture_event = true;
+                shell.request_redraw();
             }
 
             Event::Window(window::Event::Resized { .. }) => {
                 self.state.show = false;
                 forward_event_to_children = false;
-                Status::Captured
+                capture_event = true;
+                shell.request_redraw();
             }
 
-            _ => Status::Ignored,
-        };
+            _ => {}
+        }
 
-        let child_status = if forward_event_to_children {
-            self.content.as_widget_mut().on_event(
+        if forward_event_to_children {
+            self.content.as_widget_mut().update(
                 self.tree,
                 event,
                 layout_children,
@@ -419,24 +434,31 @@ where
                 clipboard,
                 shell,
                 &layout.bounds(),
-            )
-        } else {
-            Status::Ignored
-        };
-
-        match child_status {
-            Status::Ignored => status,
-            Status::Captured => Status::Captured,
+            );
         }
+        if capture_event {
+            shell.capture_event();
+        }
+    }
+
+    fn operate(&mut self, layout: Layout<'_>, renderer: &Renderer, operation: &mut dyn Operation) {
+        let content_layout = layout
+            .children()
+            .next()
+            .expect("widget: Layout should have a content layout.");
+
+        self.content
+            .as_widget_mut()
+            .operate(self.tree, content_layout, renderer, operation);
     }
 
     fn mouse_interaction(
         &self,
         layout: Layout<'_>,
         cursor: Cursor,
-        viewport: &Rectangle,
         renderer: &Renderer,
     ) -> mouse::Interaction {
+        let bounds = layout.bounds();
         self.content.as_widget().mouse_interaction(
             self.tree,
             layout
@@ -444,7 +466,7 @@ where
                 .next()
                 .expect("widget: Layout should have a content layout."),
             cursor,
-            viewport,
+            &bounds,
             renderer,
         )
     }
