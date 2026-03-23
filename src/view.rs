@@ -44,7 +44,7 @@ impl<Db: DbTrait> AppState<Db> {
         column()
             .width(Length::Fill)
             .spacing(20)
-            .padding(10)
+            .padding(15)
             .push(toggle_settings(
                 fl!("incognito"),
                 self.config.private_mode,
@@ -82,6 +82,7 @@ impl<Db: DbTrait> AppState<Db> {
         } else {
             Length::Fixed(400f32)
         })
+        .padding(15)
         .into()
     }
     pub fn page_count(&self) -> usize {
@@ -90,100 +91,94 @@ impl<Db: DbTrait> AppState<Db> {
 
     fn list_view(&self) -> Element<'_, AppMsg> {
         column()
-            .push(
-                container(
-                    row()
-                        .push(
-                            text_input::search_input(fl!("search_entries"), self.db.get_query())
-                                .always_active()
-                                .on_input(AppMsg::Search)
-                                .on_paste(AppMsg::Search)
-                                .on_clear(AppMsg::Search("".into()))
-                                .width(match self.config.horizontal {
-                                    true => Length::Fixed(250f32),
-                                    false => Length::Fill,
-                                }),
-                        )
-                        .push(space::horizontal().width(5))
-                        .push(icon_button!("arrow_back_ios_new24").on_press_maybe(
-                            if self.page > 0 {
-                                Some(AppMsg::PreviousPage)
-                            } else {
-                                None
-                            },
-                        ))
-                        .push(icon_button!("arrow_forward_ios24").on_press_maybe(
-                            if self.page < self.page_count() {
-                                Some(AppMsg::NextPage)
-                            } else {
-                                None
-                            },
-                        )),
-                )
-                .padding(padding::all(15f32).bottom(0)),
-            )
-            .push(
-                container({
-                    let maximum_entries_by_page =
-                        self.config.maximum_entries_by_page.get() as usize;
-                    let range = self.page * maximum_entries_by_page
-                        ..(self.page + 1) * maximum_entries_by_page;
-
-                    let entries_view: Vec<_> = self
-                        .db
-                        .either_iter()
-                        .enumerate()
-                        .get(range)
-                        .map(|(pos, data)| {
-                            match data.preferred_content(&self.preferred_mime_types_regex) {
-                                Some((_, content)) => match content {
-                                    Content::Text(text) => {
-                                        self.text_entry(data, pos == self.focused, text)
-                                    }
-                                    Content::Image(image) => {
-                                        self.image_entry(data, pos == self.focused, image)
-                                    }
-                                    Content::UriList(uris) => {
-                                        self.uris_entry(data, pos == self.focused, &uris)
-                                    }
-                                },
-                                None => self.unknown_entry(data, pos == self.focused),
-                            }
-                        })
-                        .collect();
-
-                    if self.config.horizontal {
-                        let column = row::with_children(entries_view)
-                            .spacing(5f32)
-                            .padding(padding::bottom(10))
-                            .width(Length::Shrink)
-                            .apply(Element::from);
-
-                        cosmic::iced::widget::Scrollable::with_direction(
-                            column,
-                            Direction::Horizontal(Scrollbar::new()),
-                        )
-                        .scroller_width(8.0)
-                        .scrollbar_width(8.0)
-                        // scrollable::horizontal(column)
-                        // .id(SCROLLABLE_ID.clone())
-                        .apply(Element::from)
-                    } else {
-                        let column = column::with_children(entries_view)
-                            .spacing(5f32)
-                            .padding(padding::right(10));
-
-                        scrollable(column)
-                            // .id(SCROLLABLE_ID.clone())
-                            // XXX: why ?
-                            // .height(Length::FillPortion(2))
-                            .into()
-                    }
-                })
-                .padding(padding::all(20).top(0)),
-            )
             .spacing(20)
             .align_x(Alignment::Center)
+            .push(container(
+                row()
+                    .push(
+                        text_input::search_input(fl!("search_entries"), self.db.get_query())
+                            .always_active()
+                            .on_input(AppMsg::Search)
+                            .on_paste(AppMsg::Search)
+                            .on_clear(AppMsg::Search("".into()))
+                            .width(match self.config.horizontal {
+                                true => Length::Fixed(250f32),
+                                false => Length::Fill,
+                            }),
+                    )
+                    .push(space::horizontal().width(5))
+                    .push(
+                        icon_button!("arrow_back_ios_new24").on_press_maybe(if self.page > 0 {
+                            Some(AppMsg::PreviousPage)
+                        } else {
+                            None
+                        }),
+                    )
+                    .push(icon_button!("arrow_forward_ios24").on_press_maybe(
+                        if self.page < self.page_count() {
+                            Some(AppMsg::NextPage)
+                        } else {
+                            None
+                        },
+                    )),
+            ))
+            .push(container({
+                let maximum_entries_by_page = self.config.maximum_entries_by_page.get() as usize;
+                let range =
+                    self.page * maximum_entries_by_page..(self.page + 1) * maximum_entries_by_page;
+
+                let entries_view: Vec<_> = self
+                    .db
+                    .either_iter()
+                    .enumerate()
+                    .get(range)
+                    .map(|(pos, data)| {
+                        match data.preferred_content(&self.preferred_mime_types_regex) {
+                            Some((_, content)) => match content {
+                                Content::Text(text) => {
+                                    self.text_entry(data, pos == self.focused, text)
+                                }
+                                Content::Image(image) => {
+                                    self.image_entry(data, pos == self.focused, image)
+                                }
+                                Content::UriList(uris) => {
+                                    self.uris_entry(data, pos == self.focused, &uris)
+                                }
+                            },
+                            None => self.unknown_entry(data, pos == self.focused),
+                        }
+                    })
+                    .collect();
+
+                if self.config.horizontal {
+                    let column = row::with_children(entries_view)
+                        .spacing(8)
+                        .width(Length::Shrink)
+                        .apply(Element::from);
+
+                    cosmic::iced::widget::Scrollable::with_direction(
+                        column,
+                        Direction::Horizontal(Scrollbar::new()),
+                    )
+                    .scroller_width(8)
+                    .scrollbar_width(0)
+                    .scrollbar_padding(0)
+                    // scrollable::horizontal(column)
+                    // .id(SCROLLABLE_ID.clone())
+                    .apply(Element::from)
+                } else {
+                    let column = column::with_children(entries_view).spacing(8);
+
+                    scrollable(column)
+                        .scroller_width(8)
+                        .scrollbar_width(0)
+                        .scrollbar_padding(0)
+                        // .id(SCROLLABLE_ID.clone())
+                        // XXX: why ?
+                        // .height(Length::FillPortion(2))
+                        .into()
+                }
+            }))
             .into()
     }
 
@@ -192,27 +187,21 @@ impl<Db: DbTrait> AppState<Db> {
         qr_code: &'a Result<cosmic::widget::qr_code::Data, ()>,
     ) -> Element<'a, AppMsg> {
         column()
-            .push(
-                container(
-                    button::text(fl!("return_to_clipboard"))
-                        .on_press(AppMsg::ReturnToClipboard)
-                        .width(match self.config.horizontal {
-                            true => Length::Shrink,
-                            false => Length::Fill,
-                        }),
-                )
-                .padding(padding::all(15f32).bottom(0)),
-            )
-            .push(
-                container(
-                    container(match qr_code {
-                        Ok(c) => widget::qr_code(c).apply(Element::from),
-                        Err(()) => text(fl!("qr_code_error")).into(),
-                    })
-                    .center(Length::Fill),
-                )
-                .padding(padding::all(20).top(0)),
-            )
+            .push(container(
+                button::text(fl!("return_to_clipboard"))
+                    .on_press(AppMsg::ReturnToClipboard)
+                    .width(match self.config.horizontal {
+                        true => Length::Shrink,
+                        false => Length::Fill,
+                    }),
+            ))
+            .push(container(
+                container(match qr_code {
+                    Ok(c) => widget::qr_code(c).apply(Element::from),
+                    Err(()) => text(fl!("qr_code_error")).into(),
+                })
+                .center(Length::Fill),
+            ))
             .spacing(20)
             .align_x(Alignment::Center)
             .into()
@@ -306,7 +295,6 @@ impl<Db: DbTrait> AppState<Db> {
     ) -> Element<'a, AppMsg> {
         let btn = button::custom(content)
             .on_press(AppMsg::Copy(entry.id()))
-            .padding([8, 16])
             .class(Button::Custom {
                 active: Box::new(move |focused, theme| {
                     let rad_s = theme.cosmic().corner_radii.radius_s;
@@ -371,7 +359,6 @@ impl<Db: DbTrait> AppState<Db> {
         };
 
         let overlay: Element<_> = column()
-            .padding(3)
             .push(if entry.is_favorite() {
                 button::text(fl!("remove_favorite"))
                     .on_press(ContextMenuMsg::RemoveFavorite(entry.id()))
