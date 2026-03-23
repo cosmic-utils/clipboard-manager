@@ -163,19 +163,19 @@ impl<Db: DbTrait> AppState<Db> {
                     .scroller_width(8)
                     .scrollbar_width(0)
                     .scrollbar_padding(0)
-                    // scrollable::horizontal(column)
                     // .id(SCROLLABLE_ID.clone())
                     .apply(Element::from)
                 } else {
-                    let column = column::with_children(entries_view).spacing(8);
+                    let column = column::with_children(entries_view)
+                        .spacing(8)
+                        .padding(padding::right(8));
 
                     scrollable(column)
                         .scroller_width(8)
                         .scrollbar_width(0)
                         .scrollbar_padding(0)
+                        .class(cosmic::theme::iced::Scrollable::Minimal)
                         // .id(SCROLLABLE_ID.clone())
-                        // XXX: why ?
-                        // .height(Length::FillPortion(2))
                         .into()
                 }
             }))
