@@ -360,10 +360,10 @@ impl<Db: DbTrait> AppState<Db> {
             Stack::new()
                 .push(btn)
                 .push(
-                    column()
+                    container(icon!("star_fill24"))
                         .align_x(Horizontal::Right)
-                        .width(Length::Fill)
-                        .push(icon!("star24")),
+                        .padding(padding::top(3).right(3))
+                        .width(Length::Fill),
                 )
                 .into()
         } else {

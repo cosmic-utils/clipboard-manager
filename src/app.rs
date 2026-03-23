@@ -303,10 +303,10 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
             config,
         };
 
-        #[cfg(debug_assertions)]
-        let command = task_message(AppMsg::TogglePopup);
+        // #[cfg(debug_assertions)]
+        // let command = task_message(AppMsg::TogglePopup);
 
-        #[cfg(not(debug_assertions))]
+        // #[cfg(not(debug_assertions))]
         let command = Task::none();
 
         (state, command)
