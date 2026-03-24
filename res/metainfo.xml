@@ -11,12 +11,14 @@
     <name xml:lang="hu">Vágólapkezelő</name>
     <name xml:lang="ru">Менеджер буфера обмена</name>
     <name xml:lang="uk">Буфер обміну</name>
+    <name xml:lang="fr">Presse-papier</name>
     <summary>A wayland clipboard manager</summary>
     <summary xml:lang="cs">Manažer schránky pro Wayland</summary>
     <summary xml:lang="de">Eine Zwischenablage Verwaltung für Wayland</summary>
     <summary xml:lang="hu">Wayland vágólapkezelő</summary>
     <summary xml:lang="ru">Менеджер буфера обмена для Wayland</summary>
     <summary xml:lang="uk">Віджет буфера обміну для Wayland</summary>
+    <summary xml:lang="fr">Gestionnaire de presse-papier pour wayland</summary>
 
     <metadata_license>MIT</metadata_license>
     <project_license>GPL-3.0-only</project_license>
@@ -55,6 +57,8 @@
            Работает только в Wayland с использованием протокола управления данными.</p>
         <p xml:lang="uk">Віджет буфера обміну COSMIC із підтримкою зображень та інших типів MIME. 
            працює лише в середовищі Wayland і використовує протокол керування даними.</p>
+       <p xml:lang="fr">Un applet de gestion du presse-papier pour le bureau COSMIC avec support des images et autres types de médias. 
+       Uniquement compatible avec Wayland via le protocole de contrôle des données. (data control protocol)</p> <!--I decided to follow the lead of the DE translator : including limited English in parenthesis for ease of troubleshooting -->
     </description>
 
 
@@ -70,6 +74,7 @@
             <caption xml:lang="hu">A kisalkalmazás.</caption>
             <caption xml:lang="ru">Апплет.</caption>
             <caption xml:lang="uk">Віджет.</caption>
+            <caption xml:lang="fr">L'applet.</caption>
         </screenshot>
     </screenshots>
 

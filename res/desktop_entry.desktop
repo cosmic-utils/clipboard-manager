@@ -8,6 +8,7 @@ Name[hu]=Vágólapkezelő
 Name[pt]=Gestor da Área de Transferência
 Name[ru]=Менеджер буфера обмена
 Name[uk]=Буфер обміну
+Name[fr]=Presse-papier
 Comment=A wayland clipboard manager
 Comment[ar]=مدير حافظة وايلاند
 Comment[cs]=Manažer schránky pro Wayland
@@ -17,6 +18,7 @@ Comment[hu]=Wayland vágólapkezelő
 Comment[pt]=Miniaplicativo para gerenciar itens copiados no sistema
 Comment[ru]=Менеджер буфера обмена для Wayland
 Comment[uk]=Віджет буфера обміну для Wayland
+Comment[fr]=Gestionnaire de presse-papier pour wayland
 Keywords=Cosmic;Iced;history;
 Keywords[cs]=clipboard;schránka;historie;
 Keywords[de]=Cosmic;historie;verlauf;Zwischenablage
@@ -25,6 +27,7 @@ Keywords[hu]=előzmények
 Keywords[pt]=clipboard;histórico;
 Keywords[ru]=cosmic;iced;история;буфер;обмен;
 Keywords[uk]=космік;менеджер;історія;буфер;обмін
+Keywords[fr]=bureau;cosmic;historique;presse-papier;clipboard;iced;
 
 # translators: do not translate this part
 Icon=io.github.cosmic_utils.cosmic-ext-applet-clipboard-manager-symbolic
