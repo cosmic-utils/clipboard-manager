@@ -418,13 +418,18 @@ impl Watcher {
         // Check if we found anything.
         match offer.clone() {
             Some(offer) => {
-                let mime_types = match self.state.offers.remove(&offer) {
-                    Some(mimes) => mimes,
-                    None => {
-                        warn!("offer not found in state map");
-                        return Err(Error::OfferNotFound);
-                    }
-                };
+                // Note: In rare cases the offer may not be in the map if Selection events
+                // arrived in an unexpected order. Use empty set as fallback to avoid breaking
+                // the watcher loop entirely.
+                let mime_types = self.state.offers.remove(&offer).unwrap_or_else(|| {
+                    warn!("offer not found in state map, using empty set");
+                    HashSet::new()
+                });
+
+                // If no mime types, treat as empty clipboard
+                if mime_types.is_empty() {
+                    return Err(Error::ClipboardEmpty);
+                }
 
                 let mut res = Vec::with_capacity(mime_types.len());
 
