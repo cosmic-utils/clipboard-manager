@@ -11,6 +11,7 @@ This document tracks the stability improvements made to the COSMIC clipboard man
 **Problem:** Application would `panic!()` on startup failures, causing abrupt termination without useful error messages.
 
 **Fix:** Replaced `panic!()` with `std::process::exit(1)` for:
+
 - Config handler creation failure
 - Applet run failure
 
@@ -23,6 +24,7 @@ This document tracks the stability improvements made to the COSMIC clipboard man
 **Problem:** Multiple `unwrap()` calls on seat lookups would panic if seat data was missing due to race conditions or protocol edge cases.
 
 **Fixes:**
+
 - Replaced `unwrap()` on `get_mut_seat()` calls with `if let` patterns + warning logs
 - Replaced `unwrap()` on `offers.get_mut()` with proper error handling
 - Changed `offers.remove()` to use `unwrap_or_else()` with fallback to empty set (treats as empty clipboard)
@@ -36,6 +38,7 @@ This document tracks the stability improvements made to the COSMIC clipboard man
 **Problem:** `GlobalError::InvalidId` would trigger a `panic!()` with the message "How's this possible?".
 
 **Fix:**
+
 - Added new error variant `Error::RegistryInvalidId`
 - Replaced panic with recoverable error + warning log
 
@@ -48,6 +51,7 @@ This document tracks the stability improvements made to the COSMIC clipboard man
 **Problem:** `tx.blocking_send().unwrap()` and `output.send().await.unwrap()` would panic when channels were closed, causing cascading failures.
 
 **Fixes:**
+
 - Replaced all `unwrap()` on channel sends with `is_err()` checks
 - Watcher loop now exits cleanly when receiver is dropped
 - Removed `std::future::pending::<()>().await` calls that would hang forever after errors
@@ -61,6 +65,7 @@ This document tracks the stability improvements made to the COSMIC clipboard man
 **Problem:** Offers were never removed from `state.offers` HashMap when replaced, causing unbounded memory growth over time.
 
 **Fixes:**
+
 - Modified `SeatData::set_offer()` and `set_primary_offer()` to return the old offer
 - Event handlers now remove old offers from HashMap when new ones arrive
 - Updated comment from "TODO: We never remove offers" to document new cleanup behavior
@@ -74,6 +79,7 @@ This document tracks the stability improvements made to the COSMIC clipboard man
 **Problem:** All clipboard errors were treated the same, making it impossible to distinguish recoverable from fatal errors.
 
 **Fixes:**
+
 - Split `ClipboardMessage::Error` into `ErrorRecoverable` and `ErrorFatal` variants
 - Added `ClipboardError::is_recoverable()` method to classify errors
 - Recoverable errors (empty clipboard, communication issues, offer not found) just log and continue
@@ -115,6 +121,7 @@ This document tracks the stability improvements made to the COSMIC clipboard man
 **Proposed behavior:** Click item → copies to clipboard → automatically pastes to previously focused window
 
 **Implementation approach:**
+
 1. Track which window was focused before opening the clipboard popup
 2. After copying, simulate Ctrl+V keypress using `zwp_virtual_keyboard_v1` protocol
 3. Alternatively, use ydotool or similar input simulation
