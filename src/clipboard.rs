@@ -67,7 +67,9 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
                             Ok(res) => {
                                 if !PRIVATE_MODE.load(atomic::Ordering::Relaxed) {
                                     if tx.blocking_send(WatchRes::Some(res)).is_err() {
-                                        debug!("clipboard channel receiver dropped, exiting watcher loop");
+                                        debug!(
+                                            "clipboard channel receiver dropped, exiting watcher loop"
+                                        );
                                         break;
                                     }
                                 } else {
@@ -77,7 +79,9 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
                             Err(e) => match e {
                                 clipboard_watcher::Error::ClipboardEmpty => {
                                     if tx.blocking_send(WatchRes::None).is_err() {
-                                        debug!("clipboard channel receiver dropped, exiting watcher loop");
+                                        debug!(
+                                            "clipboard channel receiver dropped, exiting watcher loop"
+                                        );
                                         break;
                                     }
                                 }

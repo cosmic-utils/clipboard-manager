@@ -71,7 +71,10 @@ impl SeatData {
     ///
     /// Returns and destroys the old one, if any. The caller is responsible for
     /// removing the old offer from any state maps (e.g., offers HashMap).
-    pub fn set_offer(&mut self, new_offer: Option<ZwlrDataControlOfferV1>) -> Option<ZwlrDataControlOfferV1> {
+    pub fn set_offer(
+        &mut self,
+        new_offer: Option<ZwlrDataControlOfferV1>,
+    ) -> Option<ZwlrDataControlOfferV1> {
         let old_offer = self.offer.take();
         self.offer = new_offer;
 
@@ -85,7 +88,10 @@ impl SeatData {
     ///
     /// Returns and destroys the old one, if any. The caller is responsible for
     /// removing the old offer from any state maps (e.g., offers HashMap).
-    pub fn set_primary_offer(&mut self, new_offer: Option<ZwlrDataControlOfferV1>) -> Option<ZwlrDataControlOfferV1> {
+    pub fn set_primary_offer(
+        &mut self,
+        new_offer: Option<ZwlrDataControlOfferV1>,
+    ) -> Option<ZwlrDataControlOfferV1> {
         let old_offer = self.primary_offer.take();
         self.primary_offer = new_offer;
 
@@ -309,14 +315,13 @@ where
     let conn = Connection::connect_to_env().map_err(Error::WaylandConnection)?;
 
     // Retrieve the global interfaces.
-    let (globals, queue) =
-        registry_queue_init::<S>(&conn).map_err(|err| match err {
-                                           GlobalError::Backend(err) => Error::WaylandCommunication(err.into()),
-                                           GlobalError::InvalidId(_) => {
-                                               warn!("Wayland registry returned invalid id");
-                                               Error::RegistryInvalidId
-                                           }
-                                       })?;
+    let (globals, queue) = registry_queue_init::<S>(&conn).map_err(|err| match err {
+        GlobalError::Backend(err) => Error::WaylandCommunication(err.into()),
+        GlobalError::InvalidId(_) => {
+            warn!("Wayland registry returned invalid id");
+            Error::RegistryInvalidId
+        }
+    })?;
     let qh = &queue.handle();
 
     // Verify that we got the clipboard manager.
