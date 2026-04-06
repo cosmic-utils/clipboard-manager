@@ -374,18 +374,23 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                         error!("can't insert data: {e}");
                     }
                 }
-                #[expect(irrefutable_let_patterns)]
-                clipboard::ClipboardMessage::Error(e) => {
-                    error!("clipboard: {e}");
+                clipboard::ClipboardMessage::ErrorRecoverable(e) => {
+                    warn!("clipboard recoverable error: {e}");
+                    // For recoverable errors, we keep the subscription running
+                    // and just log the error. The clipboard state remains unchanged.
+                }
+                clipboard::ClipboardMessage::ErrorFatal(e) => {
+                    error!("clipboard fatal error: {e}");
 
-                    self.clipboard_state = if let ClipboardError::Watch(ref e) = e
-                        && let clipboard_watcher::Error::MissingProtocol { name, .. } = **e
-                        && name == "zwlr_data_control_manager_v1"
-                    {
-                        ClipboardState::Error(ErrorState::MissingDataControlProtocol)
-                    } else {
-                        ClipboardState::Error(ErrorState::Other(e.to_string()))
-                    };
+                    let ClipboardError::Watch(ref inner) = e;
+                    self.clipboard_state =
+                        if let clipboard_watcher::Error::MissingProtocol { name, .. } = **inner
+                            && name == "zwlr_data_control_manager_v1"
+                        {
+                            ClipboardState::Error(ErrorState::MissingDataControlProtocol)
+                        } else {
+                            ClipboardState::Error(ErrorState::Other(e.to_string()))
+                        };
                 }
                 clipboard::ClipboardMessage::EmptyKeyboard => {
                     if let Some(data) = self.db.get(0) {
