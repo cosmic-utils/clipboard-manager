@@ -69,26 +69,36 @@ impl SeatData {
 
     /// Sets this seat's data offer.
     ///
-    /// Destroys the old one, if any.
-    pub fn set_offer(&mut self, new_offer: Option<ZwlrDataControlOfferV1>) {
+    /// Returns and destroys the old one, if any. The caller is responsible for
+    /// removing the old offer from any state maps (e.g., offers HashMap).
+    pub fn set_offer(
+        &mut self,
+        new_offer: Option<ZwlrDataControlOfferV1>,
+    ) -> Option<ZwlrDataControlOfferV1> {
         let old_offer = self.offer.take();
         self.offer = new_offer;
 
-        if let Some(offer) = old_offer {
+        if let Some(ref offer) = old_offer {
             offer.destroy();
         }
+        old_offer
     }
 
     /// Sets this seat's primary-selection data offer.
     ///
-    /// Destroys the old one, if any.
-    pub fn set_primary_offer(&mut self, new_offer: Option<ZwlrDataControlOfferV1>) {
+    /// Returns and destroys the old one, if any. The caller is responsible for
+    /// removing the old offer from any state maps (e.g., offers HashMap).
+    pub fn set_primary_offer(
+        &mut self,
+        new_offer: Option<ZwlrDataControlOfferV1>,
+    ) -> Option<ZwlrDataControlOfferV1> {
         let old_offer = self.primary_offer.take();
         self.primary_offer = new_offer;
 
-        if let Some(offer) = old_offer {
+        if let Some(ref offer) = old_offer {
             offer.destroy();
         }
+        old_offer
     }
 }
 
@@ -126,7 +136,11 @@ where
         let state = parent.as_mut();
 
         if let wl_seat::Event::Name { name } = event {
-            state.get_mut_seat(seat).unwrap().set_name(name);
+            if let Some(seat_data) = state.get_mut_seat(seat) {
+                seat_data.set_name(name);
+            } else {
+                warn!("received name event for unknown seat");
+            }
         }
     }
 }
@@ -134,7 +148,7 @@ where
 struct State {
     common: CommonState,
     // The value is the set of MIME types in the offer.
-    // TODO: We never remove offers from here, even if we don't use them or after destroying them.
+    // Offers are cleaned up when replaced (in Selection/PrimarySelection events) or consumed (in start_watching).
     offers: HashMap<ZwlrDataControlOfferV1, HashSet<String>>,
     got_primary_selection: bool,
     // waker: Waker,
@@ -191,19 +205,33 @@ impl Dispatch<ZwlrDataControlDeviceV1, WlSeat> for State {
                 })
             }
             zwlr_data_control_device_v1::Event::Selection { id } => {
-                state.common.get_mut_seat(seat).unwrap().set_offer(id);
+                if let Some(seat_data) = state.common.get_mut_seat(seat) {
+                    // Remove the old offer from the offers map before replacing
+                    if let Some(old_offer) = seat_data.set_offer(id) {
+                        state.offers.remove(&old_offer);
+                    }
+                } else {
+                    warn!("received selection event for unknown seat");
+                }
             }
             zwlr_data_control_device_v1::Event::Finished => {
                 // Destroy the device stored in the seat as it's no longer valid.
-                state.common.get_mut_seat(seat).unwrap().set_device(None);
+                if let Some(seat_data) = state.common.get_mut_seat(seat) {
+                    seat_data.set_device(None);
+                } else {
+                    warn!("received finished event for unknown seat");
+                }
             }
             zwlr_data_control_device_v1::Event::PrimarySelection { id } => {
                 state.got_primary_selection = true;
-                state
-                    .common
-                    .get_mut_seat(seat)
-                    .unwrap()
-                    .set_primary_offer(id);
+                if let Some(seat_data) = state.common.get_mut_seat(seat) {
+                    // Remove the old offer from the offers map before replacing
+                    if let Some(old_offer) = seat_data.set_primary_offer(id) {
+                        state.offers.remove(&old_offer);
+                    }
+                } else {
+                    warn!("received primary selection event for unknown seat");
+                }
             }
             _ => (),
         }
@@ -224,7 +252,11 @@ impl Dispatch<ZwlrDataControlOfferV1, ()> for State {
         _qhandle: &wayland_client::QueueHandle<Self>,
     ) {
         if let zwlr_data_control_offer_v1::Event::Offer { mime_type } = event {
-            state.offers.get_mut(offer).unwrap().insert(mime_type);
+            if let Some(offer_mimes) = state.offers.get_mut(offer) {
+                offer_mimes.insert(mime_type);
+            } else {
+                warn!("received offer event for unknown offer id");
+            }
         }
     }
 }
@@ -236,6 +268,9 @@ pub enum Error {
 
     #[error("Wayland compositor communication error")]
     WaylandCommunication(#[source] DispatchError),
+
+    #[error("Wayland registry error: invalid object id")]
+    RegistryInvalidId,
 
     #[error(
         "A required Wayland protocol ({} version {}) is not supported by the compositor",
@@ -258,6 +293,9 @@ pub enum Error {
 
     #[error("Couldn't create a pipe for content transfer")]
     PipeCreation(#[source] io::Error),
+
+    #[error("Offer not found in state")]
+    OfferNotFound,
 }
 
 pub struct Watcher {
@@ -277,14 +315,13 @@ where
     let conn = Connection::connect_to_env().map_err(Error::WaylandConnection)?;
 
     // Retrieve the global interfaces.
-    let (globals, queue) =
-        registry_queue_init::<S>(&conn).map_err(|err| match err {
-                                           GlobalError::Backend(err) => Error::WaylandCommunication(err.into()),
-                                           GlobalError::InvalidId(err) => panic!("How's this possible? \
-                                                                                  Is there no wl_registry? \
-                                                                                  {:?}",
-                                                                                 err),
-                                       })?;
+    let (globals, queue) = registry_queue_init::<S>(&conn).map_err(|err| match err {
+        GlobalError::Backend(err) => Error::WaylandCommunication(err.into()),
+        GlobalError::InvalidId(_) => {
+            warn!("Wayland registry returned invalid id");
+            Error::RegistryInvalidId
+        }
+    })?;
     let qh = &queue.handle();
 
     // Verify that we got the clipboard manager.
@@ -386,7 +423,18 @@ impl Watcher {
         // Check if we found anything.
         match offer.clone() {
             Some(offer) => {
-                let mime_types = self.state.offers.remove(&offer).unwrap();
+                // Note: In rare cases the offer may not be in the map if Selection events
+                // arrived in an unexpected order. Use empty set as fallback to avoid breaking
+                // the watcher loop entirely.
+                let mime_types = self.state.offers.remove(&offer).unwrap_or_else(|| {
+                    warn!("offer not found in state map, using empty set");
+                    HashSet::new()
+                });
+
+                // If no mime types, treat as empty clipboard
+                if mime_types.is_empty() {
+                    return Err(Error::ClipboardEmpty);
+                }
 
                 let mut res = Vec::with_capacity(mime_types.len());
 

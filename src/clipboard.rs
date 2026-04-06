@@ -20,13 +20,31 @@ pub enum ClipboardMessage {
     /// Means that the source was closed, or the compurer just started
     /// This means the clipboard manager must become the source, by providing the last entry
     EmptyKeyboard,
-    Error(ClipboardError),
+    /// Recoverable error - can potentially retry
+    ErrorRecoverable(ClipboardError),
+    /// Fatal error - requires intervention or configuration change
+    ErrorFatal(ClipboardError),
 }
 
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum ClipboardError {
     #[error(transparent)]
     Watch(Arc<clipboard_watcher::Error>),
+}
+
+impl ClipboardError {
+    /// Returns true if this error is potentially recoverable (transient)
+    pub fn is_recoverable(&self) -> bool {
+        match self {
+            ClipboardError::Watch(e) => matches!(
+                **e,
+                clipboard_watcher::Error::ClipboardEmpty
+                    | clipboard_watcher::Error::WaylandCommunication(_)
+                    | clipboard_watcher::Error::OfferNotFound
+                    | clipboard_watcher::Error::RegistryInvalidId
+            ),
+        }
+    }
 }
 
 enum WatchRes<I> {
@@ -48,24 +66,39 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
                         {
                             Ok(res) => {
                                 if !PRIVATE_MODE.load(atomic::Ordering::Relaxed) {
-                                    tx.blocking_send(WatchRes::Some(res)).unwrap();
+                                    if tx.blocking_send(WatchRes::Some(res)).is_err() {
+                                        debug!(
+                                            "clipboard channel receiver dropped, exiting watcher loop"
+                                        );
+                                        break;
+                                    }
                                 } else {
                                     info!("private mode")
                                 }
                             }
                             Err(e) => match e {
                                 clipboard_watcher::Error::ClipboardEmpty => {
-                                    tx.blocking_send(WatchRes::None).unwrap();
+                                    if tx.blocking_send(WatchRes::None).is_err() {
+                                        debug!(
+                                            "clipboard channel receiver dropped, exiting watcher loop"
+                                        );
+                                        break;
+                                    }
                                 }
                                 _ => {
-                                    tx.blocking_send(WatchRes::Err(e)).unwrap();
+                                    // Try to send error, but don't panic if channel is closed
+                                    let _ = tx.blocking_send(WatchRes::Err(e));
                                     break;
                                 }
                             },
                         }
                     }
                 });
-                output.send(ClipboardMessage::Connected).await.unwrap();
+
+                if output.send(ClipboardMessage::Connected).await.is_err() {
+                    warn!("clipboard output channel closed during connect");
+                    return;
+                }
 
                 let mut i = 0;
                 loop {
@@ -103,37 +136,50 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
                                     .collect_vec();
 
                                 debug!("send mime types to db: {mimes:?}");
-                                output.send(ClipboardMessage::Data(data)).await.unwrap();
+                                if output.send(ClipboardMessage::Data(data)).await.is_err() {
+                                    warn!("clipboard output channel closed");
+                                    return;
+                                }
                             }
                         }
 
                         Some(WatchRes::None) => {
                             debug!("empty keyboard");
-                            output.send(ClipboardMessage::EmptyKeyboard).await.unwrap();
+                            if output.send(ClipboardMessage::EmptyKeyboard).await.is_err() {
+                                warn!("clipboard output channel closed");
+                                return;
+                            }
                         }
                         Some(WatchRes::Err(e)) => {
-                            output
-                                .send(ClipboardMessage::Error(ClipboardError::Watch(e.into())))
-                                .await
-                                .unwrap();
-                            std::future::pending::<()>().await;
+                            let error = ClipboardError::Watch(e.into());
+                            let message = if error.is_recoverable() {
+                                ClipboardMessage::ErrorRecoverable(error)
+                            } else {
+                                ClipboardMessage::ErrorFatal(error)
+                            };
+                            if output.send(message).await.is_err() {
+                                warn!("clipboard output channel closed during error report");
+                            }
+                            return;
                         }
                         None => {
-                            std::future::pending::<()>().await;
+                            debug!("clipboard watcher channel closed");
+                            return;
                         }
                     }
                 }
             }
 
             Err(e) => {
-                // todo: how to cancel properly?
-                // https://github.com/pop-os/cosmic-files/blob/d96d48995d49e17f01903ca4d89839eb4a1b1104/src/app.rs#L1704
-                output
-                    .send(ClipboardMessage::Error(ClipboardError::Watch(e.into())))
-                    .await
-                    .unwrap();
-
-                std::future::pending::<()>().await;
+                let error = ClipboardError::Watch(e.into());
+                let message = if error.is_recoverable() {
+                    ClipboardMessage::ErrorRecoverable(error)
+                } else {
+                    ClipboardMessage::ErrorFatal(error)
+                };
+                if output.send(message).await.is_err() {
+                    warn!("clipboard output channel closed during init error report");
+                }
             }
         };
     })
