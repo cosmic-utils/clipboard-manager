@@ -1,5 +1,5 @@
 use std::{
-    io::Read,
+    os::fd::{FromRawFd, IntoRawFd, OwnedFd},
     sync::{
         Arc,
         atomic::{self},
@@ -8,8 +8,11 @@ use std::{
 
 use cosmic::iced::{futures::SinkExt, stream::channel};
 use futures::Stream;
+use futures::future::join_all;
 use itertools::Itertools;
+use tokio::io::AsyncReadExt;
 use tokio::sync::mpsc;
+use tokio::time::{Duration, timeout};
 
 use crate::{clipboard_watcher, config::PRIVATE_MODE, db::MimeDataMap};
 
@@ -40,6 +43,7 @@ impl ClipboardError {
                 **e,
                 clipboard_watcher::Error::ClipboardEmpty
                     | clipboard_watcher::Error::WaylandCommunication(_)
+                    | clipboard_watcher::Error::WaylandFlush(_)
                     | clipboard_watcher::Error::OfferNotFound
                     | clipboard_watcher::Error::RegistryInvalidId
             ),
@@ -110,23 +114,51 @@ pub fn sub() -> impl Stream<Item = ClipboardMessage> {
                         Some(WatchRes::Some(res)) => {
                             let mut data = MimeDataMap::new();
 
-                            for (mime_type, mut pipe) in res {
-                                let mut contents = Vec::new();
+                            let read_futures = res.into_iter().map(|(mime_type, pipe)| async move {
+                                let raw_fd = pipe.into_raw_fd();
+                                let owned_fd = unsafe { OwnedFd::from_raw_fd(raw_fd) };
 
-                                match pipe.read_to_end(&mut contents) {
-                                    Ok(len) => {
+                                let mut async_pipe =
+                                    match tokio::net::unix::pipe::Receiver::from_owned_fd(owned_fd)
+                                    {
+                                        Ok(receiver) => receiver,
+                                        Err(e) => {
+                                            warn!(
+                                                "failed to create async pipe receiver: {mime_type} {e}"
+                                            );
+                                            return None;
+                                        }
+                                    };
+
+                                let mut contents = Vec::new();
+                                match timeout(
+                                    Duration::from_millis(500),
+                                    async_pipe.read_to_end(&mut contents),
+                                )
+                                .await
+                                {
+                                    Ok(Ok(len)) => {
                                         if len == 0 {
                                             debug!("data is empty: {mime_type}");
+                                            None
                                         } else {
-                                            data.insert(mime_type, contents);
+                                            Some((mime_type, contents))
                                         }
                                     }
-                                    Err(e) => {
-                                        warn!(
-                                            "read error on external pipe clipboard: {mime_type} {e}"
-                                        );
+                                    Ok(Err(e)) => {
+                                        warn!("read error on external pipe clipboard: {mime_type} {e}");
+                                        None
+                                    }
+                                    Err(_) => {
+                                        warn!("read timeout (500ms): {mime_type}");
+                                        None
                                     }
                                 }
+                            });
+
+                            let read_results = join_all(read_futures).await;
+                            for (mime_type, contents) in read_results.into_iter().flatten() {
+                                data.insert(mime_type, contents);
                             }
 
                             if !data.is_empty() {
