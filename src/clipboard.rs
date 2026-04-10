@@ -43,6 +43,7 @@ impl ClipboardError {
                 **e,
                 clipboard_watcher::Error::ClipboardEmpty
                     | clipboard_watcher::Error::WaylandCommunication(_)
+                    | clipboard_watcher::Error::WaylandFlush(_)
                     | clipboard_watcher::Error::OfferNotFound
                     | clipboard_watcher::Error::RegistryInvalidId
             ),
