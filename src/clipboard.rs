@@ -7,8 +7,8 @@ use std::{
 };
 
 use cosmic::iced::{futures::SinkExt, stream::channel};
-use futures::future::join_all;
 use futures::Stream;
+use futures::future::join_all;
 use itertools::Itertools;
 use tokio::io::AsyncReadExt;
 use tokio::sync::mpsc;
