@@ -22,6 +22,14 @@ use cosmic::cctk::{
     },
 };
 
+const BLOCKED_ATOMS: &[&str] = &[
+    "SAVE_TARGETS",
+    "TARGETS",
+    "MULTIPLE",
+    "TIMESTAMP",
+    "COMPOUND_TEXT",
+];
+
 /// Seat to operate on.
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Hash, PartialOrd, Ord, Default)]
 pub enum Seat<'a> {
@@ -269,6 +277,9 @@ pub enum Error {
     #[error("Wayland compositor communication error")]
     WaylandCommunication(#[source] DispatchError),
 
+    #[error("Wayland connection flush error")]
+    WaylandFlush(#[source] wayland_client::backend::WaylandError),
+
     #[error("Wayland registry error: invalid object id")]
     RegistryInvalidId,
 
@@ -439,6 +450,11 @@ impl Watcher {
                 let mut res = Vec::with_capacity(mime_types.len());
 
                 for mime_type in mime_types {
+                    if BLOCKED_ATOMS.contains(&mime_type.as_str()) {
+                        debug!("skipping X11 atom: {mime_type}");
+                        continue;
+                    }
+
                     // Create a pipe for content transfer.
                     let (read, write) = std::io::pipe().map_err(Error::PipeCreation)?;
 
@@ -448,6 +464,9 @@ impl Watcher {
 
                     res.push((mime_type, read));
                 }
+
+                // Flush receive requests so the compositor can prompt source apps to write data.
+                self.queue.flush().map_err(Error::WaylandFlush)?;
 
                 Ok(res)
             }
