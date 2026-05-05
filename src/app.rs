@@ -30,7 +30,7 @@ use crate::message::{AppMsg, ConfigMsg, ContextMenuMsg};
 use crate::navigation::EventMsg;
 use crate::utils::task_message;
 use crate::view::SCROLLABLE_ID;
-use crate::{clipboard, clipboard_watcher, config, navigation};
+use crate::{clipboard, clipboard_watcher, config, navigation, dbus};
 
 use cosmic::{cosmic_config, iced_runtime};
 use std::sync::atomic::{self};
@@ -570,6 +570,7 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
             config::sub(),
             navigation::sub().map(AppMsg::Navigation),
             db_sub().map(AppMsg::Db),
+            Subscription::run(dbus::sub),
         ];
 
         if !self.clipboard_state.is_error() {

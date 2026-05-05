@@ -13,6 +13,7 @@ mod clipboard;
 mod clipboard_watcher;
 mod config;
 mod db;
+mod dbus;
 mod icon;
 mod localize;
 mod message;
