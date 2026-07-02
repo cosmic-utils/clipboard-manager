@@ -7,12 +7,9 @@ The goal is to make a simple yet fast clipboard history, with a focus on UX, rap
 There is a quick settings popup when you right click the icon.
 
 ## Install
+The applet is available in the cosmic-store.
 
-> [!WARNING]  
-> The applet is available in the cosmic-store, however, this version will currently not work (https://github.com/cosmic-utils/clipboard-manager/issues/171).
-
-The reason is because this applet use a wayland protocol ([data control protocol](https://wayland.app/protocols/ext-data-control-v1)) which is not available for sandboxed client.
-The only way is to build from source. For this you need to install [rust](https://rust-lang.org/tools/install/), [just](https://github.com/casey/just), and follow the the [build instruction](./BUILD.md).
+You also build from source. For this you need to install [rust](https://rust-lang.org/tools/install/), [just](https://github.com/casey/just), and follow the the [build instruction](./BUILD.md).
 
 ## Logs
 
