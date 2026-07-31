@@ -66,3 +66,12 @@ jobs:
 
       - name: Run rustfmt
         run: cargo fmt --all --check --verbose
+
+  vendor:
+    name: Cargo vendor
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Vendor
+        run: cargo vendor
+
