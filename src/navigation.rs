@@ -1,6 +1,5 @@
 use cosmic::iced::{
-    Subscription,
-    event::{self},
+    Subscription, event::{self, listen_with},
 };
 
 #[derive(Debug, Clone)]
@@ -15,7 +14,7 @@ pub enum EventMsg {
 
 #[allow(clippy::collapsible_match)]
 pub fn sub() -> Subscription<EventMsg> {
-    cosmic::iced_futures::event::listen_with(|event, status, _| {
+    listen_with(|event, status, _| {
         match status {
             event::Status::Captured => None,
             event::Status::Ignored => {

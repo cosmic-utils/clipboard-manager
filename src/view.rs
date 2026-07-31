@@ -1,17 +1,10 @@
 use std::{borrow::Cow, cmp::min, sync::LazyLock};
 
 use cosmic::{
-    Apply, Element,
-    iced::{Alignment, Length, alignment::Horizontal, padding},
-    iced_widget::{
-        Stack,
-        scrollable::{Direction, Scrollbar},
-    },
-    theme::Button,
-    widget::{
-        self, Id,
+    Apply, Element, iced::{Alignment, Length, alignment::Horizontal, padding, widget::{Stack, Scrollable, scrollable::{Direction, Scrollbar}}}, theme::Button, widget::{
+        self, Column, Id, Row,
         button::{self},
-        column, container, image, row, scrollable, space, text, text_input, toggler,
+        container, image, scrollable, space, text, text_input, toggler,
     },
 };
 use itertools::Itertools;
@@ -24,6 +17,20 @@ use crate::{
     my_widget,
     utils::formatted_value,
 };
+
+fn row<'a, Message, Theme, Renderer>() -> Row<'a, Message, Theme, Renderer>
+where
+    Renderer: cosmic::iced::core::Renderer,
+{
+    Row::new()
+}
+
+fn column<'a, Message, Theme, Renderer>() -> Column<'a, Message, Theme, Renderer>
+where
+    Renderer: cosmic::iced::core::Renderer,
+{
+    Column::new()
+}
 
 pub static SCROLLABLE_ID: LazyLock<Id> = LazyLock::new(|| Id::new("scrollable"));
 
@@ -151,12 +158,12 @@ impl<Db: DbTrait> AppState<Db> {
                     .collect();
 
                 if self.config.horizontal {
-                    let column = row::with_children(entries_view)
+                    let column = widget::row::with_children(entries_view)
                         .spacing(8)
                         .width(Length::Shrink)
                         .apply(Element::from);
 
-                    cosmic::iced::widget::Scrollable::with_direction(
+                    Scrollable::with_direction(
                         column,
                         Direction::Horizontal(Scrollbar::new()),
                     )
@@ -166,7 +173,7 @@ impl<Db: DbTrait> AppState<Db> {
                     // .id(SCROLLABLE_ID.clone())
                     .apply(Element::from)
                 } else {
-                    let column = column::with_children(entries_view)
+                    let column = widget::column::with_children(entries_view)
                         .spacing(8)
                         .padding(padding::right(8));
 
@@ -248,7 +255,7 @@ impl<Db: DbTrait> AppState<Db> {
         self.base_entry(
             entry,
             is_focused,
-            column::with_children(lines).width(Length::Fill),
+            widget::column::with_children(lines).width(Length::Fill),
         )
     }
 
@@ -269,7 +276,7 @@ impl<Db: DbTrait> AppState<Db> {
         self.base_entry(
             entry,
             is_focused,
-            column::with_children(lines).width(Length::Fill),
+            widget::column::with_children(lines).width(Length::Fill),
         )
     }
 

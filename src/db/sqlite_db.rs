@@ -115,7 +115,7 @@ fn hash_entry_content<H: Hasher>(data: &MimeDataMap, state: &mut H) {
     }
 
     let mut sorted = data.iter().collect::<Vec<_>>();
-    sorted.sort_by(|(mime1, _), (mime2, _)| mime1.cmp(mime2));
+    sorted.sort_by_key(|(mime1, _)| *mime1);
 
     for (_, content) in sorted {
         content.hash(state);
@@ -322,7 +322,7 @@ impl DbTrait for DbSqlite {
                 })
                 .collect::<Vec<_>>();
 
-            rows.sort_by(|e1, e2| e1.1.cmp(&e2.1));
+            rows.sort_by_key(|e1| e1.1);
 
             debug_assert_eq!(rows.last().map(|e| e.1 + 1).unwrap_or(0), rows.len());
 

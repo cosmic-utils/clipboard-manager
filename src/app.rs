@@ -1,22 +1,20 @@
 use chrono::Utc;
 use cosmic::app::Core;
 
+use cosmic::cctk::sctk::shell::wlr_layer::KeyboardInteractivity;
 use cosmic::iced::clipboard::mime::AsMimeTypes;
+use cosmic::iced::core::widget::operation;
+use cosmic::iced::core::window;
 use cosmic::iced::keyboard::key::Named;
+use cosmic::iced::platform_specific::shell::commands::layer_surface::{self, destroy_layer_surface, get_layer_surface};
+use cosmic::iced::platform_specific::shell::commands::popup::{destroy_popup, get_popup};
+use cosmic::iced::runtime::platform_specific::wayland::layer_surface::SctkLayerSurfaceSettings;
+use cosmic::iced::runtime::task;
+use cosmic::iced::widget::operation::RelativeOffset;
 use cosmic::iced::window::Id;
-use cosmic::iced::{self, Limits};
+use cosmic::iced::{self, Limits, Subscription};
 
-use cosmic::iced_core::widget::operation;
-use cosmic::iced_futures::Subscription;
-use cosmic::iced_runtime::core::window;
-use cosmic::iced_runtime::platform_specific::wayland::layer_surface::SctkLayerSurfaceSettings;
-use cosmic::iced_widget::qr_code;
-use cosmic::iced_widget::scrollable::RelativeOffset;
-use cosmic::iced_winit::commands::layer_surface::{
-    self, KeyboardInteractivity, destroy_layer_surface, get_layer_surface,
-};
-use cosmic::iced_winit::commands::popup::{destroy_popup, get_popup};
-use cosmic::widget::{MouseArea, Space};
+use cosmic::widget::{MouseArea, Space, qr_code};
 
 use cosmic::{Element, app::Task};
 use futures::StreamExt;
@@ -32,7 +30,7 @@ use crate::utils::task_message;
 use crate::view::SCROLLABLE_ID;
 use crate::{clipboard, clipboard_watcher, config, navigation};
 
-use cosmic::{cosmic_config, iced_runtime};
+use cosmic::cosmic_config;
 use std::sync::atomic::{self};
 use std::time::Duration;
 
@@ -114,7 +112,7 @@ impl<Db: DbTrait> AppState<Db> {
 
             debug!("delta_y = {}", delta_y);
 
-            iced_runtime::task::widget(operation::scrollable::snap_to(
+            task::widget(operation::scrollable::snap_to(
                 SCROLLABLE_ID.clone(),
                 RelativeOffset {
                     x: None,
@@ -145,7 +143,7 @@ impl<Db: DbTrait> AppState<Db> {
                 / self.config.maximum_entries_by_page.get() as f32;
 
             debug!("delta_y = {}", delta_y);
-            iced_runtime::task::widget(operation::scrollable::snap_to(
+            task::widget(operation::scrollable::snap_to(
                 SCROLLABLE_ID.clone(),
                 RelativeOffset {
                     x: None,
@@ -374,7 +372,6 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                         error!("can't insert data: {e}");
                     }
                 }
-                #[expect(irrefutable_let_patterns)]
                 clipboard::ClipboardMessage::Error(e) => {
                     error!("clipboard: {e}");
 

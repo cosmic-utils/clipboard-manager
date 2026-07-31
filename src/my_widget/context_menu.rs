@@ -1,15 +1,18 @@
 use cosmic::{
     Theme,
-    iced::{self, Background, Border, Color, keyboard, touch},
-    iced_core::{Size, Vector, widget::tree},
-    iced_widget,
-};
-use iced_widget::core::{
-    Clipboard, Element, Event, Layout, Length, Point, Rectangle, Shell, Widget,
-    layout::{Limits, Node},
-    mouse::{self, Cursor},
-    overlay, renderer,
-    widget::{Operation, Tree},
+    iced::{
+        self, Background, Border, Color, Element, Length, Limits, Point, Rectangle,
+        core::{
+            Clipboard, Event, Layout, Shell, Size, Vector,
+            layout::Node,
+            overlay, renderer,
+            widget::{Tree, tree},
+        },
+        keyboard,
+        mouse::{self, Cursor},
+        touch::{self},
+    },
+    widget::{Operation, Widget},
 };
 
 use cosmic::iced::window;
@@ -518,7 +521,7 @@ impl Catalog for Theme {
 /// The primary theme of a [`ContextMenu`](crate::widget::ContextMenu).
 #[must_use]
 pub fn primary(theme: &Theme) -> Style {
-    let bg = theme.cosmic().background.component.base;
+    let bg = theme.cosmic().bg_color();
 
     Style {
         background: Background::Color(Color {
