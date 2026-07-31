@@ -1,7 +1,18 @@
 use std::{borrow::Cow, cmp::min, sync::LazyLock};
 
 use cosmic::{
-    Apply, Element, iced::{Alignment, Length, alignment::Horizontal, padding, widget::{Stack, Scrollable, scrollable::{Direction, Scrollbar}}}, theme::Button, widget::{
+    Apply, Element,
+    iced::{
+        Alignment, Length,
+        alignment::Horizontal,
+        padding,
+        widget::{
+            Scrollable, Stack,
+            scrollable::{Direction, Scrollbar},
+        },
+    },
+    theme::Button,
+    widget::{
         self, Column, Id, Row,
         button::{self},
         container, image, scrollable, space, text, text_input, toggler,
@@ -163,15 +174,12 @@ impl<Db: DbTrait> AppState<Db> {
                         .width(Length::Shrink)
                         .apply(Element::from);
 
-                    Scrollable::with_direction(
-                        column,
-                        Direction::Horizontal(Scrollbar::new()),
-                    )
-                    .scroller_width(8)
-                    .scrollbar_width(0)
-                    .scrollbar_padding(0)
-                    // .id(SCROLLABLE_ID.clone())
-                    .apply(Element::from)
+                    Scrollable::with_direction(column, Direction::Horizontal(Scrollbar::new()))
+                        .scroller_width(8)
+                        .scrollbar_width(0)
+                        .scrollbar_padding(0)
+                        // .id(SCROLLABLE_ID.clone())
+                        .apply(Element::from)
                 } else {
                     let column = widget::column::with_children(entries_view)
                         .spacing(8)

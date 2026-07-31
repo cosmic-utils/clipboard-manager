@@ -6,7 +6,9 @@ use cosmic::iced::clipboard::mime::AsMimeTypes;
 use cosmic::iced::core::widget::operation;
 use cosmic::iced::core::window;
 use cosmic::iced::keyboard::key::Named;
-use cosmic::iced::platform_specific::shell::commands::layer_surface::{self, destroy_layer_surface, get_layer_surface};
+use cosmic::iced::platform_specific::shell::commands::layer_surface::{
+    self, destroy_layer_surface, get_layer_surface,
+};
 use cosmic::iced::platform_specific::shell::commands::popup::{destroy_popup, get_popup};
 use cosmic::iced::runtime::platform_specific::wayland::layer_surface::SctkLayerSurfaceSettings;
 use cosmic::iced::runtime::task;

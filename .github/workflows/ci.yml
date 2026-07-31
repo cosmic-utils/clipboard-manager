@@ -74,4 +74,3 @@ jobs:
       - uses: actions/checkout@v7
       - name: Vendor
         run: cargo vendor
-

@@ -51,7 +51,7 @@ pull: fmt prettier fix test
 test:
     cargo test --workspace --all-features
 
-fix:
+fix: fmt fmt-just prettier
     cargo clippy --workspace --all-features --fix --allow-dirty --allow-staged
 
 fmt:

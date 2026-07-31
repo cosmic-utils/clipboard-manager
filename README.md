@@ -7,6 +7,7 @@ The goal is to make a simple yet fast clipboard history, with a focus on UX, rap
 There is a quick settings popup when you right click the icon.
 
 ## Install
+
 The applet is available in the cosmic-store.
 
 You also build from source. For this you need to install [rust](https://rust-lang.org/tools/install/), [just](https://github.com/casey/just), and follow the the [build instruction](./BUILD.md).

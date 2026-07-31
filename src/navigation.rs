@@ -1,5 +1,6 @@
 use cosmic::iced::{
-    Subscription, event::{self, listen_with},
+    Subscription,
+    event::{self, listen_with},
 };
 
 #[derive(Debug, Clone)]
