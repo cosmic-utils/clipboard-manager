@@ -10,7 +10,7 @@ rust-version = "1.88"
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
-tokio = { version = "1", features = [] }
+tokio = { version = "1", features = ["time", "net", "io-util"] }
 
 i18n-embed = { version = "0.16", features = [
     "fluent-system",

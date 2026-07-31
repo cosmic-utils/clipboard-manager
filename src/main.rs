@@ -74,7 +74,7 @@ fn main() {
         }
         Err(err) => {
             error!("failed to create config handler: {}", err);
-            panic!();
+            std::process::exit(1);
         }
     };
 
@@ -85,6 +85,6 @@ fn main() {
 
     if let Err(e) = cosmic::applet::run::<AppState<db::DbSqlite>>(flags) {
         error!("{e}");
-        panic!();
+        std::process::exit(1);
     }
 }
