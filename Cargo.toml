@@ -25,7 +25,7 @@ directories = "6"
 anyhow = "1"
 chrono = { version = "0.4", default-features = false, features = ["now"] }
 mime = "0.3"
-sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }
+sqlx = { version = "0.9", features = ["sqlite", "runtime-tokio"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = [
     "fmt",
@@ -38,7 +38,7 @@ constcat = "0.6"
 nucleo = "0.5"
 futures = "0.3"
 include_dir = "0.7"
-itertools = "0.14"
+itertools = "0.15"
 regex = "1"
 open = "5"
 
@@ -48,7 +48,7 @@ default-features = false
 features = ["applet", "tokio", "wayland", "qr_code", "markdown", "highlighter"]
 
 [dev-dependencies]
-serial_test = "3"
+serial_test = "4"
 tokio = { version = "1", features = ["macros"] }
 # configurator_schema = { git = "https://github.com/cosmic-utils/configurator.git" }
 
