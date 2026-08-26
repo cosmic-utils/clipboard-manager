@@ -83,11 +83,17 @@ impl<Db: DbTrait> AppState<Db> {
                     .push(text(fl!("number_of_entries")))
                     .push(space::horizontal())
                     .push(
-                        text_input("", self.config.maximum_entries_number.to_string())
-                            .on_input(|s| {
-                                AppMsg::Config(ConfigMsg::NumberOfEntries(s.parse().unwrap_or(0)))
-                            })
-                            .width(Length::Fixed(100.0)),
+                        text_input(
+                            "",
+                            self.config
+                                .maximum_entries_number
+                                .map(|n| n.to_string())
+                                .unwrap_or_default(),
+                        )
+                        .on_input(|s| {
+                            AppMsg::Config(ConfigMsg::NumberOfEntries(s.trim().parse().ok()))
+                        })
+                        .width(Length::Fixed(100.0)),
                     ),
             )
             .push(button::destructive(fl!("clear_entries")).on_press(AppMsg::Clear))

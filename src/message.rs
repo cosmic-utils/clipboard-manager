@@ -54,5 +54,5 @@ pub enum ConfigMsg {
     #[expect(dead_code)]
     Horizontal(bool),
     UniqueSession(bool),
-    NumberOfEntries(u32),
+    NumberOfEntries(Option<u32>),
 }
