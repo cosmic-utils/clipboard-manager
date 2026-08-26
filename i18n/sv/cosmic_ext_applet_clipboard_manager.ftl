@@ -9,3 +9,4 @@ horizontal_layout = Horisontell
 add_favorite = Lägg till favorit 
 remove_favorite = Ta bort favorit
 unique_session = Unik session
+number_of_entries = Antal poster

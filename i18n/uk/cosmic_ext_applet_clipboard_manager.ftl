@@ -10,3 +10,4 @@ add_favorite = Додати в обране
 remove_favorite = Вилучити з обраного
 unique_session = Унікальна сесія
 unknown_mime_types_title = Типи MIME
+number_of_entries = Кількість записів

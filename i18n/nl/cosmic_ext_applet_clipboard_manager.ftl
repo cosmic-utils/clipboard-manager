@@ -10,3 +10,4 @@ add_favorite = Favoriet toevoegen
 remove_favorite = Favoriet verwijderen
 unique_session = Unieke sessie
 unknown_mime_types_title = Mime-types
+number_of_entries = Aantal items

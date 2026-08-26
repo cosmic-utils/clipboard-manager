@@ -10,3 +10,4 @@ add_favorite = Aggiungi a Preferiti
 remove_favorite = Rimuovi da Preferiti
 unique_session = Sessione unica
 unknown_mime_types_title = Tipi MIME
+number_of_entries = Numero di voci

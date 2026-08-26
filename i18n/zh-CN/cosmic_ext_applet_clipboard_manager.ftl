@@ -10,3 +10,4 @@ add_favorite = 添加收藏
 remove_favorite = 移除收藏
 unique_session = 单一会话
 unknown_mime_types_title = Mime类型
+number_of_entries = 条目数量

@@ -10,6 +10,7 @@ add_favorite = Agregar favorito
 remove_favorite = Quitar favorito
 unique_session = Sesión única
 unknown_mime_types_title = Tipos MIME
+number_of_entries = Número de entradas
 
 data_control = Dummy
     .title = Necesitas activar el protocolo de control de datos Wayland en tu dispositivo

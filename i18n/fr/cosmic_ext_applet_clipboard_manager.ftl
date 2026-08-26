@@ -9,3 +9,4 @@ horizontal_layout = Horizontal
 add_favorite = Ajouter aux Favoris
 remove_favorite = Retirer des Favoris
 unique_session = Session unique
+number_of_entries = Nombre d'entrées

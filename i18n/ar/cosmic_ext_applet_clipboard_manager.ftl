@@ -10,6 +10,7 @@ add_favorite =  أضف للمفضلة
 remove_favorite = أزل المفضلة
 unique_session = جلسة فريدة
 unknown_mime_types_title = Mime أنواع
+number_of_entries = عدد المدخلات
 
 data_control = وهمي
     .title = يجب عليك تفعيل بروتوكول وايلاند للتحكم بالبيانات على جهازك.
