@@ -78,6 +78,18 @@ impl<Db: DbTrait> AppState<Db> {
                 self.config.unique_session,
                 |v| AppMsg::Config(ConfigMsg::UniqueSession(v)),
             ))
+            .push(
+                row()
+                    .push(text(fl!("number_of_entries")))
+                    .push(space::horizontal())
+                    .push(
+                        text_input("", self.config.maximum_entries_number.to_string())
+                            .on_input(|s| {
+                                AppMsg::Config(ConfigMsg::NumberOfEntries(s.parse().unwrap_or(0)))
+                            })
+                            .width(Length::Fixed(100.0)),
+                    ),
+            )
             .push(button::destructive(fl!("clear_entries")).on_press(AppMsg::Clear))
             .into()
     }

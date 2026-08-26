@@ -474,6 +474,9 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                 ConfigMsg::UniqueSession(unique_session) => {
                     config_set!(unique_session, unique_session);
                 }
+                ConfigMsg::NumberOfEntries(maximum_entries_number) => {
+                    config_set!(maximum_entries_number, maximum_entries_number);
+                }
             },
             AppMsg::NextPage => {
                 self.page += 1;

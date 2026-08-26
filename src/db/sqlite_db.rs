@@ -238,9 +238,7 @@ impl DbTrait for DbSqlite {
                 .unwrap();
         }
 
-        if lock.owns_lock()
-            && let Some(max_number_of_entries) = &config.maximum_entries_number
-        {
+        if lock.owns_lock() {
             let query_get_most_older = r#"
                 SELECT creation
                 FROM ClipboardEntries
@@ -249,7 +247,7 @@ impl DbTrait for DbSqlite {
             "#;
 
             match sqlx::query(query_get_most_older)
-                .bind(max_number_of_entries)
+                .bind(config.maximum_entries_number)
                 .fetch_optional(&mut conn)
                 .await
                 .unwrap()
@@ -260,7 +258,7 @@ impl DbTrait for DbSqlite {
                     let query_delete_old_one = r#"
                 
                             DELETE FROM ClipboardEntries
-                            WHERE creation < ? AND id NOT IN (
+                            WHERE creation <= ? AND id NOT IN (
                                 SELECT id
                                 FROM FavoriteClipboardEntries);
                             "#;

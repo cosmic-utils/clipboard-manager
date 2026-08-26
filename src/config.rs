@@ -28,7 +28,7 @@ pub struct Config {
     pub private_mode: bool,
     /// In second
     pub maximum_entries_lifetime: Option<u64>,
-    pub maximum_entries_number: Option<u32>,
+    pub maximum_entries_number: u32,
     /// Enable horizontal layout
     pub horizontal: bool,
     /// Reset the database at each login
@@ -51,7 +51,7 @@ impl Default for Config {
         Self {
             private_mode: false,
             maximum_entries_lifetime: Some(30), // 30 days,
-            maximum_entries_number: Some(500),
+            maximum_entries_number: 500,
             horizontal: false,
             unique_session: false,
             maximum_entries_by_page: NonZero::new(50).unwrap(),
