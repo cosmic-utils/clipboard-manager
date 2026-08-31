@@ -97,7 +97,7 @@ impl<Db: DbTrait> AppState<Db> {
                             if let Ok(num) = text.parse() {
                                 return AppMsg::Config(ConfigMsg::NumberOfEntries(Some(num)));
                             }
-                            return AppMsg::Nothing;
+                            AppMsg::Nothing
                         })
                         .width(Length::Fixed(100.0)),
                     ),

@@ -534,7 +534,7 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                 if let Err(e) = open::that(url.as_str()) {
                     error!("{e}");
                 }
-            },
+            }
             AppMsg::Nothing => {}
         }
         Task::none()
