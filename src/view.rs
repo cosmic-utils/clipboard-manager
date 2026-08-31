@@ -90,8 +90,14 @@ impl<Db: DbTrait> AppState<Db> {
                                 .map(|n| n.to_string())
                                 .unwrap_or_default(),
                         )
-                        .on_input(|s| {
-                            AppMsg::Config(ConfigMsg::NumberOfEntries(s.trim().parse().ok()))
+                        .on_input(|text| {
+                            if text.is_empty() {
+                                return AppMsg::Config(ConfigMsg::NumberOfEntries(None));
+                            }
+                            if let Ok(num) = text.parse() {
+                                return AppMsg::Config(ConfigMsg::NumberOfEntries(Some(num)));
+                            }
+                            return AppMsg::Nothing;
                         })
                         .width(Length::Fixed(100.0)),
                     ),

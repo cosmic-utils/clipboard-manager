@@ -28,6 +28,7 @@ pub enum AppMsg {
     ContextMenu(ContextMenuMsg),
     #[expect(dead_code)]
     LinkClicked(markdown::Uri),
+    Nothing,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
