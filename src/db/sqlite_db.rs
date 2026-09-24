@@ -260,7 +260,7 @@ impl DbTrait for DbSqlite {
                     let query_delete_old_one = r#"
                 
                             DELETE FROM ClipboardEntries
-                            WHERE creation < ? AND id NOT IN (
+                            WHERE creation <= ? AND id NOT IN (
                                 SELECT id
                                 FROM FavoriteClipboardEntries);
                             "#;

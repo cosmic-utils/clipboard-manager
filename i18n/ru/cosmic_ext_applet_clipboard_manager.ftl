@@ -10,6 +10,7 @@ add_favorite = Добавить в Избранное
 remove_favorite = Удалить из Избранного
 unique_session = Уникальная сессия
 unknown_mime_types_title = Типы mime
+number_of_entries = Количество записей
 
 data_control = Dummy
     .title = Вам необходимо активировать протокол Wayland "data control" на вашем устройстве

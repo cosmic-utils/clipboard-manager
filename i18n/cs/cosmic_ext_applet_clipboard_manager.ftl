@@ -10,6 +10,7 @@ add_favorite = Přidat do oblíbených
 remove_favorite = Odebrat z oblíbených
 unique_session = Unikátní relace
 unknown_mime_types_title = Mime typy
+number_of_entries = Počet záznamů
 
 data_control = Dummy
     .title = Musíte na svém zařízení aktivovat Wayland protokol data control

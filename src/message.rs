@@ -28,6 +28,7 @@ pub enum AppMsg {
     ContextMenu(ContextMenuMsg),
     #[expect(dead_code)]
     LinkClicked(markdown::Uri),
+    Nothing,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
@@ -54,4 +55,5 @@ pub enum ConfigMsg {
     #[expect(dead_code)]
     Horizontal(bool),
     UniqueSession(bool),
+    NumberOfEntries(Option<u32>),
 }

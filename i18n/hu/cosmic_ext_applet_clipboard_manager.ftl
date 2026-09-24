@@ -10,6 +10,7 @@ add_favorite = Hozzáadás a kedvencekhez
 remove_favorite = Eltávolítás a kedvencek közül
 unique_session = Egyedi munkamenet
 unknown_mime_types_title = MIME-típusok
+number_of_entries = Bejegyzések száma
 
 data_control = Teszt
     .title = Aktiválnod kell az adatvezérlő Wayland protokollt az eszközödön
