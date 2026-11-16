@@ -93,6 +93,14 @@ enum PopupKind {
     QuickSettings,
 }
 
+impl<Db: DbTrait> AppState<Db> {
+    /// Id of the surface currently hosting the popup view, used as the
+    /// parent of nested popups such as the entry context menu.
+    pub(crate) fn popup_id(&self) -> Option<window::Id> {
+        self.popup.as_ref().map(|popup| popup.id)
+    }
+}
+
 impl<Db: DbTrait + 'static> AppState<Db> {
     fn focus_next(&mut self) -> Task<AppMsg> {
         if self.db.len() > 0 {
@@ -551,6 +559,7 @@ impl<Db: DbTrait + 'static> cosmic::Application for AppState<Db> {
                     error!("{e}");
                 }
             }
+            AppMsg::Surface(action) => return surface::surface_task(action),
             AppMsg::Nothing => {}
         }
         Task::none()

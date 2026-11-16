@@ -16,7 +16,6 @@ mod db;
 mod icon;
 mod localize;
 mod message;
-mod my_widget;
 mod navigation;
 mod utils;
 mod view;
