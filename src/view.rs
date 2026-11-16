@@ -1,4 +1,4 @@
-use std::{borrow::Cow, cmp::min, collections::HashMap, sync::LazyLock};
+use std::{borrow::Cow, cmp::min, sync::LazyLock};
 
 use cosmic::{
     Apply, Element,
@@ -396,33 +396,32 @@ impl<Db: DbTrait> AppState<Db> {
             btn
         };
 
-        let items = vec![
-            if entry.is_favorite() {
-                menu::Item::Button(
-                    fl!("remove_favorite"),
-                    None,
-                    ContextMenuMsg::RemoveFavorite(entry.id()),
-                )
+        // The original menu content, unchanged. It is the only item of the
+        // libcosmic menu tree, which hosts it in its own popup surface.
+        let overlay: Element<'static, AppMsg> = column()
+            .push(if entry.is_favorite() {
+                button::text(fl!("remove_favorite"))
+                    .on_press(ContextMenuMsg::RemoveFavorite(entry.id()))
             } else {
-                menu::Item::Button(
-                    fl!("add_favorite"),
-                    None,
-                    ContextMenuMsg::AddFavorite(entry.id()),
-                )
-            },
-            menu::Item::Button(
-                fl!("show_qr_code"),
-                None,
-                ContextMenuMsg::ShowQrCode(entry.id()),
-            ),
-            menu::Item::Button(
-                fl!("delete_entry"),
-                None,
-                ContextMenuMsg::Delete(entry.id()),
-            ),
-        ];
+                button::text(fl!("add_favorite")).on_press(ContextMenuMsg::AddFavorite(entry.id()))
+            })
+            .push(
+                button::text(fl!("show_qr_code")).on_press(ContextMenuMsg::ShowQrCode(entry.id())),
+            )
+            .push(
+                button::text(fl!("delete_entry"))
+                    .on_press(ContextMenuMsg::Delete(entry.id()))
+                    .class(Button::Destructive),
+            )
+            .apply(Element::from)
+            .map(AppMsg::ContextMenu);
 
-        let tree = menu::items(&HashMap::new(), items);
+        let overlay: Element<'static, AppMsg> = container(overlay)
+            .class(cosmic::theme::Container::Card)
+            .padding(padding::all(5))
+            .into();
+
+        let tree = vec![menu::Tree::from(overlay)];
 
         // libcosmic opens the menu as its own popup surface (which is what gets
         // blur and the themed menu style) only when it knows its parent surface
