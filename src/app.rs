@@ -9,12 +9,13 @@ use cosmic::iced::keyboard::key::Named;
 use cosmic::iced::platform_specific::shell::commands::layer_surface::{
     self, destroy_layer_surface, get_layer_surface,
 };
-use cosmic::iced::platform_specific::shell::commands::popup::{destroy_popup, get_popup};
 use cosmic::iced::runtime::platform_specific::wayland::layer_surface::SctkLayerSurfaceSettings;
 use cosmic::iced::runtime::task;
 use cosmic::iced::widget::operation::RelativeOffset;
 use cosmic::iced::window::Id;
 use cosmic::iced::{self, Limits, Subscription};
+use cosmic::surface;
+use cosmic::surface::action::LiveSettings;
 
 use cosmic::widget::{MouseArea, Space, qr_code};
 
@@ -92,7 +93,7 @@ enum PopupKind {
     QuickSettings,
 }
 
-impl<Db: DbTrait> AppState<Db> {
+impl<Db: DbTrait + 'static> AppState<Db> {
     fn focus_next(&mut self) -> Task<AppMsg> {
         if self.db.len() > 0 {
             self.focused = (self.focused + 1) % self.db.len();
@@ -184,7 +185,7 @@ impl<Db: DbTrait> AppState<Db> {
             if self.config.horizontal {
                 destroy_layer_surface(popup.id)
             } else {
-                destroy_popup(popup.id)
+                surface::surface_task(surface::action::destroy_popup(popup.id))
             }
         } else {
             Task::none()
@@ -205,11 +206,11 @@ impl<Db: DbTrait> AppState<Db> {
         // info!("will create {:?}", new_id);
 
         let popup = Popup { kind, id: new_id };
-        self.popup.replace(popup);
 
         match kind {
             PopupKind::Popup => {
                 if self.config.horizontal {
+                    self.popup.replace(popup);
                     get_layer_surface(SctkLayerSurfaceSettings {
                         id: new_id,
                         keyboard_interactivity: KeyboardInteractivity::OnDemand,
@@ -222,39 +223,48 @@ impl<Db: DbTrait> AppState<Db> {
                         ..Default::default()
                     })
                 } else {
-                    let mut popup_settings = self.core.applet.get_popup_settings(
-                        self.core.main_window_id().unwrap(),
+                    surface::surface_task(surface::action::app_popup(
+                        |_| LiveSettings::default(),
+                        move |app: &mut AppState<Db>| {
+                            let mut popup_settings = app.core.applet.get_popup_settings(
+                                app.core.main_window_id().unwrap(),
+                                new_id,
+                                None,
+                                None,
+                                None,
+                            );
+                            popup_settings.positioner.size_limits = Limits::NONE
+                                .min_width(300.0)
+                                .max_width(400.0)
+                                .min_height(200.0)
+                                .max_height(500.0);
+                            app.popup.replace(popup.clone());
+                            popup_settings
+                        },
+                        None,
+                    ))
+                }
+            }
+            PopupKind::QuickSettings => surface::surface_task(surface::action::app_popup(
+                |_| LiveSettings::default(),
+                move |app: &mut AppState<Db>| {
+                    let mut popup_settings = app.core.applet.get_popup_settings(
+                        app.core.main_window_id().unwrap(),
                         new_id,
                         None,
                         None,
                         None,
                     );
-
                     popup_settings.positioner.size_limits = Limits::NONE
-                        .min_width(300.0)
-                        .max_width(400.0)
+                        .min_width(200.0)
+                        .max_width(250.0)
                         .min_height(200.0)
-                        .max_height(500.0);
-                    get_popup(popup_settings)
-                }
-            }
-            PopupKind::QuickSettings => {
-                let mut popup_settings = self.core.applet.get_popup_settings(
-                    self.core.main_window_id().unwrap(),
-                    new_id,
-                    None,
-                    None,
-                    None,
-                );
-
-                popup_settings.positioner.size_limits = Limits::NONE
-                    .min_width(200.0)
-                    .max_width(250.0)
-                    .min_height(200.0)
-                    .max_height(550.0);
-
-                get_popup(popup_settings)
-            }
+                        .max_height(550.0);
+                    app.popup.replace(popup.clone());
+                    popup_settings
+                },
+                None,
+            )),
         }
     }
 }
