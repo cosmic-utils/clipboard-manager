@@ -28,6 +28,7 @@ pub enum AppMsg {
     ContextMenu(ContextMenuMsg),
     #[expect(dead_code)]
     LinkClicked(markdown::Uri),
+    Surface(cosmic::surface::Action),
     Nothing,
 }
 

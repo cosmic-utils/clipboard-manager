@@ -1,4 +1,4 @@
-use std::{borrow::Cow, cmp::min, sync::LazyLock};
+use std::{borrow::Cow, cmp::min, collections::HashMap, sync::LazyLock};
 
 use cosmic::{
     Apply, Element,
@@ -15,7 +15,7 @@ use cosmic::{
     widget::{
         self, Column, Id, Row,
         button::{self},
-        container, image, scrollable, space, text, text_input, toggler,
+        container, image, menu, scrollable, space, text, text_input, toggler,
     },
 };
 use itertools::Itertools;
@@ -25,7 +25,6 @@ use crate::{
     db::{Content, DbTrait, EntryTrait},
     fl, icon, icon_button,
     message::{AppMsg, ConfigMsg, ContextMenuMsg},
-    my_widget,
     utils::formatted_value,
 };
 
@@ -397,34 +396,7 @@ impl<Db: DbTrait> AppState<Db> {
             btn
         };
 
-        let overlay: Element<_> = column()
-            .push(if entry.is_favorite() {
-                button::text(fl!("remove_favorite"))
-                    .on_press(ContextMenuMsg::RemoveFavorite(entry.id()))
-            } else {
-                button::text(fl!("add_favorite")).on_press(ContextMenuMsg::AddFavorite(entry.id()))
-            })
-            .push(
-                button::text(fl!("show_qr_code")).on_press(ContextMenuMsg::ShowQrCode(entry.id())),
-            )
-            .push(
-                button::text(fl!("delete_entry"))
-                    .on_press(ContextMenuMsg::Delete(entry.id()))
-                    .class(Button::Destructive),
-            )
-            .apply(Element::from)
-            .map(AppMsg::ContextMenu);
-
-        let overlay = container(overlay)
-            .class(cosmic::theme::Container::Card)
-            .padding(padding::all(5));
-
-        my_widget::context_menu(content, overlay).into()
-    }
-}
-
-/*
-let items = vec![
+        let items = vec![
             if entry.is_favorite() {
                 menu::Item::Button(
                     fl!("remove_favorite"),
@@ -452,6 +424,15 @@ let items = vec![
 
         let tree = menu::items(&HashMap::new(), items);
 
-        context_menu(content, Some(tree)).into()
-
-*/
+        // libcosmic opens the menu as its own popup surface (which is what gets
+        // blur and the themed menu style) only when it knows its parent surface
+        // and can route surface actions back to the app. Otherwise it falls back
+        // to an in-window overlay.
+        let mut context_menu =
+            widget::context_menu(content, Some(tree)).on_surface_action(AppMsg::Surface);
+        if let Some(id) = self.popup_id() {
+            context_menu = context_menu.window_id(id);
+        }
+        context_menu.into()
+    }
+}
